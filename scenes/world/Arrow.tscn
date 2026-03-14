@@ -1,0 +1,29 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/world/Arrow.gd" id="1"]
+
+[sub_resource type="RectangleShape2D" id="arrow_shape"]
+size = Vector2(20, 4)
+
+[node name="Arrow" type="Area2D"]
+collision_layer = 0
+collision_mask = 8
+monitoring = true
+script = ExtResource("1")
+
+[node name="Shaft" type="ColorRect" parent="."]
+offset_left = -10.0
+offset_top = -2.0
+offset_right = 10.0
+offset_bottom = 2.0
+color = Color(0.55, 0.35, 0.15, 1)
+
+[node name="Tip" type="ColorRect" parent="."]
+offset_left = 8.0
+offset_top = -3.0
+offset_right = 14.0
+offset_bottom = 3.0
+color = Color(0.7, 0.7, 0.7, 1)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("arrow_shape")

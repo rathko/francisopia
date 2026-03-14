@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <rect width="128" height="128" rx="16" fill="#87CEEB"/>
+  <text x="64" y="50" text-anchor="middle" font-family="sans-serif" font-size="20" font-weight="bold" fill="#2D5016">Francis</text>
+  <text x="64" y="80" text-anchor="middle" font-family="sans-serif" font-size="24" font-weight="bold" fill="#1E3A5F">-opia</text>
+  <text x="64" y="110" text-anchor="middle" font-family="sans-serif" font-size="14" fill="#4A7C59">ABC</text>
+</svg>
