@@ -16,7 +16,11 @@ func interact() -> void:
 
 	# Give coins
 	GameManager.add_coins(_coin_reward)
-	print("Francis-opia: Found %d coins in a treasure chest!" % _coin_reward)
+
+	# Drop a needed letter!
+	_drop_letter()
+
+	print("Francis-opia: Found %d coins and a letter in a treasure chest!" % _coin_reward)
 
 	# Open animation — lid flies up, sparkle
 	var tween := create_tween()
@@ -42,3 +46,20 @@ func interact() -> void:
 	text_tween.tween_property(coin_text, "position:y", coin_text.position.y - 40, 0.8)
 	text_tween.parallel().tween_property(coin_text, "modulate:a", 0.0, 0.8)
 	text_tween.tween_callback(coin_text.queue_free)
+
+func _drop_letter() -> void:
+	## Always drops a needed letter — treasure chests are generous!
+	var letter_scene_path := "res://scenes/reading/FloatingLetter.tscn"
+	var letter_packed := load(letter_scene_path) as PackedScene
+	if not letter_packed:
+		return
+	var letter_instance := letter_packed.instantiate() as Node2D
+	get_tree().current_scene.add_child(letter_instance)
+	letter_instance.global_position = global_position + Vector2(0, -30)
+
+	var next_needed := WordEngine.get_next_needed_letter()
+	var letter_char := next_needed if next_needed != "" else "ABCDEFGHIJKLMNOPQRSTUVWXYZ"[randi() % 26]
+	var is_needed := (next_needed != "")
+
+	if letter_instance.has_method("setup"):
+		letter_instance.setup(str(letter_char), is_needed)

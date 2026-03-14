@@ -23,6 +23,8 @@ func _ready() -> void:
 func setup(letter_char: String, is_needed: bool) -> void:
 	_letter = letter_char.to_upper()
 	_is_needed = is_needed
+	# Update base position — critical! _ready() may have captured wrong position
+	_base_position = global_position
 	if label:
 		label.text = _letter
 		if is_needed:

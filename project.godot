@@ -17,6 +17,7 @@ WordEngine="*res://scripts/autoload/WordEngine.gd"
 AudioManager="*res://scripts/autoload/AudioManager.gd"
 InputHelper="*res://scripts/autoload/InputHelper.gd"
 QuestGenerator="*res://scripts/reading/QuestGenerator.gd"
+MagicSummon="*res://scripts/autoload/MagicSummon.gd"
 
 [display]
 

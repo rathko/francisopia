@@ -38,34 +38,50 @@ func _load_word_bank() -> void:
 		word_bank.append(entry)
 
 func _use_builtin_words() -> void:
-	# Fallback word bank if JSON not found
+	# Fallback word bank — every word can be magically summoned!
+	# Level 1: CVC words (3 letters, simple sounds)
+	# Level 2: Blends and 4-letter words
+	# Level 3+: Longer/complex words
 	word_bank = [
+		# Level 1 — CVC (easiest, for beginners)
 		{"word": "cat", "level": 1, "area": "meadow", "image": "cat"},
 		{"word": "dog", "level": 1, "area": "meadow", "image": "dog"},
 		{"word": "sun", "level": 1, "area": "meadow", "image": "sun"},
-		{"word": "hat", "level": 1, "area": "castle", "image": "hat"},
-		{"word": "bed", "level": 1, "area": "castle", "image": "bed"},
-		{"word": "cup", "level": 1, "area": "castle", "image": "cup"},
-		{"word": "fish", "level": 1, "area": "beach", "image": "fish"},
-		{"word": "bird", "level": 1, "area": "meadow", "image": "bird"},
-		{"word": "tree", "level": 2, "area": "forest", "image": "tree"},
+		{"word": "hat", "level": 1, "area": "meadow", "image": "hat"},
+		{"word": "bed", "level": 1, "area": "meadow", "image": "bed"},
+		{"word": "cup", "level": 1, "area": "meadow", "image": "cup"},
+		{"word": "bug", "level": 1, "area": "meadow", "image": "bug"},
+		{"word": "box", "level": 1, "area": "meadow", "image": "box"},
+		{"word": "bow", "level": 1, "area": "meadow", "image": "bow"},
+		# Level 2 — Blends and longer CVC
+		{"word": "fish", "level": 2, "area": "meadow", "image": "fish"},
+		{"word": "bird", "level": 2, "area": "meadow", "image": "bird"},
 		{"word": "frog", "level": 2, "area": "meadow", "image": "frog"},
-		{"word": "star", "level": 2, "area": "mountain", "image": "star"},
+		{"word": "star", "level": 2, "area": "meadow", "image": "star"},
+		{"word": "tree", "level": 2, "area": "meadow", "image": "tree"},
 		{"word": "jump", "level": 2, "area": "meadow", "image": "jump"},
-		{"word": "hand", "level": 2, "area": "castle", "image": "hand"},
-		{"word": "leaf", "level": 2, "area": "forest", "image": "leaf"},
+		{"word": "hand", "level": 2, "area": "meadow", "image": "hand"},
+		{"word": "leaf", "level": 2, "area": "meadow", "image": "leaf"},
+		# Level 3 — Long vowels and multi-syllable
 		{"word": "flower", "level": 3, "area": "meadow", "image": "flower"},
-		{"word": "castle", "level": 3, "area": "castle", "image": "castle"},
-		{"word": "rainbow", "level": 4, "area": "mountain", "image": "rainbow"},
+		{"word": "castle", "level": 3, "area": "meadow", "image": "castle"},
+		# Level 4 — Complex
+		{"word": "rainbow", "level": 4, "area": "meadow", "image": "rainbow"},
 	]
 
 func select_word_for_area(area: String) -> String:
+	# Prefer words for this area, but fall back to any word at current difficulty
 	var candidates := word_bank.filter(func(w: Dictionary) -> bool:
 		return w.get("level", 1) <= current_difficulty and w.get("area", "") == area.to_lower()
 	)
 	if candidates.is_empty():
 		candidates = word_bank.filter(func(w: Dictionary) -> bool:
 			return w.get("level", 1) <= current_difficulty
+		)
+	if candidates.is_empty():
+		# If nothing at current difficulty, just use level 1
+		candidates = word_bank.filter(func(w: Dictionary) -> bool:
+			return w.get("level", 1) <= 1
 		)
 	if candidates.is_empty():
 		return "cat"  # Ultimate fallback

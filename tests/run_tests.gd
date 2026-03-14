@@ -18,6 +18,21 @@ func _init() -> void:
 
 	word_tests.run_all_tests()
 
+	# Run quest generator tests
+	var quest_tests := load("res://tests/test_quest_generator.gd").new()
+	root.add_child(quest_tests)
+	quest_tests.run_all_tests()
+
+	# Run game manager tests
+	var gm_tests := load("res://tests/test_game_manager.gd").new()
+	root.add_child(gm_tests)
+	gm_tests.run_all_tests()
+
+	# Run magic summon tests
+	var magic_tests := load("res://tests/test_magic_summon.gd").new()
+	root.add_child(magic_tests)
+	magic_tests.run_all_tests()
+
 	print("")
 	print("========================================")
 	print("  All tests complete!")

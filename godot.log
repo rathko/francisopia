@@ -5,7 +5,6 @@ ERROR: X11 Display is not available
    at: DisplayServerX11 (platform/linuxbsd/x11/display_server_x11.cpp:6855)
 WARNING: Display driver x11 failed, falling back to wayland.
      at: setup2 (main/main.cpp:3244)
-error: XDG_RUNTIME_DIR is invalid or not set in the environment.
 ERROR: Can't connect to a Wayland display.
    at: init (platform/linuxbsd/wayland/wayland_thread.cpp:4827)
 ERROR: Could not initialize the Wayland thread.

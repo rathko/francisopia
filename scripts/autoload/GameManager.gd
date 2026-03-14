@@ -16,6 +16,7 @@ var words_completed: Array[String] = []
 var quests_completed: Array[String] = []
 var current_area := "Meadow"
 var items_owned: Array[String] = []
+var words_summoned: Array[String] = []  # Words that have been magically summoned
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -59,6 +60,7 @@ func save_game() -> void:
 		"quests_completed": quests_completed,
 		"current_area": current_area,
 		"items_owned": items_owned,
+		"words_summoned": words_summoned,
 	}
 	var file := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if file:
@@ -86,6 +88,7 @@ func load_game() -> bool:
 	quests_completed.assign(data.get("quests_completed", []))
 	current_area = data.get("current_area", current_area)
 	items_owned.assign(data.get("items_owned", []))
+	words_summoned.assign(data.get("words_summoned", []))
 	return true
 
 func get_total_words_completed() -> int:

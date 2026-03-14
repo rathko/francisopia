@@ -1,0 +1,15 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/world/Pet.gd" id="1"]
+
+[sub_resource type="RectangleShape2D" id="pet_shape"]
+size = Vector2(20, 14)
+
+[node name="Pet" type="CharacterBody2D"]
+collision_layer = 0
+collision_mask = 1
+script = ExtResource("1")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+position = Vector2(0, -5)
+shape = SubResource("pet_shape")

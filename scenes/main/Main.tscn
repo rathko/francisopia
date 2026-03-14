@@ -1,4 +1,4 @@
-[gd_scene load_steps=5 format=3]
+[gd_scene load_steps=6 format=3]
 
 [ext_resource type="Script" path="res://scripts/main/MainScene.gd" id="1"]
 [ext_resource type="PackedScene" path="res://scenes/player/Player.tscn" id="2"]
@@ -6,6 +6,7 @@
 [ext_resource type="PackedScene" path="res://scenes/reading/FloatingLetter.tscn" id="4"]
 [ext_resource type="PackedScene" path="res://scenes/ui/HUD.tscn" id="5"]
 [ext_resource type="PackedScene" path="res://scenes/ui/QuestScroll.tscn" id="6"]
+[ext_resource type="PackedScene" path="res://scenes/ui/PauseMenu.tscn" id="7"]
 
 [node name="Main" type="Node2D"]
 script = ExtResource("1")
@@ -25,3 +26,5 @@ letter_scene = ExtResource("4")
 [node name="HUD" parent="." instance=ExtResource("5")]
 
 [node name="QuestScroll" parent="." instance=ExtResource("6")]
+
+[node name="PauseMenu" parent="." instance=ExtResource("7")]

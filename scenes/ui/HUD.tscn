@@ -13,17 +13,17 @@ offset_right = 1260.0
 offset_bottom = 70.0
 
 [node name="HintLabel" type="Label" parent="."]
-offset_left = 540.0
-offset_top = 15.0
-offset_right = 740.0
-offset_bottom = 55.0
+offset_left = 340.0
+offset_top = 12.0
+offset_right = 940.0
+offset_bottom = 58.0
 horizontal_alignment = 1
 
 [node name="WordDisplay" type="HBoxContainer" parent="."]
-offset_left = 440.0
+offset_left = 340.0
 offset_top = 60.0
-offset_right = 840.0
-offset_bottom = 130.0
+offset_right = 940.0
+offset_bottom = 140.0
 alignment = 1
 
 [node name="CoinIcon" type="Label" parent="."]
