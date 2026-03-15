@@ -324,12 +324,49 @@ func _handle_interactions() -> void:
 	if _is_interact_just_pressed() and interact_area:
 		var bodies := interact_area.get_overlapping_bodies()
 		var areas := interact_area.get_overlapping_areas()
-		for body in bodies:
-			if body.has_method("interact"):
-				body.interact()
+
+		# Find the single closest letter in range
+		var closest_letter_node: Node2D = null
+		var closest_dist := INF
 		for area in areas:
-			if area.has_method("interact"):
-				area.interact()
+			if area.has_method("get_letter"):
+				var dist := global_position.distance_to(area.global_position)
+				if dist < closest_dist:
+					closest_dist = dist
+					closest_letter_node = area
+		if closest_letter_node == null:
+			for body in bodies:
+				if body.has_method("get_letter"):
+					var dist := global_position.distance_to(body.global_position)
+					if dist < closest_dist:
+						closest_dist = dist
+						closest_letter_node = body
+
+		# Pick up ONLY the closest letter — nothing else
+		if closest_letter_node:
+			var letter: String = closest_letter_node.get_letter()
+			_try_pick_letter.call_deferred(closest_letter_node, letter)
+		else:
+			# No letter nearby — try other interactables (chests, etc.)
+			for body in bodies:
+				if body.has_method("interact"):
+					body.interact()
+			for area in areas:
+				if area.has_method("interact"):
+					area.interact()
+
+func _try_pick_letter(letter_node: Node2D, letter: String) -> void:
+	if not is_instance_valid(letter_node):
+		return
+	if WordEngine.try_collect_letter(letter):
+		letter_node.collect()
+	else:
+		# Wrong letter! Lose the last collected letter as penalty
+		letter_node.reject()
+		if WordEngine.collected_letters.size() > 0:
+			WordEngine.collected_letters.pop_back()
+			WordEngine.letter_lost.emit()
+			print("Francis-opia: Oops! Wrong letter — lost one!")
 
 func _check_respawn() -> void:
 	if global_position.y > respawn_y:
@@ -352,22 +389,8 @@ func _update_animation() -> void:
 		if body_rect:
 			body_rect.rotation = 0.0
 
-func _on_letter_contact(body: Node2D) -> void:
-	if body.has_method("get_letter"):
-		var letter: String = body.get_letter()
-		# Defer to avoid "Can't change state while flushing queries" error
-		_handle_letter_contact.call_deferred(body, letter)
+func _on_letter_contact(_body: Node2D) -> void:
+	pass  # Letters are now picked up via interact, not auto-collect
 
-func _on_letter_area_contact(area: Area2D) -> void:
-	if area.has_method("get_letter"):
-		var letter: String = area.get_letter()
-		# Defer to avoid "Can't change state while flushing queries" error
-		_handle_letter_contact.call_deferred(area, letter)
-
-func _handle_letter_contact(area: Area2D, letter: String) -> void:
-	if not is_instance_valid(area):
-		return
-	if WordEngine.try_collect_letter(letter):
-		area.collect()
-	else:
-		area.reject()
+func _on_letter_area_contact(_area: Area2D) -> void:
+	pass  # Letters are now picked up via interact, not auto-collect

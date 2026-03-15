@@ -44,7 +44,7 @@ shape = SubResource("letter_detect_shape")
 
 [node name="InteractArea" type="Area2D" parent="."]
 collision_layer = 0
-collision_mask = 4
+collision_mask = 6
 
 [node name="InteractShape" type="CollisionShape2D" parent="InteractArea"]
 shape = SubResource("interact_shape")

@@ -179,26 +179,28 @@ func _show_summon_label(parent: Node, pos: Vector2, entry: Dictionary) -> void:
 
 # --- PETS ---
 
-func _summon_cat(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
+func _summon_cat(scene_root: Node, player: Node2D, _pos: Vector2) -> Node:
 	if not _pet_scene:
 		return null
 	var pet := _pet_scene.instantiate() as CharacterBody2D
-	pet.global_position = pos
+	# Spawn beside the player, not on their head
+	pet.global_position = player.global_position + Vector2(-60, 0)
 	scene_root.add_child(pet)
 	if pet.has_method("setup"):
 		pet.setup(player, 1)  # CAT type
-	print("Francis-opia: ✨ A magical cat appeared!")
+	print("Francis-opia: A magical cat appeared!")
 	return pet
 
-func _summon_dog(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
+func _summon_dog(scene_root: Node, player: Node2D, _pos: Vector2) -> Node:
 	if not _pet_scene:
 		return null
 	var pet := _pet_scene.instantiate() as CharacterBody2D
-	pet.global_position = pos
+	# Spawn beside the player, not on their head
+	pet.global_position = player.global_position + Vector2(60, 0)
 	scene_root.add_child(pet)
 	if pet.has_method("setup"):
 		pet.setup(player, 0)  # DOG type
-	print("Francis-opia: ✨ A magical dog appeared!")
+	print("Francis-opia: A magical dog appeared!")
 	return pet
 
 func _summon_frog(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
@@ -449,31 +451,66 @@ func _process(delta):
 # --- WORLD EFFECTS ---
 
 func _summon_sun(scene_root: Node, _player: Node2D, _pos: Vector2) -> Node:
-	# Brighten the sky — find all sky ColorRects and lighten them
-	var sun := Node2D.new()
-	sun.name = "MagicSun"
-	sun.z_index = -8
+	# Sun lives on its own CanvasLayer so it stays fixed on screen
+	var sun_layer := CanvasLayer.new()
+	sun_layer.name = "MagicSunLayer"
+	sun_layer.layer = -1  # Behind HUD, above world
 
-	# Big golden sun in the sky
+	var root_ctrl := Control.new()
+	root_ctrl.set_anchors_preset(Control.PRESET_FULL_RECT)
+	root_ctrl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	sun_layer.add_child(root_ctrl)
+
+	# Bright yellow circle — top-right corner
+	var sun_center_x := 1150.0  # Near right edge (1280 viewport)
+	var sun_center_y := 80.0
+
+	# Outer glow
+	var glow := ColorRect.new()
+	glow.position = Vector2(sun_center_x - 60, sun_center_y - 60)
+	glow.size = Vector2(120, 120)
+	glow.color = Color(1.0, 0.95, 0.4, 0.2)
+	glow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root_ctrl.add_child(glow)
+
+	# Sun body
 	var sun_body := ColorRect.new()
-	sun_body.position = Vector2(500, 50)
+	sun_body.position = Vector2(sun_center_x - 40, sun_center_y - 40)
 	sun_body.size = Vector2(80, 80)
-	sun_body.color = Color(1.0, 0.9, 0.3, 0.9)
-	sun.add_child(sun_body)
+	sun_body.color = Color(1.0, 0.9, 0.2, 0.95)
+	sun_body.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root_ctrl.add_child(sun_body)
 
-	# Rays
+	# Bright core
+	var core := ColorRect.new()
+	core.position = Vector2(sun_center_x - 25, sun_center_y - 25)
+	core.size = Vector2(50, 50)
+	core.color = Color(1.0, 1.0, 0.6, 1.0)
+	core.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root_ctrl.add_child(core)
+
+	# Rays around the sun
 	for i in 8:
 		var ray := ColorRect.new()
 		var angle := TAU * float(i) / 8.0
-		ray.position = Vector2(540 + cos(angle) * 55, 90 + sin(angle) * 55)
+		var ray_x := sun_center_x + cos(angle) * 55 - 6
+		var ray_y := sun_center_y + sin(angle) * 55 - 2
+		ray.position = Vector2(ray_x, ray_y)
 		ray.size = Vector2(12, 4)
 		ray.rotation = angle
-		ray.color = Color(1.0, 0.95, 0.4, 0.6)
-		sun.add_child(ray)
+		ray.color = Color(1.0, 0.95, 0.4, 0.7)
+		ray.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		root_ctrl.add_child(ray)
 
-	scene_root.add_child(sun)
-	print("Francis-opia: ✨ The sun shines brighter! Everything feels warm!")
-	return sun
+	scene_root.add_child(sun_layer)
+
+	# Fade in
+	root_ctrl.modulate.a = 0.0
+	var tween := root_ctrl.create_tween()
+	tween.tween_property(root_ctrl, "modulate:a", 1.0, 0.8)
+
+	print("Francis-opia: The sun shines brightly!")
+	return sun_layer
 
 func _summon_tree(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
 	var tree := Node2D.new()

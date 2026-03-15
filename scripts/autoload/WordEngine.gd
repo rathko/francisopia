@@ -6,6 +6,7 @@ signal target_word_changed(word: String, hint_image: String)
 signal letter_collected(letter: String, position: int)
 signal word_spelled_correctly(word: String)
 signal wrong_letter_rejected(letter: String)
+signal letter_lost()  # Emitted when a collected letter is lost (wrong pick penalty)
 
 const WORDS_PATH := "res://data/words.json"
 

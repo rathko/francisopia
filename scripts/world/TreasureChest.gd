@@ -1,6 +1,7 @@
 extends StaticBody2D
-## A treasure chest found underground. Press interact to open!
-## Gives 3-5 coins and shows a sparkle animation.
+## A treasure chest found underground or on the surface.
+## Press interact to open! Gives coins and drops several letters to choose from.
+## The right letter for the current word is always included, plus distractors.
 
 var _opened := false
 var _coin_reward := 3
@@ -17,10 +18,10 @@ func interact() -> void:
 	# Give coins
 	GameManager.add_coins(_coin_reward)
 
-	# Drop a needed letter!
-	_drop_letter()
+	# Drop letters — needed + distractors for the player to choose
+	_drop_letters()
 
-	print("Francis-opia: Found %d coins and a letter in a treasure chest!" % _coin_reward)
+	print("Francis-opia: Found %d coins and some letters!" % _coin_reward)
 
 	# Open animation — lid flies up, sparkle
 	var tween := create_tween()
@@ -32,7 +33,7 @@ func interact() -> void:
 	# Color change to show it's opened
 	var body_rect := get_node_or_null("ChestBody")
 	if body_rect:
-		body_rect.color = Color(0.5, 0.35, 0.2, 0.5)  # Faded
+		body_rect.color = Color(0.5, 0.35, 0.2, 0.5)
 
 	# Coin burst text
 	var coin_text := Label.new()
@@ -47,19 +48,44 @@ func interact() -> void:
 	text_tween.parallel().tween_property(coin_text, "modulate:a", 0.0, 0.8)
 	text_tween.tween_callback(coin_text.queue_free)
 
-func _drop_letter() -> void:
-	## Always drops a needed letter — treasure chests are generous!
+func _drop_letters() -> void:
 	var letter_scene_path := "res://scenes/reading/FloatingLetter.tscn"
 	var letter_packed := load(letter_scene_path) as PackedScene
 	if not letter_packed:
 		return
-	var letter_instance := letter_packed.instantiate() as Node2D
-	get_tree().current_scene.add_child(letter_instance)
-	letter_instance.global_position = global_position + Vector2(0, -30)
 
 	var next_needed := WordEngine.get_next_needed_letter()
-	var letter_char := next_needed if next_needed != "" else "ABCDEFGHIJKLMNOPQRSTUVWXYZ"[randi() % 26]
-	var is_needed := (next_needed != "")
+	var alphabet := "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
-	if letter_instance.has_method("setup"):
-		letter_instance.setup(str(letter_char), is_needed)
+	# Always include the needed letter
+	var letters_to_drop: Array[Dictionary] = []
+	if next_needed != "":
+		letters_to_drop.append({"char": next_needed, "needed": true})
+
+	# Add 2-3 distractors (random letters NOT matching the needed one)
+	var distractor_count := randi_range(2, 3)
+	for i in distractor_count:
+		var d := alphabet[randi() % alphabet.length()]
+		var attempts := 0
+		while d == next_needed and attempts < 10:
+			d = alphabet[randi() % alphabet.length()]
+			attempts += 1
+		letters_to_drop.append({"char": d, "needed": false})
+
+	# Shuffle so the needed letter isn't always first
+	letters_to_drop.shuffle()
+
+	# Spawn letters in a fan pattern above the chest
+	var spread := 50.0
+	var total := letters_to_drop.size()
+	for i in total:
+		var entry: Dictionary = letters_to_drop[i]
+		var letter_instance := letter_packed.instantiate() as Node2D
+		# Fan out horizontally above the chest
+		var offset_x := (float(i) - float(total - 1) / 2.0) * spread
+		var spawn_pos := global_position + Vector2(offset_x, -40)
+		get_tree().current_scene.add_child(letter_instance)
+		letter_instance.global_position = spawn_pos
+
+		if letter_instance.has_method("setup"):
+			letter_instance.setup(str(entry["char"]), entry["needed"])

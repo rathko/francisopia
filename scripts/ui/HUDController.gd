@@ -1,7 +1,7 @@
 extends CanvasLayer
 ## HUD — all nodes created in code. Uses a root Control for proper rendering.
 
-var _hint_label: Label = null
+var _hint_label: RichTextLabel = null
 var _word_box: HBoxContainer = null
 var _coin_label: Label = null
 var _letter_labels: Array[Label] = []
@@ -24,15 +24,19 @@ func _ready() -> void:
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root_ctrl.add_child(bg)
 
-	# "Spell: DOG" label
-	_hint_label = Label.new()
+	# "Spell: DOG" rich text — word gets a distinct color
+	_hint_label = RichTextLabel.new()
+	_hint_label.bbcode_enabled = true
 	_hint_label.text = ""
-	_hint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_hint_label.fit_content = true
+	_hint_label.scroll_active = false
 	_hint_label.set_anchors_preset(Control.PRESET_TOP_WIDE)
 	_hint_label.offset_top = 15.0
 	_hint_label.offset_bottom = 80.0
-	_hint_label.add_theme_font_size_override("font_size", 52)
-	_hint_label.add_theme_color_override("font_color", Color(1.0, 0.95, 0.3))
+	_hint_label.add_theme_font_size_override("normal_font_size", 52)
+	_hint_label.add_theme_font_size_override("bold_font_size", 52)
+	_hint_label.add_theme_color_override("default_color", Color(1.0, 1.0, 1.0, 0.9))
+	_hint_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root_ctrl.add_child(_hint_label)
 
 	# Letter slots container
@@ -55,6 +59,7 @@ func _ready() -> void:
 	WordEngine.target_word_changed.connect(_on_target_word_changed)
 	WordEngine.letter_collected.connect(_on_letter_collected)
 	WordEngine.word_spelled_correctly.connect(_on_word_complete)
+	WordEngine.letter_lost.connect(_on_letter_lost)
 	GameManager.coins_changed.connect(_on_coins_changed)
 
 	# Catch up if word already selected
@@ -69,23 +74,24 @@ func _catch_up() -> void:
 func _on_target_word_changed(word: String, hint_image: String) -> void:
 	_clear_word_display()
 
-	# Set the main label
-	var display_text := "Spell: " + word
-	if _magic_summon:
-		var hint: String = _magic_summon.get_hint_label_for_word(word)
-		if hint != "":
-			display_text += "  —  " + hint
-	elif hint_image != "":
-		display_text += "  —  " + hint_image.capitalize()
-	_hint_label.text = display_text
-
-	# Color by summon type
-	var color := Color(1.0, 0.95, 0.3)
+	# Word color — bright and distinct from the rest of the text
+	var word_color := Color(0.3, 1.0, 0.5)  # Bright green by default
 	if _magic_summon:
 		var c: Color = _magic_summon.get_hint_color_for_word(word)
 		if c != Color.WHITE:
-			color = c
-	_hint_label.add_theme_color_override("font_color", color)
+			word_color = c
+	var word_hex := word_color.to_html(false)
+
+	# Build BBCode: "Spell:" in white, WORD in bright color, hint in softer tone
+	var bbcode := "[center]Spell: [color=#%s][b]%s[/b][/color]" % [word_hex, word]
+	if _magic_summon:
+		var hint: String = _magic_summon.get_hint_label_for_word(word)
+		if hint != "":
+			bbcode += "  —  [color=#ccccaa]%s[/color]" % hint
+	elif hint_image != "":
+		bbcode += "  —  [color=#ccccaa]%s[/color]" % hint_image.capitalize()
+	bbcode += "[/center]"
+	_hint_label.text = bbcode
 
 	# Create letter slots
 	for i in word.length():
@@ -105,6 +111,21 @@ func _on_letter_collected(letter: String, position: int) -> void:
 		var tween := create_tween()
 		tween.tween_property(_letter_labels[position], "scale", Vector2(1.4, 1.4), 0.1)
 		tween.tween_property(_letter_labels[position], "scale", Vector2(1.0, 1.0), 0.1)
+
+func _on_letter_lost() -> void:
+	# A letter was lost — revert last filled slot to underscore with red flash
+	var lost_index := WordEngine.collected_letters.size()  # Already popped, so this is the slot
+	if lost_index < _letter_labels.size():
+		_letter_labels[lost_index].text = "_"
+		_letter_labels[lost_index].add_theme_color_override("font_color", Color(1.0, 0.3, 0.3))
+		var tween := create_tween()
+		tween.tween_property(_letter_labels[lost_index], "scale", Vector2(1.5, 1.5), 0.1)
+		tween.tween_property(_letter_labels[lost_index], "scale", Vector2(1.0, 1.0), 0.1)
+		# Fade back to white
+		tween.tween_callback(func() -> void:
+			if lost_index < _letter_labels.size():
+				_letter_labels[lost_index].add_theme_color_override("font_color", Color(1.0, 1.0, 1.0, 0.8))
+		)
 
 func _on_word_complete(_word: String) -> void:
 	for label in _letter_labels:

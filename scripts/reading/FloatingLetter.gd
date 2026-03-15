@@ -28,22 +28,31 @@ func setup(letter_char: String, is_needed: bool) -> void:
 	if label:
 		label.text = _letter
 		if is_needed:
-			# BIG glowing golden letter — easy to spot!
-			label.add_theme_font_size_override("font_size", 64)
-			label.modulate = Color(1.0, 0.95, 0.3, 1.0)  # Bright gold
+			# BIG bright GREEN letter — unmistakable for a 5-year-old!
+			label.add_theme_font_size_override("font_size", 72)
+			label.modulate = Color(0.2, 1.0, 0.3, 1.0)  # Bright green = correct!
+			label.add_theme_color_override("font_outline_color", Color(0.0, 0.4, 0.1))
+			label.add_theme_constant_override("outline_size", 4)
 		else:
-			# Smaller, faded distractor
+			# Smaller, gray, obviously not the right one
 			label.add_theme_font_size_override("font_size", 36)
-			label.modulate = Color(0.6, 0.6, 0.7, 0.5)
+			label.modulate = Color(0.5, 0.5, 0.55, 0.45)
 
-	# Update background glow for needed letters
+	# Glow background — bright for needed, dim for distractors
 	var bg := get_node_or_null("Background")
-	if bg and is_needed:
-		bg.color = Color(1.0, 0.9, 0.3, 0.4)  # Golden glow
-		bg.offset_left = -28
-		bg.offset_top = -28
-		bg.offset_right = 28
-		bg.offset_bottom = 28
+	if bg:
+		if is_needed:
+			bg.color = Color(0.2, 1.0, 0.3, 0.35)  # Green glow
+			bg.offset_left = -32
+			bg.offset_top = -32
+			bg.offset_right = 32
+			bg.offset_bottom = 32
+		else:
+			bg.color = Color(0.4, 0.4, 0.5, 0.15)
+			bg.offset_left = -16
+			bg.offset_top = -16
+			bg.offset_right = 16
+			bg.offset_bottom = 16
 
 func _process(delta: float) -> void:
 	if _collected:
@@ -55,10 +64,13 @@ func _process(delta: float) -> void:
 	global_position.y = _base_position.y + offset
 	global_position.x = _base_position.x + sin(_time * 0.3 + _phase_offset) * 10.0
 
-	# Needed letters PULSE to attract attention
+	# Needed letters PULSE big and bright to attract attention
 	if _is_needed and label:
-		var pulse := 0.8 + sin(_time * 3.0) * 0.2  # Pulse between 0.6 and 1.0 scale
+		var pulse := 0.9 + sin(_time * 2.5) * 0.3  # Pulse between 0.6 and 1.2 scale
 		label.scale = Vector2(pulse, pulse)
+		# Slight color shimmer between green and gold
+		var shimmer := (sin(_time * 4.0) + 1.0) * 0.5  # 0.0 to 1.0
+		label.modulate = Color(0.2 + shimmer * 0.8, 1.0, 0.3, 1.0)
 
 func get_letter() -> String:
 	return _letter
