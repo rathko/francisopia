@@ -11,7 +11,7 @@ enum PetType { DOG, CAT }
 @export var follow_distance := 50.0  # Stay this far from owner
 @export var gravity_val := 980.0
 
-var owner: CharacterBody2D = null
+var pet_owner: CharacterBody2D = null
 var _idle_timer := 0.0
 var _wag_time := 0.0
 
@@ -21,7 +21,7 @@ func _ready() -> void:
 	collision_mask = 1  # Only collide with ground/blocks
 
 func setup(p_owner: CharacterBody2D, p_type: PetType) -> void:
-	owner = p_owner
+	pet_owner = p_owner
 	pet_type = p_type
 	_build_visuals()
 
@@ -183,7 +183,7 @@ func _build_cat() -> void:
 			add_child(whisker)
 
 func _physics_process(delta: float) -> void:
-	if not owner or not is_instance_valid(owner):
+	if not pet_owner or not is_instance_valid(pet_owner):
 		return
 
 	# Gravity
@@ -193,16 +193,16 @@ func _physics_process(delta: float) -> void:
 	else:
 		velocity.y = 0
 
-	var dist := global_position.distance_to(owner.global_position)
+	var dist := global_position.distance_to(pet_owner.global_position)
 
 	# Teleport if too far
 	if dist > teleport_distance:
-		global_position = owner.global_position + Vector2(30, 0)
+		global_position = pet_owner.global_position + Vector2(30, 0)
 		velocity = Vector2.ZERO
 		return
 
-	# Follow owner
-	var dir_to_owner := global_position.direction_to(owner.global_position)
+	# Follow pet_owner
+	var dir_to_owner := global_position.direction_to(pet_owner.global_position)
 
 	if dist > follow_distance:
 		velocity.x = dir_to_owner.x * follow_speed
@@ -212,8 +212,8 @@ func _physics_process(delta: float) -> void:
 		velocity.x = move_toward(velocity.x, 0, follow_speed * 0.3)
 		_idle_timer += delta
 
-	# Jump if owner is above and we're on the floor
-	if is_on_floor() and owner.global_position.y < global_position.y - 40:
+	# Jump if pet_owner is above and we're on the floor
+	if is_on_floor() and pet_owner.global_position.y < global_position.y - 40:
 		velocity.y = jump_velocity
 
 	# Flip to face direction of movement

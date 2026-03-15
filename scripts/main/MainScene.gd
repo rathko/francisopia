@@ -123,7 +123,7 @@ func _spawn_pets() -> void:
 func _reassign_cat_owner() -> void:
 	if pet2 and is_instance_valid(pet2):
 		var cat_owner: CharacterBody2D = player2 if player2 and is_instance_valid(player2) else player
-		pet2.owner = cat_owner
+		pet2.pet_owner = cat_owner
 
 # === PLAYER 2 ===
 

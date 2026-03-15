@@ -16,6 +16,11 @@ var collected_letters: Array[String] = []
 var current_difficulty := 1
 var _word_attempts: Dictionary = {}  # word -> {correct: int, hints_used: int, time_ms: int}
 
+# Fixed starter sequence — these words always come first in order
+var _starter_sequence: Array[String] = ["dog", "sun", "tree", "rainbow"]
+var _starter_index := 0
+var _starter_complete := false
+
 func _ready() -> void:
 	_load_word_bank()
 
@@ -70,7 +75,25 @@ func _use_builtin_words() -> void:
 	]
 
 func select_word_for_area(area: String) -> String:
-	# Prefer words for this area, but fall back to any word at current difficulty
+	# Fixed starter sequence: DOG > SUN > TREE > RAINBOW
+	if not _starter_complete and _starter_index < _starter_sequence.size():
+		var starter_word: String = _starter_sequence[_starter_index]
+		_starter_index += 1
+		if _starter_index >= _starter_sequence.size():
+			_starter_complete = true
+		# Find matching entry in word bank for hint image
+		var hint := starter_word
+		for entry in word_bank:
+			if entry.get("word", "") == starter_word:
+				hint = entry.get("image", starter_word)
+				break
+		current_target_word = starter_word.to_upper()
+		current_hint_image = hint
+		collected_letters.clear()
+		target_word_changed.emit(current_target_word, current_hint_image)
+		return current_target_word
+
+	# After starter sequence, use random selection by area and difficulty
 	var candidates := word_bank.filter(func(w: Dictionary) -> bool:
 		return w.get("level", 1) <= current_difficulty and w.get("area", "") == area.to_lower()
 	)
@@ -79,12 +102,11 @@ func select_word_for_area(area: String) -> String:
 			return w.get("level", 1) <= current_difficulty
 		)
 	if candidates.is_empty():
-		# If nothing at current difficulty, just use level 1
 		candidates = word_bank.filter(func(w: Dictionary) -> bool:
 			return w.get("level", 1) <= 1
 		)
 	if candidates.is_empty():
-		return "cat"  # Ultimate fallback
+		return "cat"
 	var entry: Dictionary = candidates[randi() % candidates.size()]
 	current_target_word = entry.get("word", "cat").to_upper()
 	current_hint_image = entry.get("image", "")

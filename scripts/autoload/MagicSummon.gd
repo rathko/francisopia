@@ -120,7 +120,7 @@ func _play_summon_animation(word: String, entry: Dictionary) -> void:
 	await get_tree().create_timer(0.3).timeout
 	var builder_name: String = entry.get("builder", "")
 	if builder_name != "" and has_method(builder_name):
-		var summoned := call(builder_name, scene_root, player, summon_pos)
+		var summoned: Variant = call(builder_name, scene_root, player, summon_pos)
 		if summoned is Node:
 			_summoned_entities.append(summoned)
 			summon_completed.emit(word, summoned)

@@ -1,137 +1,124 @@
 extends CanvasLayer
-## Heads-up display showing target word, collected letters, and coin count.
-## Shows the word to spell prominently at the top center.
-## All text uses 32pt+ for age-5 readability.
+## HUD — all nodes created in code. Uses a root Control for proper rendering.
 
-@onready var word_display: HBoxContainer = $WordDisplay
-@onready var coin_label: Label = $CoinLabel
-@onready var hint_label: Label = $HintLabel
-
+var _hint_label: Label = null
+var _word_box: HBoxContainer = null
+var _coin_label: Label = null
 var _letter_labels: Array[Label] = []
-var _hint_icon: ColorRect = null
-var _word_bg: ColorRect = null
 var _magic_summon: Node = null
 
 func _ready() -> void:
-	# Cache MagicSummon reference safely — it may not exist yet during early init
 	_magic_summon = get_node_or_null("/root/MagicSummon")
+
+	# Root control fills the viewport — required for CanvasLayer children to render
+	var root_ctrl := Control.new()
+	root_ctrl.set_anchors_preset(Control.PRESET_FULL_RECT)
+	root_ctrl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(root_ctrl)
+
+	# Dark background panel across top
+	var bg := ColorRect.new()
+	bg.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	bg.offset_bottom = 170.0
+	bg.color = Color(0.0, 0.0, 0.1, 0.75)
+	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root_ctrl.add_child(bg)
+
+	# "Spell: DOG" label
+	_hint_label = Label.new()
+	_hint_label.text = ""
+	_hint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_hint_label.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	_hint_label.offset_top = 15.0
+	_hint_label.offset_bottom = 80.0
+	_hint_label.add_theme_font_size_override("font_size", 52)
+	_hint_label.add_theme_color_override("font_color", Color(1.0, 0.95, 0.3))
+	root_ctrl.add_child(_hint_label)
+
+	# Letter slots container
+	_word_box = HBoxContainer.new()
+	_word_box.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	_word_box.offset_top = 85.0
+	_word_box.offset_bottom = 165.0
+	_word_box.alignment = BoxContainer.ALIGNMENT_CENTER
+	root_ctrl.add_child(_word_box)
+
+	# Coin display
+	_coin_label = Label.new()
+	_coin_label.text = "Coins: 0"
+	_coin_label.position = Vector2(20, 180)
+	_coin_label.add_theme_font_size_override("font_size", 36)
+	_coin_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
+	root_ctrl.add_child(_coin_label)
+
+	# Connect signals
 	WordEngine.target_word_changed.connect(_on_target_word_changed)
 	WordEngine.letter_collected.connect(_on_letter_collected)
 	WordEngine.word_spelled_correctly.connect(_on_word_complete)
 	GameManager.coins_changed.connect(_on_coins_changed)
-	_update_coins(0)
 
-	# Add a dark background behind word display for visibility
-	if word_display:
-		_word_bg = ColorRect.new()
-		_word_bg.name = "WordBg"
-		_word_bg.color = Color(0.05, 0.05, 0.15, 0.6)
-		_word_bg.position = Vector2(word_display.offset_left - 10, word_display.offset_top - 5)
-		_word_bg.size = Vector2(word_display.offset_right - word_display.offset_left + 20, word_display.offset_bottom - word_display.offset_top + 10)
-		_word_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		add_child(_word_bg)
-		move_child(_word_bg, word_display.get_index())
+	# Catch up if word already selected
+	_catch_up.call_deferred()
+
+func _catch_up() -> void:
+	if _magic_summon == null:
+		_magic_summon = get_node_or_null("/root/MagicSummon")
+	if WordEngine.current_target_word != "":
+		_on_target_word_changed(WordEngine.current_target_word, WordEngine.current_hint_image)
 
 func _on_target_word_changed(word: String, hint_image: String) -> void:
 	_clear_word_display()
 
-	# Show hint — "Spell: CAT" at top center
-	if hint_label:
-		var type_emoji := ""
-		if _magic_summon:
-			var summon_type := _magic_summon.get_summon_type_for_word(word)
-			match summon_type:
-				"pet": type_emoji = "~ "
-				"world": type_emoji = "* "
-				"item": type_emoji = "+ "
-				"cosmetic": type_emoji = "^ "
-		var hint_text := hint_image.capitalize() if hint_image else ""
-		hint_label.text = "Spell: " + word + "  " + type_emoji + hint_text
-		hint_label.add_theme_font_size_override("font_size", 40)
+	# Set the main label
+	var display_text := "Spell: " + word
+	if _magic_summon:
+		var hint: String = _magic_summon.get_hint_label_for_word(word)
+		if hint != "":
+			display_text += "  —  " + hint
+	elif hint_image != "":
+		display_text += "  —  " + hint_image.capitalize()
+	_hint_label.text = display_text
 
-		# Color the hint
-		var hint_color := Color(1.0, 0.95, 0.7)  # Default warm white
-		if _magic_summon:
-			var summon_color := _magic_summon.get_hint_color_for_word(word)
-			if summon_color != Color.WHITE:
-				hint_color = summon_color
-		hint_label.add_theme_color_override("font_color", hint_color)
-
-	# Show colored summon hint icon
-	_update_hint_icon(word)
+	# Color by summon type
+	var color := Color(1.0, 0.95, 0.3)
+	if _magic_summon:
+		var c: Color = _magic_summon.get_hint_color_for_word(word)
+		if c != Color.WHITE:
+			color = c
+	_hint_label.add_theme_color_override("font_color", color)
 
 	# Create letter slots
 	for i in word.length():
 		var slot := Label.new()
 		slot.text = "_"
-		slot.add_theme_font_size_override("font_size", 48)
-		slot.add_theme_color_override("font_color", Color(1.0, 0.95, 0.8))
-		slot.custom_minimum_size = Vector2(50, 60)
+		slot.add_theme_font_size_override("font_size", 64)
+		slot.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0, 0.8))
+		slot.custom_minimum_size = Vector2(60, 80)
 		slot.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		if word_display:
-			word_display.add_child(slot)
+		_word_box.add_child(slot)
 		_letter_labels.append(slot)
-
-func _update_hint_icon(word: String) -> void:
-	if _hint_icon:
-		_hint_icon.queue_free()
-		_hint_icon = null
-
-	if not _magic_summon:
-		return
-
-	var color := _magic_summon.get_hint_color_for_word(word)
-	if color == Color.WHITE:
-		return
-
-	_hint_icon = ColorRect.new()
-	_hint_icon.custom_minimum_size = Vector2(32, 32)
-	_hint_icon.color = color
-	_hint_icon.tooltip_text = _magic_summon.get_hint_label_for_word(word)
-
-	if word_display:
-		word_display.add_child(_hint_icon)
-		word_display.move_child(_hint_icon, 0)
 
 func _on_letter_collected(letter: String, position: int) -> void:
 	if position < _letter_labels.size():
 		_letter_labels[position].text = letter
-		# Color the collected letter
-		var hint_color := Color(0.3, 1.0, 0.3)  # Green for collected
-		if _magic_summon:
-			var summon_color := _magic_summon.get_hint_color_for_word(WordEngine.current_target_word)
-			if summon_color != Color.WHITE:
-				hint_color = summon_color
-		_letter_labels[position].add_theme_color_override("font_color", hint_color)
-		# Brief scale animation
+		_letter_labels[position].add_theme_color_override("font_color", Color(0.3, 1.0, 0.3))
 		var tween := create_tween()
-		tween.tween_property(_letter_labels[position], "scale", Vector2(1.3, 1.3), 0.1)
+		tween.tween_property(_letter_labels[position], "scale", Vector2(1.4, 1.4), 0.1)
 		tween.tween_property(_letter_labels[position], "scale", Vector2(1.0, 1.0), 0.1)
 
 func _on_word_complete(_word: String) -> void:
-	var color := Color(0.3, 1.0, 0.3)  # Green celebration
-	if _magic_summon:
-		var summon_color := _magic_summon.get_hint_color_for_word(_word)
-		if summon_color != Color.WHITE:
-			color = summon_color
 	for label in _letter_labels:
-		label.add_theme_color_override("font_color", color)
+		label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
 		var tween := create_tween()
-		tween.tween_property(label, "scale", Vector2(1.5, 1.5), 0.2)
+		tween.tween_property(label, "scale", Vector2(1.6, 1.6), 0.2)
 		tween.tween_property(label, "scale", Vector2(1.0, 1.0), 0.2)
 
 func _on_coins_changed(total: int) -> void:
-	_update_coins(total)
-
-func _update_coins(total: int) -> void:
-	if coin_label:
-		coin_label.text = str(total)
-		coin_label.add_theme_font_size_override("font_size", 32)
+	if _coin_label:
+		_coin_label.text = "Coins: " + str(total)
 
 func _clear_word_display() -> void:
 	_letter_labels.clear()
-	if _hint_icon:
-		_hint_icon = null
-	if word_display:
-		for child in word_display.get_children():
+	if _word_box:
+		for child in _word_box.get_children():
 			child.queue_free()
