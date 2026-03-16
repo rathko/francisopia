@@ -1,11 +1,15 @@
 extends Node
 ## Global game state manager. Handles save/load, scene transitions, and player data.
+## Auto-saves on every meaningful event + every 2 minutes + on quit.
 
 signal area_changed(area_name: String)
 signal coins_changed(new_total: int)
 signal word_completed(word: String)
+signal progress_reset()  # Emitted when player resets all progress
 
 const SAVE_PATH := "user://save.json"
+const BACKUP_PATH := "user://save.bak"
+const AUTO_SAVE_INTERVAL := 120.0  # 2 minutes
 
 var player_name := "Explorer"
 var planet_name := "Francis-opia"
@@ -16,20 +20,44 @@ var words_completed: Array[String] = []
 var quests_completed: Array[String] = []
 var current_area := "Meadow"
 var items_owned: Array[String] = []
-var words_summoned: Array[String] = []  # Words that have been magically summoned
+var words_summoned: Array[String] = []
+var starter_index := 0       # How far through the starter word sequence
+var starter_complete := false # Whether starter sequence is done
+
+var _auto_save_timer := 0.0
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	# Load save early so other autoloads (WordEngine) can read restored state
+	if load_game():
+		print("Francis-opia: Save loaded! Welcome back to %s!" % planet_name)
+	else:
+		print("Francis-opia: New adventure begins!")
+
+func _process(delta: float) -> void:
+	_auto_save_timer += delta
+	if _auto_save_timer >= AUTO_SAVE_INTERVAL:
+		_auto_save_timer = 0.0
+		save_game()
+
+func _notification(what: int) -> void:
+	# Save on quit / window close / app suspend
+	if what == NOTIFICATION_WM_CLOSE_REQUEST:
+		save_game()
+	elif what == NOTIFICATION_WM_GO_BACK_REQUEST:
+		save_game()
 
 func add_coins(amount: int) -> void:
 	word_coins += amount
 	coins_changed.emit(word_coins)
+	save_game()
 
 func complete_word(word: String) -> void:
 	if word not in words_completed:
 		words_completed.append(word)
 		word_completed.emit(word)
 		add_coins(_coin_reward_for_word(word))
+		save_game()
 
 func _coin_reward_for_word(word: String) -> int:
 	var length := word.length()
@@ -43,6 +71,7 @@ func _coin_reward_for_word(word: String) -> int:
 func complete_quest(quest_id: String) -> void:
 	if quest_id not in quests_completed:
 		quests_completed.append(quest_id)
+		save_game()
 
 func change_area(area_name: String) -> void:
 	current_area = area_name
@@ -61,24 +90,30 @@ func save_game() -> void:
 		"current_area": current_area,
 		"items_owned": items_owned,
 		"words_summoned": words_summoned,
+		"starter_index": starter_index,
+		"starter_complete": starter_complete,
 	}
-	var file := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
+	# Atomic write: write to temp, then rename over real file
+	# Keep one backup of previous save
+	var tmp_path := SAVE_PATH + ".tmp"
+	var file := FileAccess.open(tmp_path, FileAccess.WRITE)
 	if file:
 		file.store_string(JSON.stringify(save_data, "\t"))
 		file.close()
+		# Rotate backup: current save -> backup
+		if FileAccess.file_exists(SAVE_PATH):
+			DirAccess.copy_absolute(SAVE_PATH, BACKUP_PATH)
+		# Temp -> real save (atomic-ish)
+		DirAccess.rename_absolute(tmp_path, SAVE_PATH)
 
 func load_game() -> bool:
-	if not FileAccess.file_exists(SAVE_PATH):
-		return false
-	var file := FileAccess.open(SAVE_PATH, FileAccess.READ)
-	if not file:
-		return false
-	var json := JSON.new()
-	var err := json.parse(file.get_as_text())
-	file.close()
-	if err != OK:
-		return false
-	var data: Dictionary = json.data
+	var data := _try_load_file(SAVE_PATH)
+	if data.is_empty():
+		# Try backup if main save is corrupt
+		data = _try_load_file(BACKUP_PATH)
+		if data.is_empty():
+			return false
+		print("Francis-opia: Restored from backup save!")
 	player_name = data.get("player_name", player_name)
 	planet_name = data.get("planet_name", planet_name)
 	castle_style = data.get("castle_style", castle_style)
@@ -89,7 +124,48 @@ func load_game() -> bool:
 	current_area = data.get("current_area", current_area)
 	items_owned.assign(data.get("items_owned", []))
 	words_summoned.assign(data.get("words_summoned", []))
+	starter_index = data.get("starter_index", 0)
+	starter_complete = data.get("starter_complete", false)
+	coins_changed.emit(word_coins)
 	return true
+
+func _try_load_file(path: String) -> Dictionary:
+	if not FileAccess.file_exists(path):
+		return {}
+	var file := FileAccess.open(path, FileAccess.READ)
+	if not file:
+		return {}
+	var json := JSON.new()
+	var err := json.parse(file.get_as_text())
+	file.close()
+	if err != OK:
+		return {}
+	if json.data is Dictionary:
+		return json.data
+	return {}
+
+func reset_progress() -> void:
+	## Wipe all progress and start fresh
+	player_name = "Explorer"
+	planet_name = "Francis-opia"
+	castle_style = "stone"
+	character_index = 0
+	word_coins = 0
+	words_completed.clear()
+	quests_completed.clear()
+	current_area = "Meadow"
+	items_owned.clear()
+	words_summoned.clear()
+	starter_index = 0
+	starter_complete = false
+	# Delete save files
+	if FileAccess.file_exists(SAVE_PATH):
+		DirAccess.remove_absolute(SAVE_PATH)
+	if FileAccess.file_exists(BACKUP_PATH):
+		DirAccess.remove_absolute(BACKUP_PATH)
+	coins_changed.emit(0)
+	progress_reset.emit()
+	print("Francis-opia: Progress reset! Starting fresh.")
 
 func get_total_words_completed() -> int:
 	return words_completed.size()

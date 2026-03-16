@@ -58,12 +58,10 @@ func _ready() -> void:
 
 	# Pets spawn via magic summoning (spell "cat" or "dog"), not auto-spawned
 
-	# Try loading saved game
-	if GameManager.load_game():
-		print("Francis-opia: Save loaded! Welcome back to %s!" % GameManager.planet_name)
-	else:
-		print("Francis-opia: New adventure begins!")
-		GameManager.planet_name = "Francis-opia"
+	# Save is loaded in GameManager._ready() (before other autoloads)
+	# Re-summon persistent world effects from previous session
+	if GameManager.words_summoned.size() > 0:
+		_restore_summons.call_deferred()
 
 	# Wire quest generator to quest scroll UI
 	if quest_scroll:
@@ -540,3 +538,19 @@ func _on_wrong_letter(_letter: String) -> void:
 	add_child(thief)
 	_active_thieves.append(thief)
 	print("Francis-opia: Oh no! A silly letter thief appeared!")
+
+func _restore_summons() -> void:
+	## Re-create persistent summons from previous session (sun, pets, etc.)
+	var magic_summon := get_node_or_null("/root/MagicSummon")
+	if not magic_summon:
+		return
+	for word in GameManager.words_summoned:
+		var entry: Dictionary = magic_summon.summon_registry.get(word, {})
+		if entry.is_empty():
+			continue
+		var builder_name: String = entry.get("builder", "")
+		if builder_name != "" and magic_summon.has_method(builder_name):
+			var summoned: Variant = magic_summon.call(builder_name, self, player, player.global_position)
+			if summoned is Node:
+				magic_summon._summoned_entities.append(summoned)
+			print("Francis-opia: Restored %s from last session!" % word)

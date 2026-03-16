@@ -2,7 +2,7 @@ extends CanvasLayer
 ## Pause menu — Escape / Start button to toggle.
 ## Shows game options and controls reference.
 
-enum MenuPage { MAIN, CONTROLS }
+enum MenuPage { MAIN, CONTROLS, RESTART_CONFIRM }
 
 var _active := false
 var _current_page := MenuPage.MAIN
@@ -86,6 +86,7 @@ func _show_main_menu() -> void:
 
 	# Menu buttons
 	_add_menu_button("Controls", _show_controls)
+	_add_menu_button("Restart Progress", _show_restart_confirm)
 	_add_menu_button("Resume", _close)
 
 	_content.add_child(_make_spacer(24))
@@ -180,6 +181,47 @@ func _show_controls() -> void:
 
 	# Back button
 	_add_menu_button("Back", _show_main_menu)
+
+func _show_restart_confirm() -> void:
+	_current_page = MenuPage.RESTART_CONFIRM
+	_clear_content()
+
+	var title := _make_label("Restart Progress?", 42, Color(1, 0.4, 0.4))
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_content.add_child(title)
+
+	_content.add_child(_make_spacer(16))
+
+	var warning := _make_label("This will erase all your progress:", 28, Color(0.9, 0.85, 0.8))
+	warning.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_content.add_child(warning)
+
+	_content.add_child(_make_spacer(8))
+
+	# Show what will be lost
+	var stats: Array[String] = []
+	if GameManager.words_completed.size() > 0:
+		stats.append("  %d words spelled" % GameManager.words_completed.size())
+	if GameManager.word_coins > 0:
+		stats.append("  %d coins earned" % GameManager.word_coins)
+	if GameManager.words_summoned.size() > 0:
+		stats.append("  %d magic summons" % GameManager.words_summoned.size())
+	if stats.is_empty():
+		stats.append("  (no progress yet)")
+	for stat in stats:
+		var stat_label := _make_label(stat, 26, Color(1, 0.9, 0.6))
+		_content.add_child(stat_label)
+
+	_content.add_child(_make_spacer(24))
+
+	_add_menu_button("Yes, Restart", _do_restart)
+	_add_menu_button("No, Go Back", _show_main_menu)
+
+func _do_restart() -> void:
+	GameManager.reset_progress()
+	_close()
+	# Reload the main scene to start fresh
+	get_tree().reload_current_scene()
 
 # === UI Helpers ===
 

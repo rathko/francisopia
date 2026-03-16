@@ -24,6 +24,10 @@ var _starter_complete := false
 
 func _ready() -> void:
 	_load_word_bank()
+	# Restore starter sequence progress from saved state
+	_starter_index = GameManager.starter_index
+	_starter_complete = GameManager.starter_complete
+	GameManager.progress_reset.connect(_on_progress_reset)
 
 func _load_word_bank() -> void:
 	if not FileAccess.file_exists(WORDS_PATH):
@@ -137,6 +141,9 @@ func _on_word_complete() -> void:
 	var word := current_target_word.to_lower()
 	word_spelled_correctly.emit(word)
 	GameManager.complete_word(word)
+	# Sync starter progress to GameManager for persistence
+	GameManager.starter_index = _starter_index
+	GameManager.starter_complete = _starter_complete
 	_track_attempt(word, true)
 	_check_difficulty_progression()
 
@@ -181,3 +188,12 @@ func get_progress_for_current_word() -> float:
 
 func is_word_complete() -> bool:
 	return collected_letters.size() == current_target_word.length() and not current_target_word.is_empty()
+
+func _on_progress_reset() -> void:
+	_starter_index = 0
+	_starter_complete = false
+	current_target_word = ""
+	current_hint_image = ""
+	collected_letters.clear()
+	current_difficulty = 1
+	_word_attempts.clear()

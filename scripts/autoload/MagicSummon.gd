@@ -124,10 +124,12 @@ func _play_summon_animation(word: String, entry: Dictionary) -> void:
 		if summoned is Node:
 			_summoned_entities.append(summoned)
 			summon_completed.emit(word, summoned)
-			# Track in GameManager
+			# Track in GameManager for persistence
 			if word not in GameManager.items_owned:
 				GameManager.items_owned.append(word)
-				GameManager.save_game()
+			if word not in GameManager.words_summoned:
+				GameManager.words_summoned.append(word)
+			GameManager.save_game()
 
 	# === PHASE 5: Big friendly label ===
 	_show_summon_label(scene_root, summon_pos, entry)
@@ -451,52 +453,63 @@ func _process(delta):
 # --- WORLD EFFECTS ---
 
 func _summon_sun(scene_root: Node, _player: Node2D, _pos: Vector2) -> Node:
-	# Sun lives on its own CanvasLayer so it stays fixed on screen
+	# Sun on its own CanvasLayer between sky (default layer 0, z_index -10)
+	# and game objects. Layer 0 is the game world. We use a CanvasLayer
+	# with follow_viewport so it stays fixed on screen but renders above sky.
 	var sun_layer := CanvasLayer.new()
 	sun_layer.name = "MagicSunLayer"
-	sun_layer.layer = -1  # Behind HUD, above world
+	# Layer 5: above game world (0), below HUD (10)
+	sun_layer.layer = 5
 
 	var root_ctrl := Control.new()
 	root_ctrl.set_anchors_preset(Control.PRESET_FULL_RECT)
 	root_ctrl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	sun_layer.add_child(root_ctrl)
 
-	# Bright yellow circle — top-right corner
-	var sun_center_x := 1150.0  # Near right edge (1280 viewport)
-	var sun_center_y := 80.0
+	# Bright yellow sun — top-right corner
+	var cx := 1150.0
+	var cy := 120.0
 
 	# Outer glow
 	var glow := ColorRect.new()
-	glow.position = Vector2(sun_center_x - 60, sun_center_y - 60)
-	glow.size = Vector2(120, 120)
-	glow.color = Color(1.0, 0.95, 0.4, 0.2)
+	glow.offset_left = cx - 60
+	glow.offset_top = cy - 60
+	glow.offset_right = cx + 60
+	glow.offset_bottom = cy + 60
+	glow.color = Color(1.0, 0.95, 0.4, 0.25)
 	glow.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root_ctrl.add_child(glow)
 
 	# Sun body
 	var sun_body := ColorRect.new()
-	sun_body.position = Vector2(sun_center_x - 40, sun_center_y - 40)
-	sun_body.size = Vector2(80, 80)
+	sun_body.offset_left = cx - 40
+	sun_body.offset_top = cy - 40
+	sun_body.offset_right = cx + 40
+	sun_body.offset_bottom = cy + 40
 	sun_body.color = Color(1.0, 0.9, 0.2, 0.95)
 	sun_body.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root_ctrl.add_child(sun_body)
 
 	# Bright core
 	var core := ColorRect.new()
-	core.position = Vector2(sun_center_x - 25, sun_center_y - 25)
-	core.size = Vector2(50, 50)
+	core.offset_left = cx - 25
+	core.offset_top = cy - 25
+	core.offset_right = cx + 25
+	core.offset_bottom = cy + 25
 	core.color = Color(1.0, 1.0, 0.6, 1.0)
 	core.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root_ctrl.add_child(core)
 
-	# Rays around the sun
+	# Rays
 	for i in 8:
 		var ray := ColorRect.new()
 		var angle := TAU * float(i) / 8.0
-		var ray_x := sun_center_x + cos(angle) * 55 - 6
-		var ray_y := sun_center_y + sin(angle) * 55 - 2
-		ray.position = Vector2(ray_x, ray_y)
-		ray.size = Vector2(12, 4)
+		var rx := cx + cos(angle) * 55
+		var ry := cy + sin(angle) * 55
+		ray.offset_left = rx - 6
+		ray.offset_top = ry - 2
+		ray.offset_right = rx + 6
+		ray.offset_bottom = ry + 2
 		ray.rotation = angle
 		ray.color = Color(1.0, 0.95, 0.4, 0.7)
 		ray.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -642,28 +655,30 @@ func _process(delta):
 	return star
 
 func _summon_rainbow(scene_root: Node, _player: Node2D, pos: Vector2) -> Node:
+	# Rainbow in the game world — scrolls with everything else
 	var rainbow := Node2D.new()
-	rainbow.global_position = Vector2(pos.x - 200, 100)
+	rainbow.name = "MagicRainbow"
+	rainbow.global_position = Vector2(pos.x, 200)
 	rainbow.z_index = -7
 
-	var colors := [
-		Color(1, 0.2, 0.2, 0.6),    # Red
-		Color(1, 0.6, 0.2, 0.6),    # Orange
-		Color(1, 1, 0.2, 0.6),      # Yellow
-		Color(0.2, 0.8, 0.2, 0.6),  # Green
-		Color(0.2, 0.5, 1, 0.6),    # Blue
-		Color(0.5, 0.2, 0.8, 0.6),  # Indigo
-		Color(0.7, 0.3, 1, 0.6),    # Violet
+	var colors: Array[Color] = [
+		Color(1, 0.2, 0.2, 0.55),    # Red
+		Color(1, 0.6, 0.2, 0.55),    # Orange
+		Color(1, 1, 0.2, 0.55),      # Yellow
+		Color(0.2, 0.8, 0.2, 0.55),  # Green
+		Color(0.2, 0.5, 1, 0.55),    # Blue
+		Color(0.5, 0.2, 0.8, 0.55),  # Indigo
+		Color(0.7, 0.3, 1, 0.55),    # Violet
 	]
 
-	# Arc made of colored bands
+	# Big arc in the sky
 	for band_idx in colors.size():
 		var band_color: Color = colors[band_idx]
-		for seg in 20:
-			var angle := PI * float(seg) / 20.0
-			var radius := 200.0 - band_idx * 12.0
+		var radius := 350.0 - band_idx * 16.0
+		for seg in 30:
+			var angle := PI * float(seg) / 30.0
 			var rect := ColorRect.new()
-			rect.position = Vector2(cos(angle) * radius, -sin(angle) * radius)
+			rect.position = Vector2(cos(angle) * radius - 7, -sin(angle) * radius - 7)
 			rect.size = Vector2(14, 14)
 			rect.color = band_color
 			rainbow.add_child(rect)
@@ -673,9 +688,9 @@ func _summon_rainbow(scene_root: Node, _player: Node2D, pos: Vector2) -> Node:
 	# Fade in
 	rainbow.modulate.a = 0.0
 	var tween := rainbow.create_tween()
-	tween.tween_property(rainbow, "modulate:a", 1.0, 1.0)
+	tween.tween_property(rainbow, "modulate:a", 1.0, 1.5)
 
-	print("Francis-opia: ✨ A beautiful rainbow stretches across the sky!")
+	print("Francis-opia: A beautiful rainbow stretches across the sky!")
 	return rainbow
 
 func _summon_bed(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
