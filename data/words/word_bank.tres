@@ -1,0 +1,394 @@
+[gd_resource type="Resource" script_class="WordBank" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/WordBank.gd" id="1_1tvt7"]
+[ext_resource type="Script" path="res://scripts/data/WordEntry.gd" id="2_wmrta"]
+
+[sub_resource type="Resource" id="Resource_odq4y"]
+script = ExtResource("2_wmrta")
+word = "cat"
+image = "cat"
+phonics = PackedStringArray("c", "a", "t")
+
+[sub_resource type="Resource" id="Resource_3whgk"]
+script = ExtResource("2_wmrta")
+word = "dog"
+image = "dog"
+phonics = PackedStringArray("d", "o", "g")
+
+[sub_resource type="Resource" id="Resource_2ggy2"]
+script = ExtResource("2_wmrta")
+word = "sun"
+image = "sun"
+phonics = PackedStringArray("s", "u", "n")
+
+[sub_resource type="Resource" id="Resource_o6yfx"]
+script = ExtResource("2_wmrta")
+word = "hat"
+area = "castle"
+image = "hat"
+phonics = PackedStringArray("h", "a", "t")
+
+[sub_resource type="Resource" id="Resource_4lfb7"]
+script = ExtResource("2_wmrta")
+word = "bed"
+area = "castle"
+image = "bed"
+phonics = PackedStringArray("b", "e", "d")
+
+[sub_resource type="Resource" id="Resource_ggok7"]
+script = ExtResource("2_wmrta")
+word = "cup"
+area = "castle"
+image = "cup"
+phonics = PackedStringArray("c", "u", "p")
+
+[sub_resource type="Resource" id="Resource_bd3of"]
+script = ExtResource("2_wmrta")
+word = "bat"
+area = "forest"
+image = "bat"
+phonics = PackedStringArray("b", "a", "t")
+
+[sub_resource type="Resource" id="Resource_iir5i"]
+script = ExtResource("2_wmrta")
+word = "pig"
+image = "pig"
+phonics = PackedStringArray("p", "i", "g")
+
+[sub_resource type="Resource" id="Resource_uve8m"]
+script = ExtResource("2_wmrta")
+word = "hen"
+image = "hen"
+phonics = PackedStringArray("h", "e", "n")
+
+[sub_resource type="Resource" id="Resource_wew5h"]
+script = ExtResource("2_wmrta")
+word = "bus"
+area = "castle"
+image = "bus"
+phonics = PackedStringArray("b", "u", "s")
+
+[sub_resource type="Resource" id="Resource_778sy"]
+script = ExtResource("2_wmrta")
+word = "red"
+image = "red"
+phonics = PackedStringArray("r", "e", "d")
+
+[sub_resource type="Resource" id="Resource_x8xj8"]
+script = ExtResource("2_wmrta")
+word = "big"
+image = "big"
+phonics = PackedStringArray("b", "i", "g")
+
+[sub_resource type="Resource" id="Resource_onekp"]
+script = ExtResource("2_wmrta")
+word = "run"
+image = "run"
+phonics = PackedStringArray("r", "u", "n")
+
+[sub_resource type="Resource" id="Resource_5rkxi"]
+script = ExtResource("2_wmrta")
+word = "hot"
+area = "beach"
+image = "hot"
+phonics = PackedStringArray("h", "o", "t")
+
+[sub_resource type="Resource" id="Resource_wre25"]
+script = ExtResource("2_wmrta")
+word = "mud"
+image = "mud"
+phonics = PackedStringArray("m", "u", "d")
+
+[sub_resource type="Resource" id="Resource_bxpcf"]
+script = ExtResource("2_wmrta")
+word = "map"
+area = "castle"
+image = "map"
+phonics = PackedStringArray("m", "a", "p")
+
+[sub_resource type="Resource" id="Resource_cuckg"]
+script = ExtResource("2_wmrta")
+word = "bug"
+area = "forest"
+image = "bug"
+phonics = PackedStringArray("b", "u", "g")
+
+[sub_resource type="Resource" id="Resource_k2qre"]
+script = ExtResource("2_wmrta")
+word = "hug"
+area = "castle"
+image = "hug"
+phonics = PackedStringArray("h", "u", "g")
+
+[sub_resource type="Resource" id="Resource_q0fdi"]
+script = ExtResource("2_wmrta")
+word = "rug"
+area = "castle"
+image = "rug"
+phonics = PackedStringArray("r", "u", "g")
+
+[sub_resource type="Resource" id="Resource_pfqap"]
+script = ExtResource("2_wmrta")
+word = "pot"
+area = "castle"
+image = "pot"
+phonics = PackedStringArray("p", "o", "t")
+
+[sub_resource type="Resource" id="Resource_634ai"]
+script = ExtResource("2_wmrta")
+word = "frog"
+level = 2
+image = "frog"
+phonics = PackedStringArray("f", "r", "o", "g")
+
+[sub_resource type="Resource" id="Resource_wgr7c"]
+script = ExtResource("2_wmrta")
+word = "tree"
+level = 2
+area = "forest"
+image = "tree"
+phonics = PackedStringArray("t", "r", "ee")
+
+[sub_resource type="Resource" id="Resource_c4ilt"]
+script = ExtResource("2_wmrta")
+word = "star"
+level = 2
+area = "mountain"
+image = "star"
+phonics = PackedStringArray("s", "t", "a", "r")
+
+[sub_resource type="Resource" id="Resource_t5s2h"]
+script = ExtResource("2_wmrta")
+word = "jump"
+level = 2
+image = "jump"
+phonics = PackedStringArray("j", "u", "m", "p")
+
+[sub_resource type="Resource" id="Resource_kqj3v"]
+script = ExtResource("2_wmrta")
+word = "hand"
+level = 2
+area = "castle"
+image = "hand"
+phonics = PackedStringArray("h", "a", "n", "d")
+
+[sub_resource type="Resource" id="Resource_4r2yp"]
+script = ExtResource("2_wmrta")
+word = "fish"
+level = 2
+area = "beach"
+image = "fish"
+phonics = PackedStringArray("f", "i", "sh")
+
+[sub_resource type="Resource" id="Resource_52k6l"]
+script = ExtResource("2_wmrta")
+word = "bird"
+level = 2
+image = "bird"
+phonics = PackedStringArray("b", "ir", "d")
+
+[sub_resource type="Resource" id="Resource_3nke7"]
+script = ExtResource("2_wmrta")
+word = "leaf"
+level = 2
+area = "forest"
+image = "leaf"
+phonics = PackedStringArray("l", "ea", "f")
+
+[sub_resource type="Resource" id="Resource_jpgbl"]
+script = ExtResource("2_wmrta")
+word = "sand"
+level = 2
+area = "beach"
+image = "sand"
+phonics = PackedStringArray("s", "a", "n", "d")
+
+[sub_resource type="Resource" id="Resource_peaqd"]
+script = ExtResource("2_wmrta")
+word = "wind"
+level = 2
+area = "mountain"
+image = "wind"
+phonics = PackedStringArray("w", "i", "n", "d")
+
+[sub_resource type="Resource" id="Resource_6n3a7"]
+script = ExtResource("2_wmrta")
+word = "drum"
+level = 2
+area = "castle"
+image = "drum"
+phonics = PackedStringArray("d", "r", "u", "m")
+
+[sub_resource type="Resource" id="Resource_m5g7y"]
+script = ExtResource("2_wmrta")
+word = "stop"
+level = 2
+image = "stop"
+phonics = PackedStringArray("s", "t", "o", "p")
+
+[sub_resource type="Resource" id="Resource_5p3hl"]
+script = ExtResource("2_wmrta")
+word = "flag"
+level = 2
+area = "castle"
+image = "flag"
+phonics = PackedStringArray("f", "l", "a", "g")
+
+[sub_resource type="Resource" id="Resource_cwwq4"]
+script = ExtResource("2_wmrta")
+word = "nest"
+level = 2
+area = "forest"
+image = "nest"
+phonics = PackedStringArray("n", "e", "s", "t")
+
+[sub_resource type="Resource" id="Resource_eb7lb"]
+script = ExtResource("2_wmrta")
+word = "lamp"
+level = 2
+area = "castle"
+image = "lamp"
+phonics = PackedStringArray("l", "a", "m", "p")
+
+[sub_resource type="Resource" id="Resource_jhhyd"]
+script = ExtResource("2_wmrta")
+word = "cake"
+level = 3
+area = "castle"
+image = "cake"
+phonics = PackedStringArray("c", "a_e", "k")
+
+[sub_resource type="Resource" id="Resource_dt0qm"]
+script = ExtResource("2_wmrta")
+word = "bike"
+level = 3
+image = "bike"
+phonics = PackedStringArray("b", "i_e", "k")
+
+[sub_resource type="Resource" id="Resource_njd3p"]
+script = ExtResource("2_wmrta")
+word = "home"
+level = 3
+area = "castle"
+image = "home"
+phonics = PackedStringArray("h", "o_e", "m")
+
+[sub_resource type="Resource" id="Resource_4cjd1"]
+script = ExtResource("2_wmrta")
+word = "wave"
+level = 3
+area = "beach"
+image = "wave"
+phonics = PackedStringArray("w", "a_e", "v")
+
+[sub_resource type="Resource" id="Resource_4at8g"]
+script = ExtResource("2_wmrta")
+word = "moon"
+level = 3
+area = "mountain"
+image = "moon"
+phonics = PackedStringArray("m", "oo", "n")
+
+[sub_resource type="Resource" id="Resource_gpo3m"]
+script = ExtResource("2_wmrta")
+word = "boat"
+level = 3
+area = "beach"
+image = "boat"
+phonics = PackedStringArray("b", "oa", "t")
+
+[sub_resource type="Resource" id="Resource_6pksr"]
+script = ExtResource("2_wmrta")
+word = "rain"
+level = 3
+image = "rain"
+phonics = PackedStringArray("r", "ai", "n")
+
+[sub_resource type="Resource" id="Resource_o8cod"]
+script = ExtResource("2_wmrta")
+word = "snow"
+level = 3
+area = "mountain"
+image = "snow"
+phonics = PackedStringArray("s", "n", "ow")
+
+[sub_resource type="Resource" id="Resource_rgwcf"]
+script = ExtResource("2_wmrta")
+word = "flower"
+level = 4
+image = "flower"
+phonics = PackedStringArray("f", "l", "ow", "er")
+
+[sub_resource type="Resource" id="Resource_khmd0"]
+script = ExtResource("2_wmrta")
+word = "castle"
+level = 4
+area = "castle"
+image = "castle"
+phonics = PackedStringArray("c", "a", "s", "t", "le")
+
+[sub_resource type="Resource" id="Resource_46b4u"]
+script = ExtResource("2_wmrta")
+word = "garden"
+level = 4
+image = "garden"
+phonics = PackedStringArray("g", "ar", "d", "en")
+
+[sub_resource type="Resource" id="Resource_y6tst"]
+script = ExtResource("2_wmrta")
+word = "forest"
+level = 4
+area = "forest"
+image = "forest"
+phonics = PackedStringArray("f", "or", "e", "s", "t")
+
+[sub_resource type="Resource" id="Resource_n4s2u"]
+script = ExtResource("2_wmrta")
+word = "island"
+level = 4
+area = "beach"
+image = "island"
+phonics = PackedStringArray("i", "s", "l", "and")
+
+[sub_resource type="Resource" id="Resource_lotb8"]
+script = ExtResource("2_wmrta")
+word = "rainbow"
+level = 5
+area = "mountain"
+image = "rainbow"
+phonics = PackedStringArray("r", "ai", "n", "b", "ow")
+
+[sub_resource type="Resource" id="Resource_p8sn2"]
+script = ExtResource("2_wmrta")
+word = "sunset"
+level = 5
+area = "beach"
+image = "sunset"
+phonics = PackedStringArray("s", "u", "n", "s", "e", "t")
+
+[sub_resource type="Resource" id="Resource_8ilv2"]
+script = ExtResource("2_wmrta")
+word = "crystal"
+level = 5
+area = "mountain"
+image = "crystal"
+phonics = PackedStringArray("c", "r", "y", "s", "t", "al")
+
+[sub_resource type="Resource" id="Resource_0da0i"]
+script = ExtResource("2_wmrta")
+word = "meadow"
+level = 5
+image = "meadow"
+phonics = PackedStringArray("m", "ea", "d", "ow")
+
+[sub_resource type="Resource" id="Resource_he3ah"]
+script = ExtResource("2_wmrta")
+word = "lantern"
+level = 5
+area = "forest"
+image = "lantern"
+phonics = PackedStringArray("l", "a", "n", "t", "er", "n")
+
+[resource]
+script = ExtResource("1_1tvt7")
+words = Array[Resource]([SubResource("Resource_odq4y"), SubResource("Resource_3whgk"), SubResource("Resource_2ggy2"), SubResource("Resource_o6yfx"), SubResource("Resource_4lfb7"), SubResource("Resource_ggok7"), SubResource("Resource_bd3of"), SubResource("Resource_iir5i"), SubResource("Resource_uve8m"), SubResource("Resource_wew5h"), SubResource("Resource_778sy"), SubResource("Resource_x8xj8"), SubResource("Resource_onekp"), SubResource("Resource_5rkxi"), SubResource("Resource_wre25"), SubResource("Resource_bxpcf"), SubResource("Resource_cuckg"), SubResource("Resource_k2qre"), SubResource("Resource_q0fdi"), SubResource("Resource_pfqap"), SubResource("Resource_634ai"), SubResource("Resource_wgr7c"), SubResource("Resource_c4ilt"), SubResource("Resource_t5s2h"), SubResource("Resource_kqj3v"), SubResource("Resource_4r2yp"), SubResource("Resource_52k6l"), SubResource("Resource_3nke7"), SubResource("Resource_jpgbl"), SubResource("Resource_peaqd"), SubResource("Resource_6n3a7"), SubResource("Resource_m5g7y"), SubResource("Resource_5p3hl"), SubResource("Resource_cwwq4"), SubResource("Resource_eb7lb"), SubResource("Resource_jhhyd"), SubResource("Resource_dt0qm"), SubResource("Resource_njd3p"), SubResource("Resource_4cjd1"), SubResource("Resource_4at8g"), SubResource("Resource_gpo3m"), SubResource("Resource_6pksr"), SubResource("Resource_o8cod"), SubResource("Resource_rgwcf"), SubResource("Resource_khmd0"), SubResource("Resource_46b4u"), SubResource("Resource_y6tst"), SubResource("Resource_n4s2u"), SubResource("Resource_lotb8"), SubResource("Resource_p8sn2"), SubResource("Resource_8ilv2"), SubResource("Resource_0da0i"), SubResource("Resource_he3ah")])

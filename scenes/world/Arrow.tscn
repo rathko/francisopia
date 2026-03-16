@@ -1,6 +1,6 @@
 [gd_scene load_steps=2 format=3]
 
-[ext_resource type="Script" path="res://scripts/world/Arrow.gd" id="1"]
+[ext_resource type="Script" path="res://scenes/world/Arrow.gd" id="1"]
 
 [sub_resource type="RectangleShape2D" id="arrow_shape"]
 size = Vector2(20, 4)

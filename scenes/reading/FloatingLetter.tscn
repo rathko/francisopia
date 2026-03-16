@@ -1,6 +1,6 @@
 [gd_scene load_steps=2 format=3]
 
-[ext_resource type="Script" path="res://scripts/reading/FloatingLetter.gd" id="1"]
+[ext_resource type="Script" path="res://scenes/reading/FloatingLetter.gd" id="1"]
 
 [sub_resource type="CircleShape2D" id="letter_shape"]
 radius = 24.0

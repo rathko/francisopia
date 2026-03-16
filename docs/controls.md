@@ -16,6 +16,7 @@ Input mapping for keyboard and gamepad.
 | `toggle_scroll` | Tab | Y Button (3) | 0.5 |
 | `pause` | Escape | Start / Menu (11) | 0.5 |
 | `dig` | Q | LB / Left Shoulder (9) | 0.5 |
+| `next_weapon` | R | RB / Right Shoulder (10) | 0.5 |
 
 All actions have `device: -1` (respond to any controller).
 

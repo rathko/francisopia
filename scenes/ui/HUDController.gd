@@ -4,6 +4,7 @@ extends CanvasLayer
 var _hint_label: RichTextLabel = null
 var _word_box: HBoxContainer = null
 var _coin_label: Label = null
+var _weapon_label: Label = null
 var _letter_labels: Array[Label] = []
 var _magic_summon: Node = null
 
@@ -55,6 +56,16 @@ func _ready() -> void:
 	_coin_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
 	root_ctrl.add_child(_coin_label)
 
+	# Weapon indicator — bottom-left
+	_weapon_label = Label.new()
+	_weapon_label.text = ""
+	_weapon_label.position = Vector2(20, 720)
+	_weapon_label.add_theme_font_size_override("font_size", 32)
+	_weapon_label.add_theme_color_override("font_color", Color(0.8, 0.6, 0.3))
+	_weapon_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.6))
+	_weapon_label.add_theme_constant_override("outline_size", 3)
+	root_ctrl.add_child(_weapon_label)
+
 	# Connect signals
 	WordEngine.target_word_changed.connect(_on_target_word_changed)
 	WordEngine.letter_collected.connect(_on_letter_collected)
@@ -70,6 +81,18 @@ func _catch_up() -> void:
 		_magic_summon = get_node_or_null("/root/MagicSummon")
 	if WordEngine.current_target_word != "":
 		_on_target_word_changed(WordEngine.current_target_word, WordEngine.current_hint_image)
+	# Connect to weapon holder if available
+	var scene := get_tree().current_scene
+	if scene:
+		var player := scene.get_node_or_null("Player")
+		if player:
+			var holder := player.get_node_or_null("WeaponHolder")
+			if holder and holder.has_signal("weapon_changed"):
+				holder.weapon_changed.connect(_on_weapon_changed)
+				# Show current weapon if already equipped
+				if holder.has_method("get_active_weapon_name"):
+					var w: String = holder.get_active_weapon_name()
+					_on_weapon_changed(w)
 
 func _on_target_word_changed(word: String, hint_image: String) -> void:
 	_clear_word_display()
@@ -137,6 +160,15 @@ func _on_word_complete(_word: String) -> void:
 func _on_coins_changed(total: int) -> void:
 	if _coin_label:
 		_coin_label.text = "Coins: " + str(total)
+
+func _on_weapon_changed(weapon_name: String) -> void:
+	if _weapon_label:
+		if weapon_name.is_empty():
+			_weapon_label.text = ""
+		else:
+			# Clean up name: "BowWeapon" -> "Bow"
+			var display := weapon_name.replace("Weapon", "")
+			_weapon_label.text = "🏹 " + display
 
 func _clear_word_display() -> void:
 	_letter_labels.clear()

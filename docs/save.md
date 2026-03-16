@@ -22,6 +22,7 @@ JSON-based persistence.
 | `items_owned` | Array[String] | Items in inventory |
 | `words_summoned` | Array[String] | Words that triggered summons |
 | `current_area` | String | Last area visited |
+| `equipped_weapon` | String | Currently equipped weapon name (empty = none) |
 
 ### Coin Economy
 - 3-letter word: 1 coin
@@ -38,7 +39,7 @@ JSON-based persistence.
 
 - No save versioning — format changes could corrupt old saves
 - Summoned entities not saved (pets, world objects lost on restart)
-- No backup save mechanism
+- Backup save exists (atomic write: tmp → rename, previous → .bak)
 - Area-specific progress not tracked (which chunks explored, blocks dug)
 - `words_summoned` tracked but not used for preventing duplicate summons
 

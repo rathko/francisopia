@@ -106,7 +106,7 @@ func _spawn_break_particles() -> void:
 
 func _spawn_treasure() -> void:
 	# Load and spawn treasure chest at this location
-	var chest_script := load("res://scripts/world/TreasureChest.gd") as GDScript
+	var chest_script := load("res://scenes/world/TreasureChest.gd") as GDScript
 
 	var chest := StaticBody2D.new()
 	chest.global_position = global_position

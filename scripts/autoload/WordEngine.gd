@@ -9,8 +9,10 @@ signal wrong_letter_rejected(letter: String)
 signal letter_lost()  # Emitted when a collected letter is lost (wrong pick penalty)
 
 const WORDS_PATH := "res://data/words.json"
+const WORD_BANK_TRES := "res://data/words/word_bank.tres"
 
 var word_bank: Array[Dictionary] = []
+var _resource_bank: Resource = null  # WordBank resource (if loaded)
 var current_target_word := ""
 var current_hint_image := ""
 var collected_letters: Array[String] = []
@@ -30,8 +32,23 @@ func _ready() -> void:
 	GameManager.progress_reset.connect(_on_progress_reset)
 
 func _load_word_bank() -> void:
+	# Try Resource-based word bank first (.tres), fall back to JSON, then built-in
+	if ResourceLoader.exists(WORD_BANK_TRES):
+		_resource_bank = ResourceLoader.load(WORD_BANK_TRES)
+		if _resource_bank and _resource_bank.get("words") is Array:
+			word_bank.clear()
+			for entry in _resource_bank.get("words"):
+				word_bank.append({
+					"word": entry.get("word"),
+					"level": entry.get("level"),
+					"area": entry.get("area"),
+					"image": entry.get("image"),
+					"phonics": Array(entry.get("phonics")) if entry.get("phonics") else [],
+				})
+			print("WordEngine: Loaded %d words from word_bank.tres" % word_bank.size())
+			return
 	if not FileAccess.file_exists(WORDS_PATH):
-		push_warning("WordEngine: words.json not found, using built-in defaults")
+		push_warning("WordEngine: No word bank found, using built-in defaults")
 		_use_builtin_words()
 		return
 	var file := FileAccess.open(WORDS_PATH, FileAccess.READ)

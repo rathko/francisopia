@@ -27,13 +27,25 @@ Platformer character controller with local multiplayer support.
 - Teleports to last recorded safe ground position
 - Velocity resets to zero
 
-### Archery (`BowController.gd`)
-- Shoot: left click (mouse) or RT (gamepad)
-- Aim direction from PlayerController's device-specific aim
-- Arrow speed: 500 px/s
-- Arrow lifetime: 3s auto-cleanup
-- 0.5s cooldown between shots
-- Arrows call `hit_by_arrow()` on impact targets
+### Weapon System (`WeaponHolder.gd`, `BowWeapon.gd`)
+- **WeaponHolder**: Node2D child of Player, manages weapon cycling and dispatch
+- Cycle weapons: R (keyboard) / RB (gamepad) — toggles through unlocked weapons
+- Shoot/use: Left click (mouse) / RT (gamepad) — delegates to active weapon's `use_weapon()`
+- Weapons unlock via MagicSummon (spell the word → get the weapon)
+- Duck-typed interface: any Node2D child with `equip()`, `unequip()`, `use_weapon()`, `is_available()`, `unlock()` methods
+- Equipped weapon persisted in GameManager save data (`equipped_weapon` field)
+- Adding a new weapon: create script with interface methods, add as child of WeaponHolder in Player.tscn
+
+### Bow (`BowWeapon.gd`, `Arrow.gd`) — TowerFall Ascension style
+- Unlocked by spelling "bow" via MagicSummon
+- Visual bow (ColorRect limbs + string) visible in player's hands when equipped
+- Bow rotates to match aim direction, flips when aiming left
+- Instant-fire (no charge mechanic) — faithful to TowerFall design
+- Arrow speed: 800 px/s, gravity: 430 px/s² (~0.44x player gravity)
+- Arrows follow ballistic arc, rotation tracks velocity vector
+- Arrows stick into walls/terrain on collision (embed 4px, TowerFall-style)
+- Stuck arrows fade and despawn after 5s
+- 0.3s cooldown between shots
 
 ### Letter Collection
 - LetterDetector: Area2D with 40px radius around player
@@ -68,9 +80,11 @@ Platformer character controller with local multiplayer support.
 
 ## Future Work
 
+- More weapons: hammer (build), axe (chop trees), sword (from Francis's castle shop idea)
 - Character selection screen (Francis's idea: "choose a character")
 - Level up and skill selection (Francis's idea)
 - Prince character role (Francis's idea)
 - Swimming mechanic for beach areas
 - Climbing mechanic for mountain areas
 - Animation sprites to replace ColorRects
+- Arrow pickup (walk over stuck arrows to recover them — TowerFall feature)

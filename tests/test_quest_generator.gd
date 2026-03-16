@@ -13,13 +13,13 @@ func run_all_tests() -> void:
 
 func test_quest_templates_exist() -> void:
 	_test_name = "quest_templates_exist"
-	var gen := load("res://scripts/reading/QuestGenerator.gd").new()
+	var gen = load("res://scripts/autoload/QuestGenerator.gd").new()
 	gen._load_templates()
 	assert_true(gen._quest_templates.size() > 0, "Should have quest templates")
 
 func test_quest_text_is_short() -> void:
 	_test_name = "quest_text_is_short"
-	var gen := load("res://scripts/reading/QuestGenerator.gd").new()
+	var gen = load("res://scripts/autoload/QuestGenerator.gd").new()
 	gen._load_templates()
 	for template in gen._quest_templates:
 		var text: String = template.get("text", "")

@@ -13,6 +13,10 @@ const BLOCK_SIZE := 32.0
 const BLOCKS_PER_CHUNK := 40  # 1280 / 32
 const UNDERGROUND_ROWS := 8   # How deep the diggable terrain goes
 const TREASURE_CHANCE := 0.06 # 6% chance per underground block
+const STAIRWELL_CHANCE := 0.15 # 15% chance per chunk to have a stairwell
+const STAIRWELL_WIDTH := 3    # Blocks wide
+const CAVE_ROWS := 6          # Diggable rows in Level 2
+const CAVE_TREASURE_CHANCE := 0.10 # Richer treasure underground
 
 const PLAYER1_COLOR := Color(0.25, 0.55, 0.85, 1)  # Blue
 const PLAYER2_COLOR := Color(0.85, 0.35, 0.25, 1)  # Red-orange
@@ -214,8 +218,11 @@ func _update_chunks() -> void:
 func _remove_chunk(idx: int) -> void:
 	# Clean up block references for this chunk
 	var keys_to_remove: Array = []
+	var idx_str := "%d," % idx
+	var l2_idx_str := "L2_%d," % idx
 	for key in _terrain_blocks:
-		if str(key).begins_with("%d," % idx):
+		var k: String = str(key)
+		if k.begins_with(idx_str) or k.begins_with(l2_idx_str):
 			keys_to_remove.append(key)
 	for key in keys_to_remove:
 		_terrain_blocks.erase(key)
@@ -248,10 +255,19 @@ func _generate_chunk(index: int) -> void:
 	terrain_container.name = "Terrain"
 	chunk.add_child(terrain_container)
 
-	var block_script := load("res://scripts/world/TerrainBlock.gd") as GDScript
+	var block_script := load("res://scenes/world/TerrainBlock.gd") as GDScript
+
+	# Determine if this chunk has a stairwell to Level 2
+	var has_stairwell := _rng.randf() < STAIRWELL_CHANCE
+	var stairwell_start_x := _rng.randi_range(4, BLOCKS_PER_CHUNK - STAIRWELL_WIDTH - 4) if has_stairwell else -1
 
 	for gx in BLOCKS_PER_CHUNK:
 		for gy in (UNDERGROUND_ROWS + 1):  # +1 for grass row
+			# Skip blocks where the stairwell opening is (bottom 3 rows of underground)
+			if has_stairwell and gx >= stairwell_start_x and gx < stairwell_start_x + STAIRWELL_WIDTH:
+				if gy >= UNDERGROUND_ROWS - 2:  # Last 3 rows open for stairwell
+					continue
+
 			var block := StaticBody2D.new()
 			var block_x := gx * BLOCK_SIZE + BLOCK_SIZE / 2.0
 			var block_y := GROUND_Y + gy * BLOCK_SIZE + BLOCK_SIZE / 2.0
@@ -277,23 +293,20 @@ func _generate_chunk(index: int) -> void:
 			var key := "%d,%d,%d" % [index, gx, gy]
 			_terrain_blocks[key] = block
 
-	# Bedrock (unbreakable floor below all blocks)
-	var bedrock := StaticBody2D.new()
+	# Bedrock — solid floor below Level 1, with gap for stairwell
 	var bedrock_y := GROUND_Y + (UNDERGROUND_ROWS + 1) * BLOCK_SIZE + BLOCK_SIZE / 2.0 + 10
-	bedrock.position = Vector2(CHUNK_WIDTH / 2.0, bedrock_y)
-	chunk.add_child(bedrock)
-
-	var bedrock_col := CollisionShape2D.new()
-	var bedrock_shape := RectangleShape2D.new()
-	bedrock_shape.size = Vector2(CHUNK_WIDTH + 20, 20)
-	bedrock_col.shape = bedrock_shape
-	bedrock.add_child(bedrock_col)
-
-	var bedrock_visual := ColorRect.new()
-	bedrock_visual.position = Vector2(-CHUNK_WIDTH / 2.0 - 10, -10)
-	bedrock_visual.size = Vector2(CHUNK_WIDTH + 20, 20)
-	bedrock_visual.color = Color(0.3, 0.3, 0.35, 1)  # Dark grey stone
-	bedrock.add_child(bedrock_visual)
+	if has_stairwell:
+		# Two bedrock segments with a gap for the stairwell
+		var gap_left := stairwell_start_x * BLOCK_SIZE
+		var gap_right := (stairwell_start_x + STAIRWELL_WIDTH) * BLOCK_SIZE
+		_add_bedrock_segment(chunk, 0.0, gap_left, bedrock_y)
+		_add_bedrock_segment(chunk, gap_right, CHUNK_WIDTH - gap_right, bedrock_y)
+		# Generate stairwell and Level 2 cave
+		_generate_stairwell(chunk, terrain_container, block_script, index, stairwell_start_x, bedrock_y)
+		_generate_cave_level(chunk, terrain_container, block_script, index, bedrock_y)
+	else:
+		# Solid bedrock — no stairwell
+		_add_bedrock_segment(chunk, 0.0, CHUNK_WIDTH, bedrock_y)
 
 	# === ABOVE-GROUND DECORATIONS ===
 
@@ -376,6 +389,159 @@ func _on_dig(dig_position: Vector2) -> void:
 				_terrain_blocks.erase(key)
 				break
 
+# === BEDROCK HELPER ===
+
+func _add_bedrock_segment(chunk: Node2D, x_offset: float, width: float, y_pos: float) -> void:
+	if width <= 0:
+		return
+	var bedrock := StaticBody2D.new()
+	bedrock.position = Vector2(x_offset + width / 2.0, y_pos)
+	chunk.add_child(bedrock)
+
+	var bedrock_col := CollisionShape2D.new()
+	var bedrock_shape := RectangleShape2D.new()
+	bedrock_shape.size = Vector2(width + 4, 20)
+	bedrock_col.shape = bedrock_shape
+	bedrock.add_child(bedrock_col)
+
+	var bedrock_visual := ColorRect.new()
+	bedrock_visual.position = Vector2(-width / 2.0 - 2, -10)
+	bedrock_visual.size = Vector2(width + 4, 20)
+	bedrock_visual.color = Color(0.3, 0.3, 0.35, 1)
+	bedrock.add_child(bedrock_visual)
+
+# === STAIRWELL GENERATION ===
+
+func _generate_stairwell(chunk: Node2D, terrain: Node2D, _block_script: GDScript, chunk_index: int, start_x: int, bedrock_y: float) -> void:
+	## Generates indestructible stone stairs from underground through bedrock to Level 2.
+	## Stairs descend in a step pattern — each block steps 1 grid cell down.
+	var stair_container := Node2D.new()
+	stair_container.name = "Stairwell"
+	chunk.add_child(stair_container)
+
+	# Stairs start at underground row 6 (just above the opening) and go down
+	# through the bedrock gap into the cave level
+	var stair_top_y := GROUND_Y + (UNDERGROUND_ROWS - 2) * BLOCK_SIZE + BLOCK_SIZE / 2.0
+	var cave_floor_y := bedrock_y + 20 + CAVE_ROWS * BLOCK_SIZE
+	var total_stair_depth := int((cave_floor_y - stair_top_y) / BLOCK_SIZE)
+
+	# Build zigzag platforms — 2-block-wide steps alternating left/right
+	# Player walks onto step, walks off edge, drops 2 blocks to next step
+	var going_right := true
+	var current_y := stair_top_y
+	while current_y < cave_floor_y - BLOCK_SIZE:
+		if going_right:
+			# Platform on left side (blocks 0, 1), gap on right (block 2)
+			for sx in 2:
+				var stair_x := (start_x + sx) * BLOCK_SIZE + BLOCK_SIZE / 2.0
+				_add_stair_block(stair_container, Vector2(stair_x, current_y))
+		else:
+			# Platform on right side (blocks 1, 2), gap on left (block 0)
+			for sx in 2:
+				var stair_x := (start_x + 1 + sx) * BLOCK_SIZE + BLOCK_SIZE / 2.0
+				_add_stair_block(stair_container, Vector2(stair_x, current_y))
+		current_y += BLOCK_SIZE * 2  # 2-block drop between steps
+		going_right = not going_right
+
+	# Walls on both sides of stairwell (indestructible) — 2 blocks deep on each side
+	for step_i in total_stair_depth:
+		var wall_y := stair_top_y + step_i * BLOCK_SIZE
+		# Left wall
+		var left_x := (start_x - 1) * BLOCK_SIZE + BLOCK_SIZE / 2.0
+		if start_x > 0:
+			_add_stair_block(stair_container, Vector2(left_x, wall_y))
+		# Right wall
+		var right_x := (start_x + STAIRWELL_WIDTH) * BLOCK_SIZE + BLOCK_SIZE / 2.0
+		if start_x + STAIRWELL_WIDTH < BLOCKS_PER_CHUNK:
+			_add_stair_block(stair_container, Vector2(right_x, wall_y))
+
+	# "CAVE" label hint near the entrance — a sign for the player
+	var sign_label := Label.new()
+	sign_label.text = "CAVE"
+	sign_label.add_theme_font_size_override("font_size", 24)
+	sign_label.add_theme_color_override("font_color", Color(0.8, 0.7, 0.5))
+	sign_label.position = Vector2(start_x * BLOCK_SIZE - 8, stair_top_y - BLOCK_SIZE - 20)
+	sign_label.z_index = 5
+	stair_container.add_child(sign_label)
+
+func _add_stair_block(container: Node2D, pos: Vector2) -> void:
+	## Creates a single indestructible stone stair block. No dig method = can't break it.
+	var block := StaticBody2D.new()
+	block.position = pos
+	container.add_child(block)
+
+	var col := CollisionShape2D.new()
+	var shape := RectangleShape2D.new()
+	shape.size = Vector2(BLOCK_SIZE, BLOCK_SIZE)
+	col.shape = shape
+	block.add_child(col)
+
+	var visual := ColorRect.new()
+	visual.position = Vector2(-BLOCK_SIZE / 2.0, -BLOCK_SIZE / 2.0)
+	visual.size = Vector2(BLOCK_SIZE, BLOCK_SIZE)
+	# Grey stone look — distinct from brown dirt
+	var shade := randf_range(0.0, 0.05)
+	visual.color = Color(0.42 + shade, 0.42 + shade, 0.48 + shade, 1)
+	block.add_child(visual)
+
+	# Subtle stone border
+	var border := ColorRect.new()
+	border.position = Vector2(-BLOCK_SIZE / 2.0, -BLOCK_SIZE / 2.0)
+	border.size = Vector2(BLOCK_SIZE, 2)
+	border.color = Color(0.55, 0.55, 0.6, 0.3)
+	block.add_child(border)
+
+# === CAVE LEVEL 2 GENERATION ===
+
+func _generate_cave_level(chunk: Node2D, terrain: Node2D, block_script: GDScript, chunk_index: int, bedrock_y: float) -> void:
+	## Generates Level 2 cave terrain below bedrock. Darker colors, richer treasure.
+	var cave_top_y := bedrock_y + 20  # Just below bedrock
+
+	# Dark cave background (replaces sky blue)
+	var cave_bg := ColorRect.new()
+	cave_bg.z_index = -10
+	cave_bg.position = Vector2(0, cave_top_y - 10)
+	cave_bg.size = Vector2(CHUNK_WIDTH, (CAVE_ROWS + 2) * BLOCK_SIZE + 40)
+	cave_bg.color = Color(0.08, 0.06, 0.12, 1)  # Very dark purple-black
+	chunk.add_child(cave_bg)
+
+	# Cave terrain blocks — stone/slate colors
+	for gx in BLOCKS_PER_CHUNK:
+		for gy in CAVE_ROWS:
+			var block := StaticBody2D.new()
+			var block_x := gx * BLOCK_SIZE + BLOCK_SIZE / 2.0
+			var block_y := cave_top_y + gy * BLOCK_SIZE + BLOCK_SIZE / 2.0
+			block.position = Vector2(block_x, block_y)
+
+			var col := CollisionShape2D.new()
+			var shape := RectangleShape2D.new()
+			shape.size = Vector2(BLOCK_SIZE, BLOCK_SIZE)
+			col.shape = shape
+			block.add_child(col)
+
+			terrain.add_child(block)
+
+			var has_treasure := _rng.randf() < CAVE_TREASURE_CHANCE
+
+			if block_script:
+				block.set_script(block_script)
+				# Use negative gy to distinguish cave blocks visually
+				# TerrainBlock.setup treats gy > 0 as dirt; we'll add cave color logic
+				block.setup(gx, gy, false, has_treasure)
+				# Override visual to cave stone colors
+				var visual: ColorRect = block.get_node_or_null("Visual")
+				if visual:
+					var shade := randf_range(0.0, 0.06)
+					visual.color = Color(0.32 + shade, 0.3 + shade, 0.38 + shade, 1)
+
+			# Track with L2 prefix to avoid key collision with Level 1
+			var key := "L2_%d,%d,%d" % [chunk_index, gx, gy]
+			_terrain_blocks[key] = block
+
+	# Level 2 bedrock (cave floor)
+	var cave_bedrock_y := cave_top_y + CAVE_ROWS * BLOCK_SIZE + BLOCK_SIZE / 2.0 + 10
+	_add_bedrock_segment(chunk, 0.0, CHUNK_WIDTH, cave_bedrock_y)
+
 # === DECORATIONS ===
 
 func _add_platform(chunk: Node2D, pos: Vector2, width: float) -> void:
@@ -433,7 +599,7 @@ func _add_flower(chunk: Node2D, pos: Vector2) -> void:
 	chunk.add_child(flower)
 
 func _spawn_surface_chest(chunk: Node2D, pos: Vector2) -> void:
-	var chest_script := load("res://scripts/world/TreasureChest.gd") as GDScript
+	var chest_script := load("res://scenes/world/TreasureChest.gd") as GDScript
 	var chest := StaticBody2D.new()
 	chest.position = pos
 	chest.collision_layer = 4  # Interactable

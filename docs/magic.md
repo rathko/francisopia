@@ -15,7 +15,7 @@ Spelling words brings things to life. The core reward loop.
 |------|-------|-------------|
 | pet | cat, dog, fish, bird, frog, bug | Spawns follower pet (uses Pet.gd) |
 | world | sun, tree, flower, star, rainbow, bed, cup, box, jump, leaf, hand, castle | Creates decorative/interactive world object |
-| item | bow | Upgrades player equipment |
+| item | bow | Grants bow weapon via WeaponHolder.grant_weapon() |
 | cosmetic | hat | Visual change on player character |
 
 ### Summon Animation (5 phases)

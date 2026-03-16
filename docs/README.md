@@ -11,7 +11,7 @@ Each doc describes **what the code currently does** (verifiable against source),
 | [spelling.md](spelling.md) | Word engine, letter collection, difficulty progression | `WordEngine.gd`, `FloatingLetter.gd`, `LetterSpawner.gd` |
 | [magic.md](magic.md) | Summon system, word-to-entity registry, animations | `MagicSummon.gd` |
 | [terrain.md](terrain.md) | Block-based terrain, digging, treasure chests | `TerrainBlock.gd`, `TreasureChest.gd`, `MainScene.gd` |
-| [player.md](player.md) | Movement, wall mechanics, multiplayer, archery | `PlayerController.gd`, `BowController.gd`, `Arrow.gd` |
+| [player.md](player.md) | Movement, wall mechanics, multiplayer, weapon system, bow | `PlayerController.gd`, `WeaponHolder.gd`, `BowWeapon.gd`, `Arrow.gd` |
 | [pets.md](pets.md) | Pet companions, follow behavior, visual design | `Pet.gd` |
 | [quests.md](quests.md) | Quest generation, tracking, completion | `QuestGenerator.gd`, `QuestScrollController.gd` |
 | [ui.md](ui.md) | HUD, pause menu, quest scroll | `HUDController.gd`, `PauseMenu.gd` |
@@ -33,7 +33,7 @@ See `tests/` for test files. Each tests a specific autoload or system.
 
 ## Architecture
 
-- **Autoloads** (load order): GameManager > WordEngine > AudioManager > InputHelper > QuestGenerator > MagicSummon
+- **Autoloads** (load order): Events > GameManager > WordEngine > AudioManager > InputHelper > QuestGenerator > MagicSummon
 - **Signal flow**: WordEngine emits events > HUD, MagicSummon, LetterSpawner listen
 - **Scene tree**: Main > Player + Camera, LetterSpawner, HUD, QuestScroll, PauseMenu
 - **Rendering**: Godot 4.2, GL Compatibility, 1280x800 (Steam Deck native)

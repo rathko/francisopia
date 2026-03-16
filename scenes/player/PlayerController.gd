@@ -26,6 +26,8 @@ var _dig_cooldown_timer := 0.0
 var _aim_direction := Vector2.DOWN  # Current aim for digging
 var _touching_wall := false
 var _wall_direction := 0  # -1 left wall, 1 right wall, 0 none
+var _highlighted_letter: Node2D = null  # Currently proximity-highlighted letter
+var _highlight_original_modulate := Color.WHITE
 
 # Dig cursor visual
 var _dig_cursor: Node2D = null
@@ -35,6 +37,7 @@ var _cursor_target_pos := Vector2.ZERO
 @onready var collision_shape: CollisionShape2D = $CollisionShape2D
 @onready var letter_detector: Area2D = $LetterDetector
 @onready var interact_area: Area2D = $InteractArea
+@onready var weapon_holder: Node2D = $WeaponHolder
 
 func _ready() -> void:
 	_last_safe_position = global_position
@@ -83,7 +86,9 @@ func _physics_process(delta: float) -> void:
 	_handle_wall_jump()
 	_handle_aim(delta)
 	_handle_dig(delta)
+	_handle_weapon(delta)
 	_handle_interactions()
+	_update_letter_highlight()
 	_update_animation()
 	move_and_slide()
 
@@ -172,6 +177,13 @@ func _is_dig_just_pressed() -> bool:
 		return Input.is_action_just_pressed("dig")
 	return false
 
+func _is_next_weapon_just_pressed() -> bool:
+	if _joy_button_just_pressed(JOY_BUTTON_RIGHT_SHOULDER):
+		return true
+	if player_index == 0:
+		return Input.is_action_just_pressed("next_weapon")
+	return false
+
 var _prev_joy_buttons: Dictionary = {}
 
 func _joy_button_just_pressed(button: int) -> bool:
@@ -180,6 +192,17 @@ func _joy_button_just_pressed(button: int) -> bool:
 	var prev: bool = _prev_joy_buttons.get(key, false)
 	_prev_joy_buttons[key] = current
 	return current and not prev
+
+# === WEAPON SYSTEM ===
+
+func _handle_weapon(_delta: float) -> void:
+	if _is_next_weapon_just_pressed() and weapon_holder:
+		weapon_holder.cycle_next()
+
+	if _is_shoot_just_pressed() and weapon_holder and weapon_holder.has_weapon_equipped():
+		var active: Node2D = weapon_holder.get_active_weapon()
+		if active and active.has_method("use_weapon"):
+			active.use_weapon()
 
 # === AIM SYSTEM (Terraria-style) ===
 
@@ -388,6 +411,49 @@ func _update_animation() -> void:
 		var body_rect := get_node_or_null("BodyColor") as ColorRect
 		if body_rect:
 			body_rect.rotation = 0.0
+
+func _update_letter_highlight() -> void:
+	## Show green/blue tint on the closest correct letter, red on wrong ones
+	if not interact_area:
+		return
+
+	# Find closest letter in interact range
+	var closest: Node2D = null
+	var closest_dist := INF
+	for area in interact_area.get_overlapping_areas():
+		if area.has_method("get_letter"):
+			var dist := global_position.distance_to(area.global_position)
+			if dist < closest_dist:
+				closest_dist = dist
+				closest = area
+	if closest == null:
+		for body in interact_area.get_overlapping_bodies():
+			if body.has_method("get_letter"):
+				var dist := global_position.distance_to(body.global_position)
+				if dist < closest_dist:
+					closest_dist = dist
+					closest = body
+
+	# Un-highlight previous letter if it changed
+	if _highlighted_letter != closest:
+		if _highlighted_letter and is_instance_valid(_highlighted_letter):
+			_highlighted_letter.modulate = _highlight_original_modulate
+		_highlighted_letter = closest
+		if closest:
+			_highlight_original_modulate = closest.modulate
+
+	# Apply highlight tint to closest letter
+	if closest and is_instance_valid(closest):
+		var letter: String = closest.get_letter()
+		var next_needed: String = WordEngine.get_next_needed_letter()
+		if letter == next_needed:
+			# Correct — soft green/cyan pulse
+			var pulse := 0.85 + sin(Time.get_ticks_msec() * 0.005) * 0.15
+			closest.modulate = Color(0.6 * pulse, 1.0 * pulse, 0.8 * pulse, 1.0)
+		else:
+			# Wrong — soft red tint
+			var pulse := 0.85 + sin(Time.get_ticks_msec() * 0.004) * 0.1
+			closest.modulate = Color(1.0 * pulse, 0.45 * pulse, 0.4 * pulse, 0.85)
 
 func _on_letter_contact(_body: Node2D) -> void:
 	pass  # Letters are now picked up via interact, not auto-collect

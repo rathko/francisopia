@@ -27,9 +27,10 @@ godot --path ~/src/pai/francisopia
 |--------|----------|---------|
 | Move | A/D or Arrow keys | Left stick / D-pad |
 | Jump | Space | A (South) |
-| Shoot arrow | Left click | RT (Right trigger axis) |
+| Shoot / Use weapon | Left click | RT (Right trigger axis) |
 | Interact | E | X (West) |
 | Dig | Q | LB (Left bumper) |
+| Cycle weapon | R | RB (Right bumper) |
 | Toggle quest scroll | Tab | Y (North) |
 | Pause | Escape | Start |
 
@@ -82,18 +83,16 @@ francisopia/
 ├── deploy.sh              # Steam Deck deploy pipeline
 ├── export_presets.cfg     # Godot export preset (Linux x86_64)
 ├── data/
-│   └── words.json         # Word bank (word, level, area, image)
-├── scenes/                # .tscn scene files
-│   ├── main/Main.tscn
-│   ├── player/Player.tscn
-│   ├── reading/FloatingLetter.tscn
-│   ├── world/Arrow.tscn, ArcheryTarget.tscn, LetterThief.tscn
-│   └── ui/HUD.tscn, QuestScroll.tscn
-└── scripts/               # GDScript source
-    ├── autoload/          # Singletons (GameManager, WordEngine, InputHelper, AudioManager)
-    ├── main/              # MainScene (world generation, chunk system)
-    ├── player/            # PlayerController, BowController
-    ├── reading/           # FloatingLetter, LetterSpawner, QuestGenerator
-    ├── ui/                # HUDController, QuestScrollController
-    └── world/             # LetterThief, TreasureChest, Arrow, ArcheryTarget
+│   ├── words.json         # Word bank (JSON authoring format)
+│   └── words/word_bank.tres  # Word bank (Godot Resource, auto-generated)
+├── scenes/                # .tscn + co-located .gd scripts
+│   ├── main/              # Main.tscn, MainScene.gd
+│   ├── player/            # Player.tscn, PlayerController.gd, WeaponHolder.gd, BowWeapon.gd
+│   ├── reading/           # FloatingLetter.tscn/.gd, LetterSpawner.gd
+│   ├── world/             # Arrow.tscn/.gd, ArcheryTarget, LetterThief, Pet, TerrainBlock, etc.
+│   └── ui/                # HUD.tscn, HUDController.gd, PauseMenu, QuestScroll
+├── scripts/               # Non-scene scripts
+│   ├── autoload/          # Singletons: Events, GameManager, WordEngine, AudioManager, InputHelper, QuestGenerator, MagicSummon
+│   └── data/              # WordEntry.gd, WordBank.gd (Resource classes)
+└── tools/                 # One-time scripts (import_words.gd)
 ```

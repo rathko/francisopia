@@ -926,9 +926,15 @@ func _summon_hat(scene_root: Node, player: Node2D, _pos: Vector2) -> Node:
 	return hat
 
 func _summon_bow_upgrade(scene_root: Node, _player: Node2D, _pos: Vector2) -> Node:
-	# Visual confirmation — bow shoots faster now
-	print("Francis-opia: ✨ Your bow is upgraded! Arrows fly faster!")
-	# Could modify BowController properties here
+	# Grant the bow weapon to the player via WeaponHolder
+	var player := scene_root.get_node_or_null("Player") as Node2D
+	if player:
+		var weapon_holder := player.get_node_or_null("WeaponHolder")
+		if weapon_holder and weapon_holder.has_method("grant_weapon"):
+			weapon_holder.grant_weapon("BowWeapon")
+			print("Francis-opia: ✨ You got a bow! Press RB/R to equip it, RT to shoot!")
+			return weapon_holder
+	print("Francis-opia: ✨ Bow unlocked!")
 	return null
 
 # --- HELPER: Get hint shape for HUD ---

@@ -23,6 +23,8 @@ var items_owned: Array[String] = []
 var words_summoned: Array[String] = []
 var starter_index := 0       # How far through the starter word sequence
 var starter_complete := false # Whether starter sequence is done
+var equipped_weapon := ""    # Currently equipped weapon name (empty = none)
+var current_level := 1       # Underground depth level (1 = surface, 2+ = deeper caves)
 
 var _auto_save_timer := 0.0
 
@@ -92,6 +94,8 @@ func save_game() -> void:
 		"words_summoned": words_summoned,
 		"starter_index": starter_index,
 		"starter_complete": starter_complete,
+		"equipped_weapon": equipped_weapon,
+		"current_level": current_level,
 	}
 	# Atomic write: write to temp, then rename over real file
 	# Keep one backup of previous save
@@ -126,6 +130,8 @@ func load_game() -> bool:
 	words_summoned.assign(data.get("words_summoned", []))
 	starter_index = data.get("starter_index", 0)
 	starter_complete = data.get("starter_complete", false)
+	equipped_weapon = data.get("equipped_weapon", "")
+	current_level = data.get("current_level", 1)
 	coins_changed.emit(word_coins)
 	return true
 
@@ -158,6 +164,8 @@ func reset_progress() -> void:
 	words_summoned.clear()
 	starter_index = 0
 	starter_complete = false
+	equipped_weapon = ""
+	current_level = 1
 	# Delete save files
 	if FileAccess.file_exists(SAVE_PATH):
 		DirAccess.remove_absolute(SAVE_PATH)
