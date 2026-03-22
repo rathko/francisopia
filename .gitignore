@@ -1,0 +1,15 @@
+# Godot import cache (regenerated on open)
+.godot/
+
+# Export builds
+export/
+
+# Godot editor logs
+godot.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Save data (user-specific)
+*.tmp

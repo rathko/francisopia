@@ -3,26 +3,9 @@
 # Francis-opia Steam Deck Deploy Pipeline
 # ═══════════════════════════════════════════════════════════════════
 #
-# FIRST-TIME SETUP:
-#
-# 1. Steam Deck — Enable SSH:
-#    - Switch to Desktop Mode (hold Power → Desktop Mode)
-#    - Open Konsole terminal
-#    - Run: passwd        (set a password for the 'deck' user)
-#    - Run: sudo systemctl enable --now sshd
-#    - Find IP: ip addr show   (look for wlan0 or eth0 address)
-#
-# 2. Steam Deck — Set up SSH key (so you don't need password each time):
-#    From YOUR machine (not the Deck):
-#      ssh-copy-id deck@<STEAMDECK_IP>
-#
-# 3. Godot Export Templates:
-#    - Open Godot Editor → Editor menu → Manage Export Templates
-#    - Download templates for your Godot version (4.6.1)
-#    - Or: download from https://godotengine.org/download and place in
-#      ~/.local/share/godot/export_templates/4.6.1.stable/
-#
-# 4. Edit the config below with your Steam Deck's IP address
+# FIRST-TIME SETUP: See README.md "Deploy to Steam Deck" section.
+# Requires: Tailscale on both machines (with --ssh on Deck), Godot export templates.
+# No SSH keys or sshd needed — Tailscale SSH handles auth via tailnet identity.
 #
 # USAGE:
 #    ./deploy.sh              # Export + deploy to Steam Deck
@@ -35,7 +18,7 @@ set -euo pipefail
 
 # ─── CONFIG (edit these) ─────────────────────────────────────────
 DECK_USER="deck"
-DECK_HOST="steamdeck.local"          # Or use IP like 192.168.1.42
+DECK_HOST="steamdeck"                # Tailscale MagicDNS name
 DECK_PATH="/home/deck/Games/francisopia"
 GAME_NAME="francisopia"
 # ─────────────────────────────────────────────────────────────────

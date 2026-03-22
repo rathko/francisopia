@@ -36,37 +36,23 @@ godot --path ~/src/pai/francisopia
 
 ## Deploying to Steam Deck
 
-### One-time Steam Deck setup
+Deploys use **Tailscale** for secure connectivity. SSH only listens on the Tailscale interface, never on WiFi. See `README.md` "Deploy to Steam Deck" for full setup steps.
 
-1. Switch to **Desktop Mode** (hold Power button, select Desktop Mode)
-2. Open **Konsole** terminal
-3. Set a password: `passwd`
-4. Enable SSH: `sudo systemctl enable --now sshd`
-5. Find your IP: `ip addr show` (look for wlan0 or eth0)
-
-### One-time setup on your dev machine
-
-1. Edit `deploy.sh` — set `DECK_HOST` to your Steam Deck's IP address (line 38)
-2. Copy your SSH key: `ssh-copy-id deck@<STEAMDECK_IP>`
-3. Install Godot export templates:
-   - Godot Editor -> Editor menu -> Manage Export Templates -> Download
-   - Or download from https://godotengine.org/download and place in `~/.local/share/godot/export_templates/4.6.1.stable/`
-
-### Deploy (every time)
+### Quick reference
 
 ```bash
 ./deploy.sh              # Export + deploy to Steam Deck
 ./deploy.sh --export     # Export only (build the binary)
-./deploy.sh --deploy     # Transfer only (skip export)
+./deploy.sh --deploy     # Transfer only (skip re-export)
 ```
 
 ### Playing on Steam Deck
 
-After deploying, add as a non-Steam game:
+First time only, add as a non-Steam game:
 
 1. Open Steam -> Add a Game -> Add a Non-Steam Game -> Browse
 2. Navigate to `/home/deck/Games/francisopia/francisopia.x86_64`
-3. Add it — now it appears in your library with full controller support in Game Mode
+3. Add it. Now it appears in your library and works in Game Mode with full controller support.
 
 Or run from Desktop Mode terminal:
 

@@ -8,7 +8,7 @@ config/name="Francis-opia"
 config/description="A cozy reading adventure where words have magical power"
 run/main_scene="res://scenes/main/Main.tscn"
 config/features=PackedStringArray("4.2", "GL Compatibility")
-config/icon="res://icon.svg"
+config/icon="res://icon.png"
 
 [autoload]
 
