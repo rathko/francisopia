@@ -20,7 +20,7 @@ var current_difficulty := 1
 var _word_attempts: Dictionary = {}  # word -> {correct: int, hints_used: int, time_ms: int}
 
 # Fixed starter sequence — these words always come first in order
-var _starter_sequence: Array[String] = ["dog", "sun", "tree", "rainbow"]
+var _starter_sequence: Array[String] = ["dog", "sun", "tree", "hammer", "house", "rainbow"]
 var _starter_index := 0
 var _starter_complete := false
 
@@ -81,6 +81,8 @@ func _use_builtin_words() -> void:
 		{"word": "box", "level": 1, "area": "meadow", "image": "box"},
 		{"word": "bow", "level": 1, "area": "meadow", "image": "bow"},
 		# Level 2 — Blends and longer CVC
+		{"word": "hammer", "level": 2, "area": "meadow", "image": "hammer"},
+		{"word": "house", "level": 2, "area": "meadow", "image": "house"},
 		{"word": "fish", "level": 2, "area": "meadow", "image": "fish"},
 		{"word": "bird", "level": 2, "area": "meadow", "image": "bird"},
 		{"word": "frog", "level": 2, "area": "meadow", "image": "frog"},
@@ -116,16 +118,23 @@ func select_word_for_area(area: String) -> String:
 		return current_target_word
 
 	# After starter sequence, use random selection by area and difficulty
+	# Underground levels bump minimum difficulty: Level 2 uses words level 2+
+	var min_difficulty: int = maxi(1, GameManager.current_level)
+	var max_difficulty: int = maxi(current_difficulty, min_difficulty)
 	var candidates := word_bank.filter(func(w: Dictionary) -> bool:
-		return w.get("level", 1) <= current_difficulty and w.get("area", "") == area.to_lower()
+		var wl: int = w.get("level", 1)
+		return wl >= min_difficulty and wl <= max_difficulty and w.get("area", "") == area.to_lower()
 	)
 	if candidates.is_empty():
+		# Relax area filter
 		candidates = word_bank.filter(func(w: Dictionary) -> bool:
-			return w.get("level", 1) <= current_difficulty
+			var wl: int = w.get("level", 1)
+			return wl >= min_difficulty and wl <= max_difficulty
 		)
 	if candidates.is_empty():
+		# Relax difficulty floor too
 		candidates = word_bank.filter(func(w: Dictionary) -> bool:
-			return w.get("level", 1) <= 1
+			return w.get("level", 1) <= max_difficulty
 		)
 	if candidates.is_empty():
 		return "cat"

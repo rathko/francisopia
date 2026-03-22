@@ -11,16 +11,61 @@ const PLAYER_SCENE_PATH := "res://scenes/player/Player.tscn"
 const PET_SCENE_PATH := "res://scenes/world/Pet.tscn"
 const BLOCK_SIZE := 32.0
 const BLOCKS_PER_CHUNK := 40  # 1280 / 32
-const UNDERGROUND_ROWS := 8   # How deep the diggable terrain goes
+const UNDERGROUND_ROWS := 16  # How deep the diggable terrain goes (player must dig a lot)
 const TREASURE_CHANCE := 0.06 # 6% chance per underground block
-const STAIRWELL_WIDTH := 3    # Blocks wide
-const CAVE_ROWS := 6          # Diggable rows in Level 2
-const CAVE_TREASURE_CHANCE := 0.10 # Richer treasure underground
+const STAIRWELL_WIDTH := 6    # Blocks wide (outer 2 are walls, inner 4 are traversable)
+const CAVE_TREASURE_CHANCE := 0.10 # Default, overridden per level config
 # Stairwell spacing: guaranteed every N chunks (±jitter). Deeper levels = longer walks.
 # At 200px/s and 1280px/chunk: 12 chunks ≈ 77s walk, 20 chunks ≈ 128s walk.
-const STAIRWELL_SPACING_BASE := 12  # Level 2 entrance every ~12 chunks (~1 min walk)
-const STAIRWELL_SPACING_SCALE := 8  # Each deeper level adds this many chunks between entrances
-const STAIRWELL_JITTER := 3         # ± random offset so it doesn't feel perfectly regular
+# At 200px/s and 1280px/chunk: 3 chunks ≈ 19s walk ≈ 20 seconds
+const STAIRWELL_SPACING_BASE := 3   # Level 2 entrance every ~3 chunks (~20s walk)
+const STAIRWELL_SPACING_SCALE := 5  # Each deeper level adds this many chunks between entrances
+const STAIRWELL_JITTER := 1         # ± random offset so it doesn't feel perfectly regular
+const STAIRWELL_MIN_DISTANCE := 4   # No stairwells within this many chunks of spawn
+
+# Level configuration templates — each level is a full world with its own palette
+# Add new levels by appending to this array
+var LEVEL_CONFIGS: Array = [
+	{}, # Index 0 unused (Level 1 is the surface, generated separately)
+	{   # Level 2 — Twilight underground
+		"name": "Level 2",
+		"sky_color": Color(0.18, 0.15, 0.28, 1),
+		"surface_color": Color(0.22, 0.45, 0.3, 1),
+		"dirt_color": Color(0.32, 0.3, 0.38, 1),
+		"sky_height": 450.0,
+		"underground_rows": 8,
+		"treasure_chance": 0.10,
+		"min_difficulty": 2,
+		"has_mushrooms": true,
+		"has_crystals": true,
+		"has_glow_trees": true,
+		"star_count_min": 4,
+		"star_count_max": 8,
+		"tree_count_min": 2,
+		"tree_count_max": 4,
+		"platform_count_min": 2,
+		"platform_count_max": 3,
+	},
+	{   # Level 3 — Deep magma caverns (future)
+		"name": "Level 3",
+		"sky_color": Color(0.15, 0.05, 0.05, 1),
+		"surface_color": Color(0.35, 0.2, 0.15, 1),
+		"dirt_color": Color(0.25, 0.15, 0.1, 1),
+		"sky_height": 500.0,
+		"underground_rows": 10,
+		"treasure_chance": 0.15,
+		"min_difficulty": 3,
+		"has_mushrooms": false,
+		"has_crystals": true,
+		"has_glow_trees": false,
+		"star_count_min": 0,
+		"star_count_max": 2,
+		"tree_count_min": 0,
+		"tree_count_max": 1,
+		"platform_count_min": 2,
+		"platform_count_max": 4,
+	},
+]
 
 const PLAYER1_COLOR := Color(0.25, 0.55, 0.85, 1)  # Blue
 const PLAYER2_COLOR := Color(0.85, 0.35, 0.25, 1)  # Red-orange
@@ -65,6 +110,26 @@ func _ready() -> void:
 	Input.joy_connection_changed.connect(_on_joy_connection_changed)
 
 	# Pets spawn via magic summoning (spell "cat" or "dog"), not auto-spawned
+
+	# Restore hammer upgrade if player already has it
+	if "hammer" in GameManager.items_owned and player:
+		player.dig_cooldown = 0.1
+		player.dig_range = 128.0
+		# Add visual hammer
+		var hammer_visual := Node2D.new()
+		hammer_visual.name = "HammerVisual"
+		var handle := ColorRect.new()
+		handle.position = Vector2(14, -8)
+		handle.size = Vector2(4, 20)
+		handle.color = Color(0.55, 0.35, 0.15, 1)
+		hammer_visual.add_child(handle)
+		var head := ColorRect.new()
+		head.position = Vector2(10, -14)
+		head.size = Vector2(12, 10)
+		head.color = Color(0.6, 0.6, 0.65, 1)
+		hammer_visual.add_child(head)
+		player.add_child(hammer_visual)
+		print("Francis-opia: Hammer restored from save!")
 
 	# Save is loaded in GameManager._ready() (before other autoloads)
 	# Re-summon persistent world effects from previous session
@@ -270,10 +335,9 @@ func _generate_chunk(index: int) -> void:
 
 	for gx in BLOCKS_PER_CHUNK:
 		for gy in (UNDERGROUND_ROWS + 1):  # +1 for grass row
-			# Skip blocks where the stairwell opening is (bottom 3 rows of underground)
-			if has_stairwell and gx >= stairwell_start_x and gx < stairwell_start_x + STAIRWELL_WIDTH:
-				if gy >= UNDERGROUND_ROWS - 2:  # Last 3 rows open for stairwell
-					continue
+			# Ground above stairwell looks IDENTICAL to everywhere else.
+			# Player digs through normal terrain and discovers the shaft at bedrock level.
+			# No blocks are skipped — the stairwell only exists below bedrock.
 
 			var block := StaticBody2D.new()
 			var block_x := gx * BLOCK_SIZE + BLOCK_SIZE / 2.0
@@ -305,17 +369,29 @@ func _generate_chunk(index: int) -> void:
 	# Bedrock — solid floor below Level 1, with gap for stairwell
 	var bedrock_y := GROUND_Y + (UNDERGROUND_ROWS + 1) * BLOCK_SIZE + BLOCK_SIZE / 2.0 + 10
 	if has_stairwell:
-		# Two bedrock segments with a gap for the stairwell
-		var gap_left := stairwell_start_x * BLOCK_SIZE
-		var gap_right := (stairwell_start_x + STAIRWELL_WIDTH) * BLOCK_SIZE
-		_add_bedrock_segment(chunk, 0.0, gap_left, bedrock_y)
-		_add_bedrock_segment(chunk, gap_right, CHUNK_WIDTH - gap_right, bedrock_y)
-		# Generate stairwell and Level 2 cave
+		# Bedrock gap matches inner opening (between stairwell walls)
+		var inner_left_x := (stairwell_start_x + 1) * BLOCK_SIZE
+		var inner_right_x := (stairwell_start_x + STAIRWELL_WIDTH - 1) * BLOCK_SIZE
+		_add_bedrock_segment(chunk, 0.0, inner_left_x, bedrock_y)
+		_add_bedrock_segment(chunk, inner_right_x, CHUNK_WIDTH - inner_right_x, bedrock_y)
+		# Generate stairwell connecting L1 to L2
 		_generate_stairwell(chunk, terrain_container, block_script, index, stairwell_start_x, bedrock_y)
-		_generate_cave_level(chunk, terrain_container, block_script, index, bedrock_y)
+		# Surface marker
+		_add_stairwell_marker(chunk, stairwell_start_x)
+		# Teleport pad next to stairwell exit in L2 to return to L1
+		var l2_sky_h: float = LEVEL_CONFIGS[1].get("sky_height", 450.0)
+		var l2_ground_y := bedrock_y + 20 + l2_sky_h
+		_add_teleport_pad(chunk, Vector2(
+			(stairwell_start_x - 2) * BLOCK_SIZE + BLOCK_SIZE / 2.0,
+			l2_ground_y - BLOCK_SIZE / 2.0),
+			Vector2(stairwell_start_x * BLOCK_SIZE + BLOCK_SIZE * 3, GROUND_Y - 40),
+			"Level 1")
 	else:
 		# Solid bedrock — no stairwell
 		_add_bedrock_segment(chunk, 0.0, CHUNK_WIDTH, bedrock_y)
+
+	# Level 2 is generated for ALL chunks (infinite, just like Level 1)
+	_generate_level(chunk, block_script, index, bedrock_y, LEVEL_CONFIGS[1])
 
 	# === ABOVE-GROUND DECORATIONS ===
 
@@ -403,8 +479,9 @@ func _on_dig(dig_position: Vector2) -> void:
 func _should_have_stairwell(chunk_index: int) -> bool:
 	## Zone-based stairwell placement. World is divided into zones of `spacing` chunks.
 	## Each zone gets exactly one stairwell at a deterministic position within it.
-	## Guarantees max walk distance = 2x spacing (~2 min for Level 2).
-	## Spacing grows with depth: Level 2 every ~12 chunks, Level 3 every ~20, etc.
+	## No stairwells near spawn so the player has to explore first.
+	if abs(chunk_index) < STAIRWELL_MIN_DISTANCE:
+		return false
 	var level := 1  # Currently placing Level 2 entrances from Level 1
 	var spacing := STAIRWELL_SPACING_BASE + (level - 1) * STAIRWELL_SPACING_SCALE
 	# Determine which zone this chunk belongs to (works for negative indices too)
@@ -416,6 +493,9 @@ func _should_have_stairwell(chunk_index: int) -> bool:
 	# Hash the zone index to pick which chunk within the zone gets the stairwell
 	var zone_hash: int = abs(zone * 2654435761) % spacing  # Knuth multiplicative hash
 	var stairwell_chunk: int = zone * spacing + zone_hash
+	# Double-check minimum distance (zone hash could land near spawn)
+	if abs(stairwell_chunk) < STAIRWELL_MIN_DISTANCE:
+		stairwell_chunk = zone * spacing + STAIRWELL_MIN_DISTANCE
 	return chunk_index == stairwell_chunk
 
 # === BEDROCK HELPER ===
@@ -442,61 +522,143 @@ func _add_bedrock_segment(chunk: Node2D, x_offset: float, width: float, y_pos: f
 # === STAIRWELL GENERATION ===
 
 func _generate_stairwell(chunk: Node2D, terrain: Node2D, _block_script: GDScript, chunk_index: int, start_x: int, bedrock_y: float) -> void:
-	## Generates indestructible stone stairs from underground through bedrock to Level 2.
-	## Stairs descend in a step pattern — each block steps 1 grid cell down.
+	## Generates indestructible stone stairwell from bottom of Level 1 down to Level 2.
+	## 6 blocks wide: outer columns are walls, inner 4 are open with zigzag platforms.
+	## Player digs down through L1 underground, finds the stairwell entrance at bedrock level.
 	var stair_container := Node2D.new()
 	stair_container.name = "Stairwell"
 	chunk.add_child(stair_container)
 
-	# Stairs start at underground row 6 (just above the opening) and go down
-	# through the bedrock gap into the cave level
-	var stair_top_y := GROUND_Y + (UNDERGROUND_ROWS - 2) * BLOCK_SIZE + BLOCK_SIZE / 2.0
-	var cave_floor_y := bedrock_y + 20 + CAVE_ROWS * BLOCK_SIZE
-	var total_stair_depth := int((cave_floor_y - stair_top_y) / BLOCK_SIZE)
+	# Stairwell starts at bedrock (bottom of L1 underground) and goes down to L2 ground
+	var stair_top_y := bedrock_y - 10  # Just above bedrock
+	var l2_sky_h: float = LEVEL_CONFIGS[1].get("sky_height", 450.0)
+	var l2_ground_y := bedrock_y + 20 + l2_sky_h
+	var total_depth: int = int((l2_ground_y - stair_top_y) / BLOCK_SIZE) + 1
 
-	# Build zigzag platforms — 2-block-wide steps alternating left/right
-	# Player walks onto step, walks off edge, drops 2 blocks to next step
-	var going_right := true
-	var current_y := stair_top_y
-	while current_y < cave_floor_y - BLOCK_SIZE:
-		if going_right:
-			# Platform on left side (blocks 0, 1), gap on right (block 2)
-			for sx in 2:
-				var stair_x := (start_x + sx) * BLOCK_SIZE + BLOCK_SIZE / 2.0
-				_add_stair_block(stair_container, Vector2(stair_x, current_y))
-		else:
-			# Platform on right side (blocks 1, 2), gap on left (block 0)
-			for sx in 2:
-				var stair_x := (start_x + 1 + sx) * BLOCK_SIZE + BLOCK_SIZE / 2.0
-				_add_stair_block(stair_container, Vector2(stair_x, current_y))
-		current_y += BLOCK_SIZE * 2  # 2-block drop between steps
-		going_right = not going_right
+	# Inner columns (traversable space)
+	var inner_left := start_x + 1
+	var inner_right := start_x + STAIRWELL_WIDTH - 2  # 4 inner blocks
 
-	# Walls on both sides of stairwell (indestructible) — 2 blocks deep on each side
-	for step_i in total_stair_depth:
+	# Indestructible walls on both sides
+	# Bottom 6 rows are OPEN on both sides for wide exits into Level 2
+	var exit_rows := 6
+	for step_i in total_depth:
 		var wall_y := stair_top_y + step_i * BLOCK_SIZE
-		# Left wall
-		var left_x := (start_x - 1) * BLOCK_SIZE + BLOCK_SIZE / 2.0
-		if start_x > 0:
-			_add_stair_block(stair_container, Vector2(left_x, wall_y))
-		# Right wall
-		var right_x := (start_x + STAIRWELL_WIDTH) * BLOCK_SIZE + BLOCK_SIZE / 2.0
-		if start_x + STAIRWELL_WIDTH < BLOCKS_PER_CHUNK:
-			_add_stair_block(stair_container, Vector2(right_x, wall_y))
+		var is_exit_zone := step_i >= (total_depth - exit_rows)
+		if not is_exit_zone:
+			# Left wall
+			_add_stair_block(stair_container, Vector2(
+				start_x * BLOCK_SIZE + BLOCK_SIZE / 2.0, wall_y))
+			# Right wall
+			_add_stair_block(stair_container, Vector2(
+				(start_x + STAIRWELL_WIDTH - 1) * BLOCK_SIZE + BLOCK_SIZE / 2.0, wall_y))
 
-	# "CAVE" label hint near the entrance — a sign for the player
+	# Zigzag platforms inside the shaft
+	var going_left := true
+	var current_y := stair_top_y + BLOCK_SIZE * 3
+	var stop_y := l2_ground_y - BLOCK_SIZE * (exit_rows + 2)  # Stop platforms above exit zone
+	while current_y < stop_y:
+		if going_left:
+			for sx in 2:
+				_add_stair_block(stair_container, Vector2(
+					(inner_left + sx) * BLOCK_SIZE + BLOCK_SIZE / 2.0, current_y))
+		else:
+			for sx in 2:
+				_add_stair_block(stair_container, Vector2(
+					(inner_right - 1 + sx) * BLOCK_SIZE + BLOCK_SIZE / 2.0, current_y))
+		current_y += BLOCK_SIZE * 3
+		going_left = not going_left
+
+	# "DIG HERE" sign just above bedrock (visible when player digs deep enough)
 	var sign_label := Label.new()
-	sign_label.text = "CAVE"
-	sign_label.add_theme_font_size_override("font_size", 24)
-	sign_label.add_theme_color_override("font_color", Color(0.8, 0.7, 0.5))
-	sign_label.position = Vector2(start_x * BLOCK_SIZE - 8, stair_top_y - BLOCK_SIZE - 20)
+	sign_label.text = "DIG HERE"
+	sign_label.add_theme_font_size_override("font_size", 18)
+	sign_label.add_theme_color_override("font_color", Color(0.9, 0.8, 0.4))
+	sign_label.position = Vector2(
+		(start_x + 1) * BLOCK_SIZE,
+		GROUND_Y + (UNDERGROUND_ROWS - 1) * BLOCK_SIZE)
 	sign_label.z_index = 5
 	stair_container.add_child(sign_label)
+
+	# "LEVEL 2" sign at the bottom of the shaft
+	var l2_label := Label.new()
+	l2_label.text = "LEVEL 2"
+	l2_label.add_theme_font_size_override("font_size", 28)
+	l2_label.add_theme_color_override("font_color", Color(0.4, 0.9, 0.7))
+	l2_label.position = Vector2(
+		(start_x + 1) * BLOCK_SIZE,
+		l2_ground_y - BLOCK_SIZE * 2)
+	l2_label.z_index = 5
+	stair_container.add_child(l2_label)
+
+func _add_stairwell_marker(chunk: Node2D, start_x: int) -> void:
+	## Subtle surface marker above a stairwell — stone pillars and a mysterious glow.
+	## Hints that something is underground without giving it away completely.
+	var center_x := (start_x + STAIRWELL_WIDTH / 2.0) * BLOCK_SIZE
+	var marker := Node2D.new()
+	marker.name = "StairwellMarker"
+	marker.position = Vector2(center_x, GROUND_Y)
+	chunk.add_child(marker)
+
+	# Two small stone pillars flanking the entrance area
+	for side in [-1, 1]:
+		var pillar := ColorRect.new()
+		pillar.position = Vector2(side * (STAIRWELL_WIDTH * BLOCK_SIZE / 2.0 - 8) - 6, -40)
+		pillar.size = Vector2(12, 40)
+		pillar.color = Color(0.45, 0.42, 0.5, 1)
+		marker.add_child(pillar)
+
+		# Pillar cap
+		var cap := ColorRect.new()
+		cap.position = Vector2(side * (STAIRWELL_WIDTH * BLOCK_SIZE / 2.0 - 8) - 8, -46)
+		cap.size = Vector2(16, 6)
+		cap.color = Color(0.5, 0.48, 0.55, 1)
+		marker.add_child(cap)
+
+	# Mysterious glowing rune between the pillars
+	var rune := ColorRect.new()
+	rune.position = Vector2(-5, -20)
+	rune.size = Vector2(10, 10)
+	rune.color = Color(0.4, 0.9, 0.6, 0.5)
+	rune.z_index = 2
+	marker.add_child(rune)
+
+	# Soft ground glow
+	var glow := ColorRect.new()
+	glow.z_index = -1
+	glow.position = Vector2(-30, -6)
+	glow.size = Vector2(60, 12)
+	glow.color = Color(0.3, 0.8, 0.5, 0.08)
+	marker.add_child(glow)
+
+	# Clear "DIG HERE" sign
+	var hint := Label.new()
+	hint.text = "DIG HERE"
+	hint.add_theme_font_size_override("font_size", 22)
+	hint.add_theme_color_override("font_color", Color(1.0, 0.9, 0.4, 0.9))
+	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	hint.position = Vector2(-45, -70)
+	hint.size = Vector2(90, 30)
+	hint.z_index = 5
+	marker.add_child(hint)
+
+	# Arrow pointing down
+	var arrow := Label.new()
+	arrow.text = "v v v"
+	arrow.add_theme_font_size_override("font_size", 18)
+	arrow.add_theme_color_override("font_color", Color(0.9, 0.8, 0.3, 0.7))
+	arrow.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	arrow.position = Vector2(-30, -48)
+	arrow.size = Vector2(60, 20)
+	arrow.z_index = 5
+	marker.add_child(arrow)
 
 func _add_stair_block(container: Node2D, pos: Vector2) -> void:
 	## Creates a single indestructible stone stair block. No dig method = can't break it.
 	var block := StaticBody2D.new()
 	block.position = pos
+	block.collision_layer = 1
+	block.collision_mask = 0
 	container.add_child(block)
 
 	var col := CollisionShape2D.new()
@@ -520,26 +682,108 @@ func _add_stair_block(container: Node2D, pos: Vector2) -> void:
 	border.color = Color(0.55, 0.55, 0.6, 0.3)
 	block.add_child(border)
 
-# === CAVE LEVEL 2 GENERATION ===
+# === TELEPORT PAD ===
 
-func _generate_cave_level(chunk: Node2D, terrain: Node2D, block_script: GDScript, chunk_index: int, bedrock_y: float) -> void:
-	## Generates Level 2 cave terrain below bedrock. Darker colors, richer treasure.
-	var cave_top_y := bedrock_y + 20  # Just below bedrock
+func _add_teleport_pad(chunk: Node2D, pad_pos: Vector2, target_pos: Vector2, label_text: String) -> void:
+	## Glowing teleport pad that sends the player to target_pos when they press Interact.
+	var pad := Area2D.new()
+	pad.name = "TeleportPad"
+	pad.position = pad_pos
+	pad.collision_layer = 4  # Interactable layer
+	pad.collision_mask = 0
+	chunk.add_child(pad)
 
-	# Dark cave background (replaces sky blue)
-	var cave_bg := ColorRect.new()
-	cave_bg.z_index = -10
-	cave_bg.position = Vector2(0, cave_top_y - 10)
-	cave_bg.size = Vector2(CHUNK_WIDTH, (CAVE_ROWS + 2) * BLOCK_SIZE + 40)
-	cave_bg.color = Color(0.08, 0.06, 0.12, 1)  # Very dark purple-black
-	chunk.add_child(cave_bg)
+	# Collision area for detection
+	var col := CollisionShape2D.new()
+	var shape := RectangleShape2D.new()
+	shape.size = Vector2(48, 32)
+	col.shape = shape
+	pad.add_child(col)
 
-	# Cave terrain blocks — stone/slate colors
+	# Visual — glowing platform
+	var base := ColorRect.new()
+	base.position = Vector2(-24, -8)
+	base.size = Vector2(48, 16)
+	base.color = Color(0.2, 0.6, 1.0, 0.8)
+	pad.add_child(base)
+
+	# Glow effect
+	var glow := ColorRect.new()
+	glow.z_index = -1
+	glow.position = Vector2(-30, -14)
+	glow.size = Vector2(60, 28)
+	glow.color = Color(0.2, 0.5, 1.0, 0.15)
+	pad.add_child(glow)
+
+	# Arrow up symbol
+	var arrow := Label.new()
+	arrow.text = "^ %s ^" % label_text
+	arrow.add_theme_font_size_override("font_size", 16)
+	arrow.add_theme_color_override("font_color", Color(0.5, 0.9, 1.0, 0.9))
+	arrow.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	arrow.position = Vector2(-50, -32)
+	arrow.size = Vector2(100, 20)
+	arrow.z_index = 5
+	pad.add_child(arrow)
+
+	# Teleport script
+	var script := GDScript.new()
+	var code := "extends Area2D\n\n"
+	code += "var teleport_target := Vector2(%f, %f)\n\n" % [target_pos.x, target_pos.y]
+	code += "func interact() -> void:\n"
+	code += "\tvar bodies := get_overlapping_bodies()\n"
+	code += "\tfor body in bodies:\n"
+	code += "\t\tif body is CharacterBody2D and body.name.begins_with(\"Player\"):\n"
+	code += "\t\t\tbody.global_position = teleport_target\n"
+	code += "\t\t\tbody.velocity = Vector2.ZERO\n"
+	code += "\t\t\tprint(\"Francis-opia: Teleported!\")\n"
+	script.source_code = code
+	script.reload()
+	pad.set_script(script)
+
+# === LEVEL GENERATION (PARAMETERIZED) ===
+
+func _generate_level(chunk: Node2D, block_script: GDScript, chunk_index: int, above_bedrock_y: float, config: Dictionary) -> void:
+	## Generates a full sub-level below a bedrock layer — parameterized by config.
+	## Each level is a complete world: sky, ground, trees, underground, bedrock floor.
+	var level_name: String = config.get("name", "Level ?")
+	var sky_color: Color = config.get("sky_color", Color(0.18, 0.15, 0.28, 1))
+	var surface_color: Color = config.get("surface_color", Color(0.22, 0.45, 0.3, 1))
+	var dirt_color: Color = config.get("dirt_color", Color(0.32, 0.3, 0.38, 1))
+	var sky_height: float = config.get("sky_height", 450.0)
+	var underground_rows: int = config.get("underground_rows", 8)
+	var treasure_chance: float = config.get("treasure_chance", 0.10)
+
+	var level_top_y := above_bedrock_y + 20
+	var level_ground_y := level_top_y + sky_height
+
+	# Sky background
+	var sky := ColorRect.new()
+	sky.z_index = -10
+	sky.position = Vector2(0, level_top_y - 10)
+	sky.size = Vector2(CHUNK_WIDTH, sky_height + (underground_rows + 2) * BLOCK_SIZE + 60)
+	sky.color = sky_color
+	chunk.add_child(sky)
+
+	# Stars / ambient sky particles
+	var star_min: int = config.get("star_count_min", 0)
+	var star_max: int = config.get("star_count_max", 0)
+	for _s in _rng.randi_range(star_min, star_max):
+		var star := ColorRect.new()
+		star.z_index = -9
+		star.position = Vector2(
+			_rng.randf_range(10, CHUNK_WIDTH - 10),
+			level_top_y + _rng.randf_range(10, sky_height - 40))
+		star.size = Vector2(2, 2)
+		star.color = Color(1, 1, 0.8, _rng.randf_range(0.3, 0.8))
+		chunk.add_child(star)
+
+	# Terrain blocks — surface + underground
 	for gx in BLOCKS_PER_CHUNK:
-		for gy in CAVE_ROWS:
+		for gy in (underground_rows + 1):
 			var block := StaticBody2D.new()
 			var block_x := gx * BLOCK_SIZE + BLOCK_SIZE / 2.0
-			var block_y := cave_top_y + gy * BLOCK_SIZE + BLOCK_SIZE / 2.0
+			var block_y := level_ground_y + gy * BLOCK_SIZE + BLOCK_SIZE / 2.0
 			block.position = Vector2(block_x, block_y)
 			block.collision_layer = 1
 			block.collision_mask = 0
@@ -552,26 +796,190 @@ func _generate_cave_level(chunk: Node2D, terrain: Node2D, block_script: GDScript
 
 			chunk.add_child(block)
 
-			var has_treasure := _rng.randf() < CAVE_TREASURE_CHANCE
+			var is_surface := (gy == 0)
+			var has_treasure := (not is_surface and _rng.randf() < treasure_chance)
 
 			if block_script:
 				block.set_script(block_script)
-				# Use negative gy to distinguish cave blocks visually
-				# TerrainBlock.setup treats gy > 0 as dirt; we'll add cave color logic
-				block.setup(gx, gy, false, has_treasure)
-				# Override visual to cave stone colors
+				block.setup(gx, gy, is_surface, has_treasure)
 				var visual: ColorRect = block.get_node_or_null("Visual")
 				if visual:
-					var shade := randf_range(0.0, 0.06)
-					visual.color = Color(0.32 + shade, 0.3 + shade, 0.38 + shade, 1)
+					if is_surface:
+						visual.color = surface_color
+					else:
+						var shade := randf_range(0.0, 0.06)
+						visual.color = Color(
+							dirt_color.r + shade, dirt_color.g + shade,
+							dirt_color.b + shade, 1)
 
-			# Track with L2 prefix to avoid key collision with Level 1
-			var key := "L2_%d,%d,%d" % [chunk_index, gx, gy]
+			var key := "%s_%d,%d,%d" % [level_name, chunk_index, gx, gy]
 			_terrain_blocks[key] = block
 
-	# Level 2 bedrock (cave floor)
-	var cave_bedrock_y := cave_top_y + CAVE_ROWS * BLOCK_SIZE + BLOCK_SIZE / 2.0 + 10
-	_add_bedrock_segment(chunk, 0.0, CHUNK_WIDTH, cave_bedrock_y)
+	# Bedrock floor
+	var bedrock_y := level_ground_y + (underground_rows + 1) * BLOCK_SIZE + BLOCK_SIZE / 2.0 + 10
+	_add_bedrock_segment(chunk, 0.0, CHUNK_WIDTH, bedrock_y)
+
+	# === Decorations (driven by config) ===
+
+	if config.get("has_mushrooms", false):
+		for _m in _rng.randi_range(3, 6):
+			_add_l2_mushroom(chunk, Vector2(
+				_rng.randf_range(30, CHUNK_WIDTH - 30), level_ground_y))
+
+	if config.get("has_glow_trees", false):
+		var tree_min: int = config.get("tree_count_min", 1)
+		var tree_max: int = config.get("tree_count_max", 3)
+		for _t in _rng.randi_range(tree_min, tree_max):
+			_add_l2_tree(chunk, Vector2(
+				_rng.randf_range(60, CHUNK_WIDTH - 60), level_ground_y))
+
+	var plat_min: int = config.get("platform_count_min", 1)
+	var plat_max: int = config.get("platform_count_max", 3)
+	for _p in _rng.randi_range(plat_min, plat_max):
+		_add_l2_platform(chunk, Vector2(
+			_rng.randf_range(100, CHUNK_WIDTH - 100),
+			level_ground_y - _rng.randf_range(80, sky_height * 0.6)),
+			_rng.randf_range(100, 200))
+
+	if config.get("has_crystals", false):
+		for _c in _rng.randi_range(2, 4):
+			_add_l2_crystal(chunk, Vector2(
+				_rng.randf_range(40, CHUNK_WIDTH - 40), level_ground_y))
+
+	# Ambient fireflies
+	for _f in _rng.randi_range(3, 6):
+		var particle := ColorRect.new()
+		particle.z_index = 3
+		particle.position = Vector2(
+			_rng.randf_range(20, CHUNK_WIDTH - 20),
+			level_ground_y - _rng.randf_range(20, sky_height - 20))
+		particle.size = Vector2(3, 3)
+		particle.color = Color(0.4, 1.0, 0.6, _rng.randf_range(0.2, 0.5))
+		chunk.add_child(particle)
+
+func _add_l2_mushroom(chunk: Node2D, pos: Vector2) -> void:
+	var mushroom := Node2D.new()
+	mushroom.position = pos
+	chunk.add_child(mushroom)
+
+	# Stem
+	var stem := ColorRect.new()
+	stem.position = Vector2(-3, -18)
+	stem.size = Vector2(6, 18)
+	stem.color = Color(0.75, 0.7, 0.6, 1)
+	mushroom.add_child(stem)
+
+	# Cap — glowing colors
+	var cap_colors := [
+		Color(0.8, 0.2, 0.3, 1),   # Red
+		Color(0.3, 0.6, 0.9, 1),   # Blue
+		Color(0.9, 0.5, 0.1, 1),   # Orange
+		Color(0.6, 0.3, 0.8, 1),   # Purple
+	]
+	var cap := ColorRect.new()
+	cap.position = Vector2(-10, -26)
+	cap.size = Vector2(20, 10)
+	cap.color = cap_colors[_rng.randi() % cap_colors.size()]
+	mushroom.add_child(cap)
+
+	# Glow spots on cap
+	for _d in 2:
+		var dot := ColorRect.new()
+		dot.position = Vector2(_rng.randf_range(-7, 5), -24)
+		dot.size = Vector2(3, 3)
+		dot.color = Color(1, 1, 0.8, 0.6)
+		mushroom.add_child(dot)
+
+func _add_l2_tree(chunk: Node2D, pos: Vector2) -> void:
+	var tree := Node2D.new()
+	tree.position = pos
+	chunk.add_child(tree)
+
+	var trunk_h := _rng.randf_range(50, 80)
+	# Dark twisted trunk
+	var trunk := ColorRect.new()
+	trunk.position = Vector2(-6, -trunk_h)
+	trunk.size = Vector2(12, trunk_h)
+	trunk.color = Color(0.25, 0.2, 0.3, 1)
+	tree.add_child(trunk)
+
+	# Glowing canopy — cyan/teal bioluminescent
+	var canopy_size := _rng.randf_range(20, 35)
+	var leaves := ColorRect.new()
+	leaves.position = Vector2(-canopy_size, -trunk_h - canopy_size)
+	leaves.size = Vector2(canopy_size * 2, canopy_size)
+	leaves.color = Color(0.1, 0.65, 0.55, 0.85)
+	tree.add_child(leaves)
+
+	# Glow effect (slightly larger, transparent)
+	var glow := ColorRect.new()
+	glow.z_index = -1
+	glow.position = Vector2(-canopy_size - 4, -trunk_h - canopy_size - 4)
+	glow.size = Vector2(canopy_size * 2 + 8, canopy_size + 8)
+	glow.color = Color(0.1, 0.7, 0.5, 0.15)
+	tree.add_child(glow)
+
+func _add_l2_platform(chunk: Node2D, pos: Vector2, width: float) -> void:
+	var platform := StaticBody2D.new()
+	platform.position = pos
+	platform.collision_layer = 1
+	platform.collision_mask = 0
+	chunk.add_child(platform)
+
+	var col := CollisionShape2D.new()
+	var shape := RectangleShape2D.new()
+	shape.size = Vector2(width, 20)
+	col.shape = shape
+	platform.add_child(col)
+
+	# Dark stone platform with mossy top
+	var visual := ColorRect.new()
+	visual.position = Vector2(-width / 2.0, -10)
+	visual.size = Vector2(width, 20)
+	visual.color = Color(0.3, 0.28, 0.35, 1)
+	platform.add_child(visual)
+
+	var moss := ColorRect.new()
+	moss.position = Vector2(-width / 2.0, -14)
+	moss.size = Vector2(width, 4)
+	moss.color = Color(0.15, 0.5, 0.35, 1)
+	platform.add_child(moss)
+
+func _add_l2_crystal(chunk: Node2D, pos: Vector2) -> void:
+	var crystal := Node2D.new()
+	crystal.position = pos
+	chunk.add_child(crystal)
+
+	var crystal_colors := [
+		Color(0.3, 0.7, 1.0, 0.85),   # Ice blue
+		Color(0.7, 0.3, 0.9, 0.85),   # Amethyst
+		Color(0.2, 0.9, 0.5, 0.85),   # Emerald
+		Color(1.0, 0.6, 0.2, 0.85),   # Amber
+	]
+	var color: Color = crystal_colors[_rng.randi() % crystal_colors.size()]
+	var h := _rng.randf_range(16, 32)
+
+	# Main crystal shard (tall thin triangle approximated as narrow rect)
+	var shard := ColorRect.new()
+	shard.position = Vector2(-4, -h)
+	shard.size = Vector2(8, h)
+	shard.color = color
+	crystal.add_child(shard)
+
+	# Smaller side shard
+	var side := ColorRect.new()
+	side.position = Vector2(5, -h * 0.6)
+	side.size = Vector2(5, h * 0.6)
+	side.color = Color(color.r, color.g, color.b, 0.6)
+	crystal.add_child(side)
+
+	# Glow on ground
+	var glow := ColorRect.new()
+	glow.z_index = -1
+	glow.position = Vector2(-12, -4)
+	glow.size = Vector2(24, 8)
+	glow.color = Color(color.r, color.g, color.b, 0.15)
+	crystal.add_child(glow)
 
 # === DECORATIONS ===
 

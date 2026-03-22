@@ -31,6 +31,8 @@ var summon_registry: Dictionary = {
 	"leaf": {"type": "world", "builder": "_summon_leaves", "label": "Falling leaves!", "color": Color(0.8, 0.6, 0.2)},
 	"hand": {"type": "world", "builder": "_summon_hand", "label": "A helping hand!", "color": Color(0.95, 0.82, 0.7)},
 	"bow":  {"type": "item", "builder": "_summon_bow_upgrade", "label": "Bow upgraded!", "color": Color(0.8, 0.4, 0.2)},
+	"hammer": {"type": "item", "builder": "_summon_hammer", "label": "Dig faster now!", "color": Color(0.6, 0.6, 0.65)},
+	"house": {"type": "world", "builder": "_summon_house", "label": "A cozy house!", "color": Color(0.85, 0.55, 0.25)},
 
 	# Long vowel / complex (Level 3+)
 	"flower": {"type": "world", "builder": "_summon_flower_garden", "label": "A flower garden!", "color": Color(1.0, 0.5, 0.7)},
@@ -936,6 +938,173 @@ func _summon_bow_upgrade(scene_root: Node, _player: Node2D, _pos: Vector2) -> No
 			return weapon_holder
 	print("Francis-opia: ✨ Bow unlocked!")
 	return null
+
+func _summon_hammer(scene_root: Node, _player: Node2D, pos: Vector2) -> Node:
+	# Grant the hammer — doubles dig speed, extends reach, shows visual
+	var player := scene_root.get_node_or_null("Player") as Node2D
+	if player:
+		player.dig_cooldown = 0.1  # Was 0.25, now much faster
+		player.dig_range = 128.0    # Was 96, now 4 blocks reach
+		GameManager.equipped_weapon = "hammer"
+
+		# Add a visible hammer next to the player
+		var hammer_visual := Node2D.new()
+		hammer_visual.name = "HammerVisual"
+		# Remove old one if re-summoned
+		var old := player.get_node_or_null("HammerVisual")
+		if old:
+			old.queue_free()
+
+		# Handle (brown stick)
+		var handle := ColorRect.new()
+		handle.position = Vector2(14, -8)
+		handle.size = Vector2(4, 20)
+		handle.color = Color(0.55, 0.35, 0.15, 1)
+		hammer_visual.add_child(handle)
+		# Head (grey metal)
+		var head := ColorRect.new()
+		head.position = Vector2(10, -14)
+		head.size = Vector2(12, 10)
+		head.color = Color(0.6, 0.6, 0.65, 1)
+		hammer_visual.add_child(head)
+
+		player.add_child(hammer_visual)
+		print("Francis-opia: ✨ Hammer! Hold Q/LB to dig faster and further!")
+	return null
+
+func _summon_house(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
+	var house := Node2D.new()
+	house.global_position = Vector2(pos.x, 725)  # Place on ground
+
+	# Foundation
+	var foundation := ColorRect.new()
+	foundation.position = Vector2(-55, -8)
+	foundation.size = Vector2(110, 8)
+	foundation.color = Color(0.5, 0.45, 0.4, 1)
+	house.add_child(foundation)
+
+	# Main walls
+	var walls := ColorRect.new()
+	walls.position = Vector2(-50, -75)
+	walls.size = Vector2(100, 75)
+	walls.color = Color(0.9, 0.75, 0.5, 1)  # Warm wood color
+	house.add_child(walls)
+
+	# Roof (two angled pieces approximated as rects)
+	var roof_left := ColorRect.new()
+	roof_left.position = Vector2(-58, -100)
+	roof_left.size = Vector2(62, 28)
+	roof_left.color = Color(0.7, 0.25, 0.15, 1)  # Red-brown roof
+	house.add_child(roof_left)
+
+	var roof_right := ColorRect.new()
+	roof_right.position = Vector2(-2, -100)
+	roof_right.size = Vector2(62, 28)
+	roof_right.color = Color(0.65, 0.22, 0.12, 1)
+	house.add_child(roof_right)
+
+	# Roof peak
+	var peak := ColorRect.new()
+	peak.position = Vector2(-10, -110)
+	peak.size = Vector2(20, 12)
+	peak.color = Color(0.75, 0.28, 0.15, 1)
+	house.add_child(peak)
+
+	# Chimney
+	var chimney := ColorRect.new()
+	chimney.position = Vector2(25, -120)
+	chimney.size = Vector2(14, 25)
+	chimney.color = Color(0.55, 0.4, 0.35, 1)
+	house.add_child(chimney)
+
+	# Smoke puffs from chimney
+	for i in 3:
+		var smoke := ColorRect.new()
+		smoke.position = Vector2(28, -125 - i * 12)
+		smoke.size = Vector2(8 + i * 3, 8 + i * 2)
+		smoke.color = Color(0.85, 0.85, 0.85, 0.3 - i * 0.08)
+		house.add_child(smoke)
+
+	# Door
+	var door := ColorRect.new()
+	door.position = Vector2(-12, -40)
+	door.size = Vector2(24, 40)
+	door.color = Color(0.45, 0.28, 0.12, 1)
+	house.add_child(door)
+
+	# Doorknob
+	var knob := ColorRect.new()
+	knob.position = Vector2(7, -22)
+	knob.size = Vector2(4, 4)
+	knob.color = Color(1.0, 0.85, 0.2, 1)
+	house.add_child(knob)
+
+	# Windows (2, with warm light)
+	for wx in [-1, 1]:
+		var win_x := wx * 28 - 9
+		# Window frame
+		var frame := ColorRect.new()
+		frame.position = Vector2(win_x - 2, -62)
+		frame.size = Vector2(22, 22)
+		frame.color = Color(0.4, 0.25, 0.12, 1)
+		house.add_child(frame)
+		# Window glass (warm glow)
+		var glass := ColorRect.new()
+		glass.position = Vector2(win_x, -60)
+		glass.size = Vector2(18, 18)
+		glass.color = Color(1.0, 0.9, 0.5, 0.8)
+		house.add_child(glass)
+		# Window cross
+		var cross_h := ColorRect.new()
+		cross_h.position = Vector2(win_x, -51.5)
+		cross_h.size = Vector2(18, 2)
+		cross_h.color = Color(0.4, 0.25, 0.12, 1)
+		house.add_child(cross_h)
+		var cross_v := ColorRect.new()
+		cross_v.position = Vector2(win_x + 8, -60)
+		cross_v.size = Vector2(2, 18)
+		cross_v.color = Color(0.4, 0.25, 0.12, 1)
+		house.add_child(cross_v)
+
+	# Flower box under left window
+	var flower_box := ColorRect.new()
+	flower_box.position = Vector2(-39, -40)
+	flower_box.size = Vector2(22, 6)
+	flower_box.color = Color(0.45, 0.3, 0.15, 1)
+	house.add_child(flower_box)
+	# Tiny flowers
+	for f in 3:
+		var fl := ColorRect.new()
+		fl.position = Vector2(-36 + f * 7, -46)
+		fl.size = Vector2(5, 6)
+		fl.color = [Color(1, 0.4, 0.5), Color(1, 0.85, 0.2), Color(0.7, 0.4, 1)][f]
+		house.add_child(fl)
+
+	# Welcome mat
+	var mat := ColorRect.new()
+	mat.position = Vector2(-16, -2)
+	mat.size = Vector2(32, 4)
+	mat.color = Color(0.6, 0.3, 0.3, 1)
+	house.add_child(mat)
+
+	# Warm ground glow
+	var glow := ColorRect.new()
+	glow.z_index = -1
+	glow.position = Vector2(-60, -8)
+	glow.size = Vector2(120, 16)
+	glow.color = Color(1.0, 0.9, 0.5, 0.08)
+	house.add_child(glow)
+
+	scene_root.add_child(house)
+
+	# Pop-in animation
+	house.scale = Vector2(0.1, 0.1)
+	var tween := house.create_tween()
+	tween.tween_property(house, "scale", Vector2(1.1, 1.1), 0.5).set_trans(Tween.TRANS_BACK)
+	tween.tween_property(house, "scale", Vector2(1.0, 1.0), 0.2)
+
+	print("Francis-opia: ✨ A cozy house appeared! Home sweet home!")
+	return house
 
 # --- HELPER: Get hint shape for HUD ---
 

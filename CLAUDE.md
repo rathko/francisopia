@@ -42,7 +42,16 @@ Events -> GameManager -> WordEngine -> AudioManager -> InputHelper -> QuestGener
 - MAX_CHUNKS: 7 active
 - GROUND_Y: 725.0 (top of grass row)
 - BLOCK_SIZE: 32px
+- STAIRWELL_WIDTH: 4 blocks (outer 2 are walls, inner 2 are traversable)
+- L2_SKY_HEIGHT: 300px (open sky space above Level 2 ground)
 - Player starts at (400, 700) in Main.tscn
+
+### Level 2 Architecture
+- Level 2 is a full world below bedrock, not a cave. Has sky (twilight), ground, trees, underground.
+- Stairwell connects L1 to L2 with indestructible stone walls and zigzag platforms.
+- Stairwell blocks have NO `dig()` method, making them permanently solid.
+- Level 2 decorations: glowing mushrooms, bioluminescent trees, floating platforms.
+- Level 2 ground is mossy stone (green-tinted) with darker underground stone below.
 
 ### Signal Bus Pattern
 Cross-system communication goes through Events autoload or direct signals on source nodes. Never create hard references between unrelated systems.

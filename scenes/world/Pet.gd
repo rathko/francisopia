@@ -195,8 +195,8 @@ func _physics_process(delta: float) -> void:
 
 	var dist := global_position.distance_to(pet_owner.global_position)
 
-	# Teleport if too far
-	if dist > teleport_distance:
+	# Teleport if too far or fell below the world
+	if dist > teleport_distance or global_position.y > pet_owner.global_position.y + 400:
 		global_position = pet_owner.global_position + Vector2(30, 0)
 		velocity = Vector2.ZERO
 		return

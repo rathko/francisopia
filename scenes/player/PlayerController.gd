@@ -12,7 +12,7 @@ signal dig_requested(dig_position: Vector2)
 @export var gravity_multiplier := 1.0
 @export var coyote_time := 0.15
 @export var jump_buffer_time := 0.1
-@export var respawn_y := 1200.0
+@export var respawn_y := 2500.0
 @export var dig_range := 96.0  # 3 blocks (32px each)
 @export var dig_cooldown := 0.25  # Seconds between digs (hold to mine)
 @export var wall_slide_speed := 60.0  # Max fall speed when sliding on wall
