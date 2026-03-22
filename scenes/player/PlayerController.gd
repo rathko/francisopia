@@ -393,6 +393,7 @@ func _try_pick_letter(letter_node: Node2D, letter: String) -> void:
 
 func _check_respawn() -> void:
 	if global_position.y > respawn_y:
+		print("Francis-opia: Respawn! Player fell to Y=%d, teleporting to %s" % [int(global_position.y), _last_safe_position])
 		global_position = _last_safe_position
 		velocity = Vector2.ZERO
 

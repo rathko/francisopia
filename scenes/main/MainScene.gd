@@ -13,10 +13,14 @@ const BLOCK_SIZE := 32.0
 const BLOCKS_PER_CHUNK := 40  # 1280 / 32
 const UNDERGROUND_ROWS := 8   # How deep the diggable terrain goes
 const TREASURE_CHANCE := 0.06 # 6% chance per underground block
-const STAIRWELL_CHANCE := 0.15 # 15% chance per chunk to have a stairwell
 const STAIRWELL_WIDTH := 3    # Blocks wide
 const CAVE_ROWS := 6          # Diggable rows in Level 2
 const CAVE_TREASURE_CHANCE := 0.10 # Richer treasure underground
+# Stairwell spacing: guaranteed every N chunks (±jitter). Deeper levels = longer walks.
+# At 200px/s and 1280px/chunk: 12 chunks ≈ 77s walk, 20 chunks ≈ 128s walk.
+const STAIRWELL_SPACING_BASE := 12  # Level 2 entrance every ~12 chunks (~1 min walk)
+const STAIRWELL_SPACING_SCALE := 8  # Each deeper level adds this many chunks between entrances
+const STAIRWELL_JITTER := 3         # ± random offset so it doesn't feel perfectly regular
 
 const PLAYER1_COLOR := Color(0.25, 0.55, 0.85, 1)  # Blue
 const PLAYER2_COLOR := Color(0.85, 0.35, 0.25, 1)  # Red-orange
@@ -96,7 +100,9 @@ func _ready() -> void:
 
 	# Generate initial chunks around player
 	_update_chunks()
+	_last_chunk_index = _get_chunk_index(player.global_position.x)
 
+	print("Francis-opia: Ground at Y=%d, Player at Y=%d, Chunks generated: %d" % [GROUND_Y, player.global_position.y, _chunks.size()])
 	print("Francis-opia: WASD/arrows to move, Space to jump, Click/RT to shoot, Q/LB to dig, Tab for quests")
 
 # === PETS ===
@@ -257,8 +263,9 @@ func _generate_chunk(index: int) -> void:
 
 	var block_script := load("res://scenes/world/TerrainBlock.gd") as GDScript
 
-	# Determine if this chunk has a stairwell to Level 2
-	var has_stairwell := _rng.randf() < STAIRWELL_CHANCE
+	# Determine if this chunk has a stairwell — guaranteed spacing, not random chance.
+	# Level 2 entrance every ~12 chunks (~1 min walk), Level 3 every ~20 chunks, etc.
+	var has_stairwell := _should_have_stairwell(index)
 	var stairwell_start_x := _rng.randi_range(4, BLOCKS_PER_CHUNK - STAIRWELL_WIDTH - 4) if has_stairwell else -1
 
 	for gx in BLOCKS_PER_CHUNK:
@@ -272,6 +279,8 @@ func _generate_chunk(index: int) -> void:
 			var block_x := gx * BLOCK_SIZE + BLOCK_SIZE / 2.0
 			var block_y := GROUND_Y + gy * BLOCK_SIZE + BLOCK_SIZE / 2.0
 			block.position = Vector2(block_x, block_y)
+			block.collision_layer = 1
+			block.collision_mask = 0
 
 			# Collision
 			var col := CollisionShape2D.new()
@@ -280,7 +289,7 @@ func _generate_chunk(index: int) -> void:
 			col.shape = shape
 			block.add_child(col)
 
-			terrain_container.add_child(block)
+			chunk.add_child(block)
 
 			var is_grass := (gy == 0)
 			var has_treasure := (not is_grass and _rng.randf() < TREASURE_CHANCE)
@@ -388,6 +397,26 @@ func _on_dig(dig_position: Vector2) -> void:
 			if _terrain_blocks[key] == best_block:
 				_terrain_blocks.erase(key)
 				break
+
+# === STAIRWELL SPACING ===
+
+func _should_have_stairwell(chunk_index: int) -> bool:
+	## Zone-based stairwell placement. World is divided into zones of `spacing` chunks.
+	## Each zone gets exactly one stairwell at a deterministic position within it.
+	## Guarantees max walk distance = 2x spacing (~2 min for Level 2).
+	## Spacing grows with depth: Level 2 every ~12 chunks, Level 3 every ~20, etc.
+	var level := 1  # Currently placing Level 2 entrances from Level 1
+	var spacing := STAIRWELL_SPACING_BASE + (level - 1) * STAIRWELL_SPACING_SCALE
+	# Determine which zone this chunk belongs to (works for negative indices too)
+	var zone: int
+	if chunk_index >= 0:
+		zone = chunk_index / spacing
+	else:
+		zone = (chunk_index - spacing + 1) / spacing
+	# Hash the zone index to pick which chunk within the zone gets the stairwell
+	var zone_hash: int = abs(zone * 2654435761) % spacing  # Knuth multiplicative hash
+	var stairwell_chunk: int = zone * spacing + zone_hash
+	return chunk_index == stairwell_chunk
 
 # === BEDROCK HELPER ===
 
@@ -512,6 +541,8 @@ func _generate_cave_level(chunk: Node2D, terrain: Node2D, block_script: GDScript
 			var block_x := gx * BLOCK_SIZE + BLOCK_SIZE / 2.0
 			var block_y := cave_top_y + gy * BLOCK_SIZE + BLOCK_SIZE / 2.0
 			block.position = Vector2(block_x, block_y)
+			block.collision_layer = 1
+			block.collision_mask = 0
 
 			var col := CollisionShape2D.new()
 			var shape := RectangleShape2D.new()
@@ -519,7 +550,7 @@ func _generate_cave_level(chunk: Node2D, terrain: Node2D, block_script: GDScript
 			col.shape = shape
 			block.add_child(col)
 
-			terrain.add_child(block)
+			chunk.add_child(block)
 
 			var has_treasure := _rng.randf() < CAVE_TREASURE_CHANCE
 
