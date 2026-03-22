@@ -80,6 +80,14 @@ if [ "$DO_EXPORT" = true ]; then
         fi
     fi
 
+    # Check icon is present before export (it gets baked into the binary)
+    if [ -f "${GAME_DIR}/icon.png" ]; then
+        ok "Icon: icon.png found (will be embedded in binary)"
+    else
+        warn "Icon: icon.png NOT FOUND — binary will have no window icon"
+        warn "  Fix: cp /home/shared/francisopia-icon.png ${GAME_DIR}/icon.png"
+    fi
+
     godot --headless --export-release "${EXPORT_PRESET}" "${EXPORT_DIR}/${BINARY_NAME}" 2>&1 | tail -5
 
     if [ -f "${EXPORT_DIR}/${BINARY_NAME}" ]; then
@@ -106,9 +114,15 @@ if [ "$DO_DEPLOY" = true ]; then
     # Create destination and sync
     ssh "${DECK_USER}@${DECK_HOST}" "mkdir -p '${DECK_PATH}'"
 
+    # Build file list: binary + icon + desktop entry
+    SYNC_FILES=("${EXPORT_DIR}/${BINARY_NAME}")
+    if [ -f "${GAME_DIR}/icon.png" ]; then
+        SYNC_FILES+=("${GAME_DIR}/icon.png")
+    fi
+    SYNC_FILES+=("${GAME_DIR}/francisopia.desktop")
+
     rsync -avz --progress \
-        "${EXPORT_DIR}/${BINARY_NAME}" \
-        "${GAME_DIR}/francisopia.desktop" \
+        "${SYNC_FILES[@]}" \
         "${DECK_USER}@${DECK_HOST}:${DECK_PATH}/"
 
     # Make executable on deck
@@ -117,7 +131,8 @@ if [ "$DO_DEPLOY" = true ]; then
     # Install desktop entry for game mode
     ssh "${DECK_USER}@${DECK_HOST}" "
         mkdir -p ~/.local/share/applications
-        sed 's|GAME_PATH|${DECK_PATH}/${BINARY_NAME}|g' \
+        sed -e 's|GAME_PATH|${DECK_PATH}/${BINARY_NAME}|g' \
+            -e 's|ICON_PATH|${DECK_PATH}/icon.png|g' \
             '${DECK_PATH}/francisopia.desktop' \
             > ~/.local/share/applications/francisopia.desktop
     "

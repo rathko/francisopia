@@ -2,6 +2,7 @@
 Name=Francis-opia
 Comment=A cozy reading adventure where words have magical power
 Exec=GAME_PATH
+Icon=ICON_PATH
 Type=Application
 Categories=Game;
 Terminal=false
