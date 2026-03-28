@@ -10,6 +10,8 @@ signal progress_reset()  # Emitted when player resets all progress
 const SAVE_PATH := "user://save.json"
 const BACKUP_PATH := "user://save.bak"
 const AUTO_SAVE_INTERVAL := 120.0  # 2 minutes
+const SAVE_VERSION := 2            # Bump when save format changes
+const GENERATOR_VERSION := 1       # Bump when terrain generation algorithm changes
 
 var player_name := "Explorer"
 var planet_name := "Francis-opia"
@@ -26,9 +28,14 @@ var starter_complete := false # Whether starter sequence is done
 var equipped_weapon := ""    # Currently equipped weapon name (empty = none)
 var current_level := 1       # Underground depth level (1 = surface, 2+ = deeper caves)
 var world_seed: int = 0      # Terrain generation seed (0 = generate new on first play)
+var generator_ver: int = 1   # Generator version this world was created with
 var player_pos_x: float = 400.0  # Last player position
 var player_pos_y: float = 700.0
-var dug_blocks: Dictionary = {}  # "chunk,gx,gy" -> true for destroyed blocks
+# World deltas: only player-caused changes are stored. Everything else regenerates from seed.
+# Key: "chunk,gx,gy" or "Level 2_chunk,gx,gy". Value: block type string ("air" = dug out).
+# Future: "wood_plank", "stone_brick" etc. for player-placed blocks.
+var block_changes: Dictionary = {}
+var opened_chests: Dictionary = {}  # "chunk,index" -> true for looted chests
 
 var _auto_save_timer := 0.0
 
@@ -86,6 +93,8 @@ func change_area(area_name: String) -> void:
 
 func save_game() -> void:
 	var save_data := {
+		"save_version": SAVE_VERSION,
+		"generator_version": generator_ver,
 		"player_name": player_name,
 		"planet_name": planet_name,
 		"castle_style": castle_style,
@@ -103,7 +112,8 @@ func save_game() -> void:
 		"world_seed": world_seed,
 		"player_pos_x": player_pos_x,
 		"player_pos_y": player_pos_y,
-		"dug_blocks": dug_blocks.keys(),
+		"block_changes": block_changes,
+		"opened_chests": opened_chests.keys(),
 	}
 	# Atomic write: write to temp, then rename over real file
 	# Keep one backup of previous save
@@ -140,14 +150,38 @@ func load_game() -> bool:
 	starter_complete = data.get("starter_complete", false)
 	equipped_weapon = data.get("equipped_weapon", "")
 	current_level = data.get("current_level", 1)
-	world_seed = data.get("world_seed", 0)
+	# Clamp seed to JSON-safe range (JSON floats lose precision above 2^53)
+	var loaded_seed: int = data.get("world_seed", 0)
+	if loaded_seed > 1000000000 or loaded_seed < -1000000000:
+		# Seed was corrupted by JSON float precision loss, re-derive a stable one
+		loaded_seed = absi(loaded_seed) % 1000000000
+		if loaded_seed == 0:
+			loaded_seed = 42
+		print("Francis-opia: Fixed oversized world seed to %d" % loaded_seed)
+	world_seed = loaded_seed
+	generator_ver = data.get("generator_version", 1)
 	player_pos_x = data.get("player_pos_x", 400.0)
 	player_pos_y = data.get("player_pos_y", 700.0)
-	# Restore dug blocks from saved array of keys
-	dug_blocks.clear()
-	var saved_dug: Array = data.get("dug_blocks", [])
-	for key in saved_dug:
-		dug_blocks[key] = true
+
+	# Restore world deltas with migration from old format
+	block_changes.clear()
+	var save_ver: int = data.get("save_version", 1)
+	if save_ver < 2 and data.has("dug_blocks"):
+		# Migrate v1: dug_blocks was Array of keys, convert to block_changes dict
+		var old_dug: Array = data.get("dug_blocks", [])
+		for key in old_dug:
+			block_changes[key] = "air"
+		print("Francis-opia: Migrated %d dug blocks from save v1 to v2" % old_dug.size())
+	else:
+		var saved_changes: Dictionary = data.get("block_changes", {})
+		for key in saved_changes:
+			block_changes[key] = saved_changes[key]
+
+	opened_chests.clear()
+	var saved_chests: Array = data.get("opened_chests", [])
+	for key in saved_chests:
+		opened_chests[key] = true
+
 	coins_changed.emit(word_coins)
 	return true
 
@@ -183,9 +217,11 @@ func reset_progress() -> void:
 	equipped_weapon = ""
 	current_level = 1
 	world_seed = 0
+	generator_ver = 1
 	player_pos_x = 400.0
 	player_pos_y = 700.0
-	dug_blocks.clear()
+	block_changes.clear()
+	opened_chests.clear()
 	# Delete save files
 	if FileAccess.file_exists(SAVE_PATH):
 		DirAccess.remove_absolute(SAVE_PATH)

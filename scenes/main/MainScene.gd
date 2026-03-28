@@ -102,7 +102,11 @@ func _ready() -> void:
 		_rng.seed = _world_seed
 	else:
 		_rng.randomize()
-		_world_seed = _rng.seed
+		# Clamp seed to JSON-safe range (floats lose precision above 2^53)
+		_world_seed = absi(_rng.seed) % 1000000000
+		if _world_seed == 0:
+			_world_seed = 42
+		_rng.seed = _world_seed
 		GameManager.world_seed = _world_seed
 	_thief_scene = load(THIEF_SCENE_PATH) as PackedScene
 	_player_scene = load(PLAYER_SCENE_PATH) as PackedScene
@@ -164,6 +168,9 @@ func _ready() -> void:
 
 	# Wire monster spawning to wrong letter
 	WordEngine.wrong_letter_rejected.connect(_on_wrong_letter)
+
+	# Regenerate chunks when world-changing words are spelled (e.g. "tree")
+	GameManager.word_completed.connect(_on_world_word_completed)
 
 	# Wire digging for all players
 	if player:
@@ -412,7 +419,7 @@ func _generate_chunk(index: int) -> void:
 
 			var key := "%d,%d,%d" % [index, gx, gy]
 			# Skip blocks that were previously dug out
-			if GameManager.dug_blocks.has(key):
+			if GameManager.block_changes.has(key):
 				continue
 
 			var block := StaticBody2D.new()
@@ -476,12 +483,14 @@ func _generate_chunk(index: int) -> void:
 			plat_ground - _rng.randf_range(75, 275)
 		), _rng.randf_range(120, 220))
 
-	# Random trees (1-3)
+	# Random trees (1-3) — only appear after player spells "tree"
+	var trees_unlocked := "tree" in GameManager.words_summoned
 	var tree_count := _rng.randi_range(1, 3)
 	for t in tree_count:
 		var tree_x := _rng.randf_range(50, CHUNK_WIDTH - 50)
 		var tree_ground := _get_ground_y_at_px(index, tree_x, stairwell_centers)
-		_add_tree(chunk, Vector2(tree_x, tree_ground))
+		if trees_unlocked:
+			_add_tree(chunk, Vector2(tree_x, tree_ground))
 
 	# Random flowers (2-5)
 	var flower_count := _rng.randi_range(2, 5)
@@ -548,7 +557,7 @@ func _on_dig(dig_position: Vector2) -> void:
 			if _terrain_blocks[key] == best_block:
 				_terrain_blocks.erase(key)
 				# Persist the dug block so it stays gone across sessions
-				GameManager.dug_blocks[key] = true
+				GameManager.block_changes[key] = "air"
 				break
 
 # === STAIRWELL SPACING ===
@@ -862,7 +871,7 @@ func _generate_level(chunk: Node2D, block_script: GDScript, chunk_index: int, ab
 			var has_treasure := (not is_surface and _rng.randf() < treasure_chance)
 
 			var key := "%s_%d,%d,%d" % [level_name, chunk_index, gx, gy]
-			if GameManager.dug_blocks.has(key):
+			if GameManager.block_changes.has(key):
 				continue
 
 			var block := StaticBody2D.new()
@@ -909,9 +918,11 @@ func _generate_level(chunk: Node2D, block_script: GDScript, chunk_index: int, ab
 	if config.get("has_glow_trees", false):
 		var tree_min: int = config.get("tree_count_min", 1)
 		var tree_max: int = config.get("tree_count_max", 3)
+		var l2_trees_unlocked := "tree" in GameManager.words_summoned
 		for _t in _rng.randi_range(tree_min, tree_max):
-			_add_l2_tree(chunk, Vector2(
-				_rng.randf_range(60, CHUNK_WIDTH - 60), level_ground_y))
+			var l2_tree_x := _rng.randf_range(60, CHUNK_WIDTH - 60)
+			if l2_trees_unlocked:
+				_add_l2_tree(chunk, Vector2(l2_tree_x, level_ground_y))
 
 	var plat_min: int = config.get("platform_count_min", 1)
 	var plat_max: int = config.get("platform_count_max", 3)
@@ -1256,3 +1267,18 @@ func _restore_summons() -> void:
 			if summoned is Node:
 				magic_summon._summoned_entities.append(summoned)
 			print("Francis-opia: Restored %s from last session!" % word)
+
+# Words that change the world when spelled — triggers chunk regeneration
+const WORLD_CHANGING_WORDS := ["tree"]
+
+func _on_world_word_completed(word: String) -> void:
+	if word.to_lower() in WORLD_CHANGING_WORDS:
+		_regenerate_all_chunks()
+
+func _regenerate_all_chunks() -> void:
+	## Force-reload all visible chunks to reflect world state changes (e.g. trees appearing).
+	var chunk_indices: Array = _chunks.keys().duplicate()
+	for idx in chunk_indices:
+		_remove_chunk(idx)
+	_last_chunk_index = -999
+	_update_chunks()
