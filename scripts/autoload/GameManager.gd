@@ -27,7 +27,7 @@ var starter_index := 0       # How far through the starter word sequence
 var starter_complete := false # Whether starter sequence is done
 var equipped_weapon := ""    # Currently equipped weapon name (empty = none)
 var big_scale := 1.0         # Scale multiplier from spelling "big" (persists across sessions)
-var active_companion := "dog" # Which companion follows the player (word name)
+var active_companions: Array[String] = ["dog"]  # Up to 3 companions follow the player
 var home_pos_x: float = 0.0  # House position (set when house is summoned)
 var home_pos_y: float = 0.0
 var teleport_beacon_x: float = 0.0  # Last placed teleport beacon (0,0 = none)
@@ -115,7 +115,7 @@ func save_game() -> void:
 		"starter_complete": starter_complete,
 		"equipped_weapon": equipped_weapon,
 		"big_scale": big_scale,
-		"active_companion": active_companion,
+		"active_companions": active_companions,
 		"home_pos_x": home_pos_x,
 		"home_pos_y": home_pos_y,
 		"teleport_beacon_x": teleport_beacon_x,
@@ -162,7 +162,16 @@ func load_game() -> bool:
 	starter_complete = data.get("starter_complete", false)
 	equipped_weapon = data.get("equipped_weapon", "")
 	big_scale = data.get("big_scale", 1.0)
-	active_companion = data.get("active_companion", "dog")
+	# Migrate from old single active_companion to array
+	var saved_companions: Variant = data.get("active_companions", null)
+	if saved_companions is Array:
+		active_companions.clear()
+		for c in saved_companions:
+			active_companions.append(c)
+	elif data.has("active_companion"):
+		active_companions = [data.get("active_companion", "dog")]
+	else:
+		active_companions = ["dog"]
 	home_pos_x = data.get("home_pos_x", 0.0)
 	home_pos_y = data.get("home_pos_y", 0.0)
 	teleport_beacon_x = data.get("teleport_beacon_x", 0.0)
@@ -234,7 +243,7 @@ func reset_progress() -> void:
 	starter_complete = false
 	equipped_weapon = ""
 	big_scale = 1.0
-	active_companion = "dog"
+	active_companions = ["dog"]
 	home_pos_x = 0.0
 	home_pos_y = 0.0
 	teleport_beacon_x = 0.0

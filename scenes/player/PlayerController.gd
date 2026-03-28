@@ -29,6 +29,8 @@ var _touching_wall := false
 var _wall_direction := 0  # -1 left wall, 1 right wall, 0 none
 var _highlighted_letter: Node2D = null  # Currently proximity-highlighted letter
 var _highlight_original_modulate := Color.WHITE
+var _highlighted_companion: Node = null
+var _companion_original_modulate := Color.WHITE
 
 # Dig cursor visual
 var _dig_cursor: Node2D = null
@@ -91,6 +93,7 @@ func _physics_process(delta: float) -> void:
 	_handle_interactions()
 	_handle_teleport()
 	_update_letter_highlight()
+	_update_companion_highlight()
 	_update_animation()
 	move_and_slide()
 
@@ -406,11 +409,11 @@ func _try_companion_swap() -> bool:
 	var magic := get_node_or_null("/root/MagicSummon")
 	if not magic:
 		return false
-	# Check if any idle companion is within interact range (50px)
+	# Check if any idle companion is within interact range
 	var closest_word := ""
-	var closest_dist := 60.0  # Max interact range
+	var closest_dist := 70.0
 	for word in magic._companions:
-		if word == GameManager.active_companion:
+		if word in GameManager.active_companions:
 			continue
 		var companion: Node = magic._companions[word]
 		if not is_instance_valid(companion):
@@ -420,8 +423,8 @@ func _try_companion_swap() -> bool:
 			closest_dist = dist
 			closest_word = word
 	if closest_word != "":
-		magic.swap_active_companion(closest_word, self)
-		print("Francis-opia: %s is now your companion!" % closest_word.capitalize())
+		magic.activate_companion(closest_word, self)
+		print("Francis-opia: %s is now following you!" % closest_word.capitalize())
 		return true
 	return false
 
@@ -493,6 +496,37 @@ func _update_letter_highlight() -> void:
 			# Wrong — soft red tint
 			var pulse := 0.85 + sin(Time.get_ticks_msec() * 0.004) * 0.1
 			closest.modulate = Color(1.0 * pulse, 0.45 * pulse, 0.4 * pulse, 0.85)
+
+func _update_companion_highlight() -> void:
+	var magic := get_node_or_null("/root/MagicSummon")
+	if not magic:
+		return
+	# Find closest idle companion within interact range
+	var closest: Node = null
+	var closest_dist := 70.0
+	for word in magic._companions:
+		if word in GameManager.active_companions:
+			continue
+		var companion: Node = magic._companions[word]
+		if not is_instance_valid(companion):
+			continue
+		var dist := global_position.distance_to(companion.global_position)
+		if dist < closest_dist:
+			closest_dist = dist
+			closest = companion
+
+	# Un-highlight previous
+	if _highlighted_companion != closest:
+		if _highlighted_companion and is_instance_valid(_highlighted_companion):
+			_highlighted_companion.modulate = _companion_original_modulate
+		_highlighted_companion = closest
+		if closest:
+			_companion_original_modulate = closest.modulate
+
+	# Apply highlight pulse
+	if closest and is_instance_valid(closest):
+		var pulse := 0.85 + sin(Time.get_ticks_msec() * 0.005) * 0.15
+		closest.modulate = Color(0.7 * pulse, 1.0 * pulse, 0.7 * pulse, 1.0)
 
 func _on_letter_contact(_body: Node2D) -> void:
 	pass  # Letters are now picked up via interact, not auto-collect

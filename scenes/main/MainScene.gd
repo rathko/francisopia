@@ -1418,7 +1418,7 @@ func _spawn_dog_companion() -> void:
 			magic_summon._summoned_entities.append(dog)
 			magic_summon.register_companion("dog", dog, player)
 			if GameManager.big_scale > 1.0:
-				var s := GameManager.big_scale
+				var s := min(GameManager.big_scale, 2.0)
 				var sx := sign(dog.scale.x) if dog.scale.x != 0 else 1.0
 				dog.scale = Vector2(sx * s, s)
 			print("Francis-opia: Your dog is here! Woof!")
@@ -1451,13 +1451,16 @@ func _restore_summons() -> void:
 		_apply_big_scale.call_deferred(magic_summon)
 
 func _apply_big_scale(magic_summon: Node) -> void:
-	var s := GameManager.big_scale
-	for entity in magic_summon._summoned_entities:
-		if is_instance_valid(entity) and entity is CharacterBody2D:
+	var s := min(GameManager.big_scale, 2.0)
+	# Clamp persisted value too
+	if GameManager.big_scale > 2.0:
+		GameManager.big_scale = 2.0
+	for word in magic_summon._companions:
+		var entity: Node = magic_summon._companions[word]
+		if is_instance_valid(entity):
 			var sx := sign(entity.scale.x) if entity.scale.x != 0 else 1.0
 			entity.scale = Vector2(sx * s, s)
 			print("Francis-opia: %s is still BIG!" % entity.name)
-			return  # Apply to first pet only, matching _summon_big behavior
 
 # Words that change the world when spelled — triggers chunk regeneration
 const WORLD_CHANGING_WORDS := ["tree"]

@@ -67,19 +67,25 @@ func is_companion_word(word: String) -> bool:
 
 func register_companion(word: String, node: Node, player: Node2D) -> void:
 	_companions[word] = node
-	# Only the active companion follows the player
-	if word == GameManager.active_companion:
+	# Clamp any oversized companion to 2x
+	_clamp_companion_scale(node)
+	# Active companions follow the player
+	if word in GameManager.active_companions:
 		_set_companion_owner(node, player)
 	else:
 		_send_companion_home(node)
 
-func swap_active_companion(new_word: String, player: Node2D) -> void:
-	# Deactivate current
-	var old_word := GameManager.active_companion
-	if old_word in _companions and is_instance_valid(_companions[old_word]):
-		_send_companion_home(_companions[old_word])
-	# Activate new
-	GameManager.active_companion = new_word
+func activate_companion(new_word: String, player: Node2D) -> void:
+	# Add to active list; if over 3, oldest gets sent home
+	if new_word in GameManager.active_companions:
+		return  # Already active
+	GameManager.active_companions.append(new_word)
+	# Evict oldest if over 3
+	while GameManager.active_companions.size() > 3:
+		var evicted: String = GameManager.active_companions.pop_front()
+		if evicted in _companions and is_instance_valid(_companions[evicted]):
+			_send_companion_home(_companions[evicted])
+	# Activate the new one
 	if new_word in _companions and is_instance_valid(_companions[new_word]):
 		_set_companion_owner(_companions[new_word], player)
 	GameManager.save_game()
@@ -116,10 +122,18 @@ func _send_companion_home(node: Node) -> void:
 			node.global_position = home + Vector2(offset_x, -60)
 
 func teleport_active_companion(target_pos: Vector2) -> void:
-	var word := GameManager.active_companion
-	if word in _companions and is_instance_valid(_companions[word]):
-		_companions[word].global_position = target_pos + Vector2(30, -10)
-		_companions[word].velocity = Vector2.ZERO
+	for i in GameManager.active_companions.size():
+		var word: String = GameManager.active_companions[i]
+		if word in _companions and is_instance_valid(_companions[word]):
+			var offset := Vector2((i + 1) * 30, -10)
+			_companions[word].global_position = target_pos + offset
+			if _companions[word] is CharacterBody2D:
+				_companions[word].velocity = Vector2.ZERO
+
+func _clamp_companion_scale(node: Node) -> void:
+	if abs(node.scale.y) > 2.0:
+		var sx := sign(node.scale.x) if node.scale.x != 0 else 1.0
+		node.scale = Vector2(sx * 2.0, 2.0)
 
 func _on_word_spelled(word: String) -> void:
 	var entry: Dictionary = summon_registry.get(word, {})
@@ -1108,14 +1122,13 @@ func _summon_big(scene_root: Node, player: Node2D, _pos: Vector2) -> Node:
 			smallest_scale = s
 			grown_pet = companion
 	if grown_pet:
-		var abs_x := abs(grown_pet.scale.x)
 		var abs_y := abs(grown_pet.scale.y)
 		if abs_y >= 2.0:
-			# Already at max size
 			_show_summon_label(scene_root, _pos, {"label": "%s is already max size!" % grown_pet.name, "color": Color(1, 0.8, 0.3)})
 			return grown_pet
-		var new_abs := min(abs_x * 1.5, 2.0)
-		var new_y := min(abs_y * 1.5, 2.0)
+		# Fixed steps: 1.0 -> 1.5 -> 2.0
+		var new_y := 1.5 if abs_y < 1.25 else 2.0
+		var new_abs := new_y
 		# Preserve facing sign, only scale magnitude
 		var sx := sign(grown_pet.scale.x) if grown_pet.scale.x != 0 else 1.0
 		var tween := grown_pet.create_tween()
@@ -1364,22 +1377,47 @@ func _summon_house(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
 		plank.color = Color(0.5, 0.3, 0.15, 0.3)
 		house.add_child(plank)
 
-	# --- LEFT WALL (solid) ---
+	# --- LEFT WALL top segment (above door) ---
+	var lw_top_h := H - DOOR_H
 	var lw := StaticBody2D.new()
-	lw.position = Vector2(WALL / 2, -H / 2)
+	lw.position = Vector2(WALL / 2, -(DOOR_H + lw_top_h / 2))
 	lw.collision_layer = 1
 	lw.collision_mask = 0
 	house.add_child(lw)
 	var lw_col := CollisionShape2D.new()
 	var lw_shape := RectangleShape2D.new()
-	lw_shape.size = Vector2(WALL, H)
+	lw_shape.size = Vector2(WALL, lw_top_h)
 	lw_col.shape = lw_shape
 	lw.add_child(lw_col)
 	var lw_vis := ColorRect.new()
-	lw_vis.position = Vector2(-WALL / 2, -H / 2)
-	lw_vis.size = Vector2(WALL, H)
+	lw_vis.position = Vector2(-WALL / 2, -lw_top_h / 2)
+	lw_vis.size = Vector2(WALL, lw_top_h)
 	lw_vis.color = Color(0.78, 0.58, 0.32, 1)
 	lw.add_child(lw_vis)
+
+	# Left door frame
+	var ldf_l := ColorRect.new()
+	ldf_l.position = Vector2(-6, -DOOR_H)
+	ldf_l.size = Vector2(6, DOOR_H)
+	ldf_l.color = Color(0.5, 0.3, 0.15, 1)
+	house.add_child(ldf_l)
+	var ldf_r := ColorRect.new()
+	ldf_r.position = Vector2(WALL, -DOOR_H)
+	ldf_r.size = Vector2(6, DOOR_H)
+	ldf_r.color = Color(0.5, 0.3, 0.15, 1)
+	house.add_child(ldf_r)
+	var ldf_top := ColorRect.new()
+	ldf_top.position = Vector2(-6, -DOOR_H - 4)
+	ldf_top.size = Vector2(WALL + 12, 4)
+	ldf_top.color = Color(0.5, 0.3, 0.15, 1)
+	house.add_child(ldf_top)
+
+	# Left welcome mat
+	var lmat := ColorRect.new()
+	lmat.position = Vector2(-36, -3)
+	lmat.size = Vector2(36, 4)
+	lmat.color = Color(0.7, 0.35, 0.3, 1)
+	house.add_child(lmat)
 
 	# --- RIGHT WALL top segment (above door) ---
 	var rw_top_h := H - DOOR_H
@@ -1632,7 +1670,7 @@ func _summon_house(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
 
 	# Send idle companions to home now that it exists
 	for word in _companions:
-		if is_instance_valid(_companions[word]) and word != GameManager.active_companion:
+		if is_instance_valid(_companions[word]) and word not in GameManager.active_companions:
 			_send_companion_home(_companions[word])
 
 	print("Francis-opia: A cozy house appeared! Walk through the door to go inside!")
