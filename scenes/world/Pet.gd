@@ -5,15 +5,18 @@ extends CharacterBody2D
 enum PetType { DOG, CAT }
 
 @export var pet_type: PetType = PetType.DOG
-@export var follow_speed := 120.0
-@export var jump_velocity := -320.0
-@export var teleport_distance := 500.0
+@export var follow_speed := 180.0
+@export var jump_velocity := -350.0
+@export var teleport_distance := 250.0
 @export var follow_distance := 50.0  # Stay this far from owner
 @export var gravity_val := 980.0
+@export var follow_offset := Vector2.ZERO  # Offset from owner to spread companions
 
 var pet_owner: CharacterBody2D = null
 var _idle_timer := 0.0
 var _wag_time := 0.0
+var _stuck_timer := 0.0
+var _last_dist_to_owner := 0.0
 
 func _ready() -> void:
 	# Pets don't collide with players — only with terrain
@@ -194,35 +197,52 @@ func _physics_process(delta: float) -> void:
 	else:
 		velocity.y = 0
 
+	var target_pos := pet_owner.global_position + follow_offset
 	var dist := global_position.distance_to(pet_owner.global_position)
+	var dist_to_target := global_position.distance_to(target_pos)
 
 	# Teleport if too far or fell below the world
 	if dist > teleport_distance or global_position.y > pet_owner.global_position.y + 400:
-		global_position = pet_owner.global_position + Vector2(30, 0)
+		global_position = pet_owner.global_position + follow_offset + Vector2(0, -10)
 		velocity = Vector2.ZERO
+		_stuck_timer = 0.0
 		return
 
-	# Follow pet_owner
-	var dir_to_owner := global_position.direction_to(pet_owner.global_position)
-
+	# Stuck detection: if not getting closer for 1.5s while far away, teleport
 	if dist > follow_distance:
-		velocity.x = dir_to_owner.x * follow_speed
+		if dist >= _last_dist_to_owner - 2.0:  # Not making progress
+			_stuck_timer += delta
+		else:
+			_stuck_timer = 0.0
+		if _stuck_timer > 1.5:
+			global_position = pet_owner.global_position + follow_offset + Vector2(0, -10)
+			velocity = Vector2.ZERO
+			_stuck_timer = 0.0
+			return
+	else:
+		_stuck_timer = 0.0
+	_last_dist_to_owner = dist
+
+	# Follow toward offset target position
+	var dir_to_target := global_position.direction_to(target_pos)
+
+	if dist_to_target > follow_distance:
+		velocity.x = dir_to_target.x * follow_speed
 		_idle_timer = 0.0
 	else:
 		# Slow down when close
 		velocity.x = move_toward(velocity.x, 0, follow_speed * 0.3)
 		_idle_timer += delta
 
-	# Jump if pet_owner is above and we're on the floor
-	if is_on_floor() and pet_owner.global_position.y < global_position.y - 40:
+	# Jump if pet_owner is above and we're on the floor (or if blocked by terrain)
+	if is_on_floor() and (pet_owner.global_position.y < global_position.y - 20 or (dist_to_target > follow_distance and is_on_wall())):
 		velocity.y = jump_velocity
 
-	# Flip to face direction of movement
-	var body_node := get_node_or_null("Body")
-	if body_node and velocity.x != 0:
-		# Flip all visuals by adjusting scale
-		var facing_right := velocity.x > 0
-		scale.x = 1.0 if facing_right else -1.0
+	# Flip to face direction of movement (preserve scale magnitude for BIG)
+	if velocity.x > 1:
+		scale.x = abs(scale.x)
+	elif velocity.x < -1:
+		scale.x = -abs(scale.x)
 
 	# Cute idle animation — slight bob
 	if _idle_timer > 1.0:

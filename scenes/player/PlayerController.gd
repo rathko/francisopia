@@ -4,6 +4,7 @@ extends CharacterBody2D
 ## Supports local multiplayer — each player reads from their own gamepad device.
 
 signal dig_requested(dig_position: Vector2)
+signal teleport_beacon_requested(position: Vector2)
 
 @export var player_index := 0  # 0 = Player 1 (device 0 + keyboard), 1 = Player 2 (device 1)
 @export var player_color := Color(0.25, 0.55, 0.85, 1)
@@ -88,6 +89,7 @@ func _physics_process(delta: float) -> void:
 	_handle_dig(delta)
 	_handle_weapon(delta)
 	_handle_interactions()
+	_handle_teleport()
 	_update_letter_highlight()
 	_update_animation()
 	move_and_slide()
@@ -182,6 +184,13 @@ func _is_next_weapon_just_pressed() -> bool:
 		return true
 	if player_index == 0:
 		return Input.is_action_just_pressed("next_weapon")
+	return false
+
+func _is_teleport_just_pressed() -> bool:
+	if _joy_button_just_pressed(JOY_BUTTON_BACK):
+		return true
+	if player_index == 0:
+		return Input.is_action_just_pressed("place_teleport")
 	return false
 
 var _prev_joy_buttons: Dictionary = {}
@@ -370,13 +379,15 @@ func _handle_interactions() -> void:
 			var letter: String = closest_letter_node.get_letter()
 			_try_pick_letter.call_deferred(closest_letter_node, letter)
 		else:
-			# No letter nearby — try other interactables (chests, etc.)
-			for body in bodies:
-				if body.has_method("interact"):
-					body.interact()
-			for area in areas:
-				if area.has_method("interact"):
-					area.interact()
+			# No letter nearby — try companion swap first, then other interactables
+			var swapped := _try_companion_swap()
+			if not swapped:
+				for body in bodies:
+					if body.has_method("interact"):
+						body.interact()
+				for area in areas:
+					if area.has_method("interact"):
+						area.interact()
 
 func _try_pick_letter(letter_node: Node2D, letter: String) -> void:
 	if not is_instance_valid(letter_node):
@@ -390,6 +401,33 @@ func _try_pick_letter(letter_node: Node2D, letter: String) -> void:
 			WordEngine.collected_letters.pop_back()
 			WordEngine.letter_lost.emit()
 			print("Francis-opia: Oops! Wrong letter — lost one!")
+
+func _try_companion_swap() -> bool:
+	var magic := get_node_or_null("/root/MagicSummon")
+	if not magic:
+		return false
+	# Check if any idle companion is within interact range (50px)
+	var closest_word := ""
+	var closest_dist := 60.0  # Max interact range
+	for word in magic._companions:
+		if word == GameManager.active_companion:
+			continue
+		var companion: Node = magic._companions[word]
+		if not is_instance_valid(companion):
+			continue
+		var dist := global_position.distance_to(companion.global_position)
+		if dist < closest_dist:
+			closest_dist = dist
+			closest_word = word
+	if closest_word != "":
+		magic.swap_active_companion(closest_word, self)
+		print("Francis-opia: %s is now your companion!" % closest_word.capitalize())
+		return true
+	return false
+
+func _handle_teleport() -> void:
+	if _is_teleport_just_pressed() and "house" in GameManager.words_summoned:
+		teleport_beacon_requested.emit(global_position)
 
 func _check_respawn() -> void:
 	if global_position.y > respawn_y:

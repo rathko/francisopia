@@ -101,7 +101,20 @@ func _use_builtin_words() -> void:
 	]
 
 func select_word_for_area(area: String) -> String:
-	# Fixed starter sequence: DOG > SUN > TREE > RAINBOW
+	# Force HOME if player has 4+ companions but no house yet
+	if "house" not in GameManager.words_summoned:
+		var companion_count := 0
+		for w in GameManager.words_summoned:
+			if w in ["dog", "cat", "frog", "pig", "bug", "fish", "bird"]:
+				companion_count += 1
+		if companion_count >= 4:
+			current_target_word = "HOUSE"
+			current_hint_image = "house"
+			collected_letters.clear()
+			target_word_changed.emit(current_target_word, current_hint_image)
+			return current_target_word
+
+	# Fixed starter sequence: DOG > SUN > TREE > HAMMER > HOUSE > RAINBOW
 	if not _starter_complete and _starter_index < _starter_sequence.size():
 		var starter_word: String = _starter_sequence[_starter_index]
 		_starter_index += 1
@@ -120,21 +133,27 @@ func select_word_for_area(area: String) -> String:
 		return current_target_word
 
 	# After starter sequence, use random selection by area and difficulty
+	# Prefer words not yet summoned. Repeatable words (big, hat, bow, hammer) are always allowed.
+	var repeatable := ["big", "hat", "bow", "hammer"]
 	# Underground levels bump minimum difficulty: Level 2 uses words level 2+
 	var min_difficulty: int = maxi(1, GameManager.current_level)
 	var max_difficulty: int = maxi(current_difficulty, min_difficulty)
 	var candidates := word_bank.filter(func(w: Dictionary) -> bool:
 		var wl: int = w.get("level", 1)
-		return wl >= min_difficulty and wl <= max_difficulty and w.get("area", "") == area.to_lower()
+		var word: String = w.get("word", "")
+		var not_done := word not in GameManager.words_summoned or word in repeatable
+		return wl >= min_difficulty and wl <= max_difficulty and w.get("area", "") == area.to_lower() and not_done
 	)
 	if candidates.is_empty():
 		# Relax area filter
 		candidates = word_bank.filter(func(w: Dictionary) -> bool:
 			var wl: int = w.get("level", 1)
-			return wl >= min_difficulty and wl <= max_difficulty
+			var word: String = w.get("word", "")
+			var not_done := word not in GameManager.words_summoned or word in repeatable
+			return wl >= min_difficulty and wl <= max_difficulty and not_done
 		)
 	if candidates.is_empty():
-		# Relax difficulty floor too
+		# All words done at this difficulty, allow repeats
 		candidates = word_bank.filter(func(w: Dictionary) -> bool:
 			return w.get("level", 1) <= max_difficulty
 		)

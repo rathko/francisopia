@@ -26,6 +26,12 @@ var words_summoned: Array[String] = []
 var starter_index := 0       # How far through the starter word sequence
 var starter_complete := false # Whether starter sequence is done
 var equipped_weapon := ""    # Currently equipped weapon name (empty = none)
+var big_scale := 1.0         # Scale multiplier from spelling "big" (persists across sessions)
+var active_companion := "dog" # Which companion follows the player (word name)
+var home_pos_x: float = 0.0  # House position (set when house is summoned)
+var home_pos_y: float = 0.0
+var teleport_beacon_x: float = 0.0  # Last placed teleport beacon (0,0 = none)
+var teleport_beacon_y: float = 0.0
 var current_level := 1       # Underground depth level (1 = surface, 2+ = deeper caves)
 var world_seed: int = 0      # Terrain generation seed (0 = generate new on first play)
 var generator_ver: int = 1   # Generator version this world was created with
@@ -108,6 +114,12 @@ func save_game() -> void:
 		"starter_index": starter_index,
 		"starter_complete": starter_complete,
 		"equipped_weapon": equipped_weapon,
+		"big_scale": big_scale,
+		"active_companion": active_companion,
+		"home_pos_x": home_pos_x,
+		"home_pos_y": home_pos_y,
+		"teleport_beacon_x": teleport_beacon_x,
+		"teleport_beacon_y": teleport_beacon_y,
 		"current_level": current_level,
 		"world_seed": world_seed,
 		"player_pos_x": player_pos_x,
@@ -149,6 +161,12 @@ func load_game() -> bool:
 	starter_index = data.get("starter_index", 0)
 	starter_complete = data.get("starter_complete", false)
 	equipped_weapon = data.get("equipped_weapon", "")
+	big_scale = data.get("big_scale", 1.0)
+	active_companion = data.get("active_companion", "dog")
+	home_pos_x = data.get("home_pos_x", 0.0)
+	home_pos_y = data.get("home_pos_y", 0.0)
+	teleport_beacon_x = data.get("teleport_beacon_x", 0.0)
+	teleport_beacon_y = data.get("teleport_beacon_y", 0.0)
 	current_level = data.get("current_level", 1)
 	# Clamp seed to JSON-safe range (JSON floats lose precision above 2^53)
 	var loaded_seed: int = data.get("world_seed", 0)
@@ -215,6 +233,12 @@ func reset_progress() -> void:
 	starter_index = 0
 	starter_complete = false
 	equipped_weapon = ""
+	big_scale = 1.0
+	active_companion = "dog"
+	home_pos_x = 0.0
+	home_pos_y = 0.0
+	teleport_beacon_x = 0.0
+	teleport_beacon_y = 0.0
 	current_level = 1
 	world_seed = 0
 	generator_ver = 1

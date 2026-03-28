@@ -42,12 +42,84 @@ var summon_registry: Dictionary = {
 	"rainbow": {"type": "world", "builder": "_summon_rainbow", "label": "A rainbow!", "color": Color(1.0, 0.4, 0.4)},
 }
 
+const MAX_COMPANIONS := 5
+const PET_WORDS := ["dog", "cat", "frog", "pig", "bug", "fish", "bird"]
+
 var _pet_scene: PackedScene = null
 var _summoned_entities: Array[Node] = []
+# Companion tracking: word -> node. Only the active companion follows the player.
+var _companions: Dictionary = {}  # "dog" -> Node, "cat" -> Node, etc.
+var _home_node: Node = null  # Reference to the house node
 
 func _ready() -> void:
 	_pet_scene = load(PET_SCENE_PATH) as PackedScene
 	WordEngine.word_spelled_correctly.connect(_on_word_spelled)
+
+func get_companion_count() -> int:
+	var count := 0
+	for word in _companions:
+		if is_instance_valid(_companions[word]):
+			count += 1
+	return count
+
+func is_companion_word(word: String) -> bool:
+	return word in PET_WORDS
+
+func register_companion(word: String, node: Node, player: Node2D) -> void:
+	_companions[word] = node
+	# Only the active companion follows the player
+	if word == GameManager.active_companion:
+		_set_companion_owner(node, player)
+	else:
+		_send_companion_home(node)
+
+func swap_active_companion(new_word: String, player: Node2D) -> void:
+	# Deactivate current
+	var old_word := GameManager.active_companion
+	if old_word in _companions and is_instance_valid(_companions[old_word]):
+		_send_companion_home(_companions[old_word])
+	# Activate new
+	GameManager.active_companion = new_word
+	if new_word in _companions and is_instance_valid(_companions[new_word]):
+		_set_companion_owner(_companions[new_word], player)
+	GameManager.save_game()
+
+func _set_companion_owner(node: Node, player: Node2D) -> void:
+	if node.has_method("setup"):
+		# Pet.gd-based (dog/cat)
+		node.pet_owner = player
+	elif "_owner" in node:
+		# Inline-scripted companions
+		node._owner = player
+
+func _send_companion_home(node: Node) -> void:
+	# Stop following by clearing owner
+	if node.has_method("setup"):
+		node.pet_owner = null
+	elif "_owner" in node:
+		node._owner = null
+	# Move to home position if house exists
+	if GameManager.home_pos_x != 0.0 or GameManager.home_pos_y != 0.0:
+		var home := Vector2(GameManager.home_pos_x, GameManager.home_pos_y)
+		# Spread idle companions around the house
+		var idx := 0
+		for word in _companions:
+			if is_instance_valid(_companions[word]) and _companions[word] == node:
+				break
+			idx += 1
+		var offset_x := (idx - 2) * 40.0  # Spread -80 to +80
+		# Flying companions (Node2D) go above, ground ones (CharacterBody2D) go to ground
+		if node is CharacterBody2D:
+			node.global_position = home + Vector2(offset_x, -20)
+			node.velocity = Vector2.ZERO
+		else:
+			node.global_position = home + Vector2(offset_x, -60)
+
+func teleport_active_companion(target_pos: Vector2) -> void:
+	var word := GameManager.active_companion
+	if word in _companions and is_instance_valid(_companions[word]):
+		_companions[word].global_position = target_pos + Vector2(30, -10)
+		_companions[word].velocity = Vector2.ZERO
 
 func _on_word_spelled(word: String) -> void:
 	var entry: Dictionary = summon_registry.get(word, {})
@@ -122,11 +194,18 @@ func _play_summon_animation(word: String, entry: Dictionary) -> void:
 
 	# === PHASE 4: Summon the thing! ===
 	await get_tree().create_timer(0.3).timeout
+	# Enforce companion limit
+	if is_companion_word(word) and get_companion_count() >= MAX_COMPANIONS:
+		_show_summon_label(scene_root, summon_pos, {"label": "Too many pets! (max 5)", "color": Color(1, 0.5, 0.3)})
+		return
 	var builder_name: String = entry.get("builder", "")
 	if builder_name != "" and has_method(builder_name):
 		var summoned: Variant = call(builder_name, scene_root, player, summon_pos)
 		if summoned is Node:
 			_summoned_entities.append(summoned)
+			# Register companion for active/idle tracking
+			if is_companion_word(word):
+				register_companion(word, summoned, player)
 			summon_completed.emit(word, summoned)
 			# Track in GameManager for persistence
 			if word not in GameManager.items_owned:
@@ -200,6 +279,7 @@ func _summon_cat(scene_root: Node, player: Node2D, _pos: Vector2) -> Node:
 	scene_root.add_child(pet)
 	if pet.has_method("setup"):
 		pet.setup(player, 1)  # CAT type
+	pet.follow_offset = Vector2(-50, 0)
 	print("Francis-opia: A magical cat appeared!")
 	return pet
 
@@ -218,6 +298,7 @@ func _summon_dog(scene_root: Node, player: Node2D, _pos: Vector2) -> Node:
 	scene_root.add_child(pet)
 	if pet.has_method("setup"):
 		pet.setup(player, 0)  # DOG type
+	pet.follow_offset = Vector2(50, 0)
 	print("Francis-opia: A magical dog appeared!")
 	return pet
 
@@ -265,50 +346,81 @@ func _summon_frog(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
 	col.shape = shape
 	frog.add_child(col)
 
-	scene_root.add_child(frog)
-
-	# Bouncing behavior via timer
-	var timer := Timer.new()
-	timer.wait_time = 1.5
-	timer.autostart = true
-	frog.add_child(timer)
-
+	# Script must be set BEFORE adding to scene tree so Godot registers _physics_process
 	var script := GDScript.new()
 	script.source_code = """extends CharacterBody2D
 
 var _owner: Node2D = null
 var _gravity := 980.0
-
-func _ready():
-	var players = get_tree().get_nodes_in_group("")
-	_owner = get_parent().get_node_or_null("Player")
+var _hop_timer := 0.0
+var _follow_offset := Vector2(80, 0)
+var _stuck_timer := 0.0
+var _last_dist := 0.0
 
 func _physics_process(delta):
+	if not _owner or not is_instance_valid(_owner):
+		return
+
 	if not is_on_floor():
 		velocity.y += _gravity * delta
 		velocity.y = min(velocity.y, 400.0)
 	else:
 		velocity.y = 0
-		velocity.x = move_toward(velocity.x, 0, 100 * delta)
 
-	if _owner and is_instance_valid(_owner):
-		var dist = global_position.distance_to(_owner.global_position)
-		if dist > 400:
-			global_position = _owner.global_position + Vector2(30, 0)
+	var target = _owner.global_position + _follow_offset
+	var dist = global_position.distance_to(_owner.global_position)
+
+	# Teleport if too far
+	if dist > 250 or global_position.y > _owner.global_position.y + 400:
+		global_position = _owner.global_position + _follow_offset
+		velocity = Vector2.ZERO
+		_stuck_timer = 0.0
+		return
+
+	# Stuck detection
+	if dist > 60:
+		if dist >= _last_dist - 2.0:
+			_stuck_timer += delta
+		else:
+			_stuck_timer = 0.0
+		if _stuck_timer > 1.5:
+			global_position = _owner.global_position + _follow_offset
+			velocity = Vector2.ZERO
+			_stuck_timer = 0.0
+			return
+	else:
+		_stuck_timer = 0.0
+	_last_dist = dist
+
+	# Hop toward owner
+	_hop_timer += delta
+	if is_on_floor() and dist > 60 and _hop_timer > 0.5:
+		_hop_timer = 0.0
+		var dir = global_position.direction_to(target)
+		velocity.x = dir.x * 160
+		velocity.y = -300
+
+	# Jump if owner is above or hitting a wall
+	if is_on_floor() and (_owner.global_position.y < global_position.y - 20 or (dist > 60 and is_on_wall())):
+		velocity.y = -350
+		var dir = global_position.direction_to(target)
+		velocity.x = dir.x * 140
+		_hop_timer = 0.0
+
+	if is_on_floor() and dist <= 60:
+		velocity.x = move_toward(velocity.x, 0, 200 * delta)
+
+	if velocity.x > 1:
+		scale.x = abs(scale.x)
+	elif velocity.x < -1:
+		scale.x = -abs(scale.x)
 
 	move_and_slide()
-
-func hop():
-	if is_on_floor():
-		velocity.y = -250
-		if _owner and is_instance_valid(_owner):
-			var dir = global_position.direction_to(_owner.global_position)
-			velocity.x = dir.x * 80
 """
 	script.reload()
 	frog.set_script(script)
 	frog._owner = player
-	timer.timeout.connect(frog.hop)
+	scene_root.add_child(frog)
 
 	print("Francis-opia: ✨ A bouncy frog appeared! Ribbit!")
 	return frog
@@ -337,9 +449,7 @@ func _summon_bug(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
 	wing_r.color = Color(0.7, 0.9, 1.0, 0.5)
 	bug.add_child(wing_r)
 
-	scene_root.add_child(bug)
-
-	# Simple flying script
+	# Script must be set BEFORE adding to scene tree
 	var script := GDScript.new()
 	script.source_code = """extends Node2D
 
@@ -349,14 +459,15 @@ var _time := 0.0
 func _process(delta):
 	_time += delta
 	if _owner and is_instance_valid(_owner):
-		var target = _owner.global_position + Vector2(sin(_time * 2) * 40, -50 + cos(_time * 3) * 15)
+		var target = _owner.global_position + Vector2(-40 + sin(_time * 2) * 30, -55 + cos(_time * 3) * 15)
 		global_position = global_position.lerp(target, delta * 3.0)
 		if global_position.distance_to(_owner.global_position) > 400:
-			global_position = _owner.global_position + Vector2(0, -50)
+			global_position = _owner.global_position + Vector2(-40, -55)
 """
 	script.reload()
 	bug.set_script(script)
 	bug._owner = player
+	scene_root.add_child(bug)
 
 	print("Francis-opia: ✨ A friendly bug is buzzing around!")
 	return bug
@@ -387,8 +498,6 @@ func _summon_fish(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
 	eye.color = Color(0.1, 0.1, 0.1, 1)
 	fish.add_child(eye)
 
-	scene_root.add_child(fish)
-
 	var script := GDScript.new()
 	script.source_code = """extends Node2D
 
@@ -398,15 +507,16 @@ var _time := 0.0
 func _process(delta):
 	_time += delta
 	if _owner and is_instance_valid(_owner):
-		var target = _owner.global_position + Vector2(cos(_time * 1.5) * 60, -40 + sin(_time * 2) * 20)
+		var target = _owner.global_position + Vector2(50 + cos(_time * 1.5) * 40, -45 + sin(_time * 2) * 20)
 		global_position = global_position.lerp(target, delta * 2.5)
 		scale.x = -1.0 if (target.x - global_position.x) < 0 else 1.0
 		if global_position.distance_to(_owner.global_position) > 400:
-			global_position = _owner.global_position + Vector2(0, -40)
+			global_position = _owner.global_position + Vector2(50, -45)
 """
 	script.reload()
 	fish.set_script(script)
 	fish._owner = player
+	scene_root.add_child(fish)
 
 	print("Francis-opia: ✨ A magic fish swims through the air!")
 	return fish
@@ -438,8 +548,6 @@ func _summon_bird(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
 	beak.color = Color(1.0, 0.8, 0.2, 1)
 	bird.add_child(beak)
 
-	scene_root.add_child(bird)
-
 	var script := GDScript.new()
 	script.source_code = """extends Node2D
 
@@ -449,7 +557,7 @@ var _time := 0.0
 func _process(delta):
 	_time += delta
 	if _owner and is_instance_valid(_owner):
-		var target = _owner.global_position + Vector2(sin(_time) * 80, -90 + sin(_time * 2.5) * 15)
+		var target = _owner.global_position + Vector2(sin(_time) * 70, -95 + sin(_time * 2.5) * 15)
 		global_position = global_position.lerp(target, delta * 2.0)
 		scale.x = -1.0 if (target.x - global_position.x) < 0 else 1.0
 		# Wing flap
@@ -457,11 +565,12 @@ func _process(delta):
 		if wing:
 			wing.scale.y = 0.5 + abs(sin(_time * 8)) * 0.5
 		if global_position.distance_to(_owner.global_position) > 500:
-			global_position = _owner.global_position + Vector2(0, -90)
+			global_position = _owner.global_position + Vector2(0, -95)
 """
 	script.reload()
 	bird.set_script(script)
 	bird._owner = player
+	scene_root.add_child(bird)
 
 	print("Francis-opia: ✨ A singing bird flies overhead!")
 	return bird
@@ -987,35 +1096,33 @@ func _summon_hammer(scene_root: Node, _player: Node2D, pos: Vector2) -> Node:
 	return null
 
 func _summon_big(scene_root: Node, player: Node2D, _pos: Vector2) -> Node:
-	# Make a random pet bigger! Finds the first active pet and scales it up.
+	# Make a companion bigger! Picks the smallest companion so BIG rotates through all of them.
 	var grown_pet: Node = null
-	for entity in _summoned_entities:
-		if not is_instance_valid(entity):
+	var smallest_scale := 999.0
+	for word in _companions:
+		var companion: Node = _companions[word]
+		if not is_instance_valid(companion):
 			continue
-		# Look for pets (dog, cat, pig, frog, bird, bug, fish)
-		if entity is CharacterBody2D and entity.name in ["DogPet", "CatPet"]:
-			grown_pet = entity
-			break
-	# Try any CharacterBody2D pet
-	if not grown_pet:
-		for entity in _summoned_entities:
-			if is_instance_valid(entity) and entity is CharacterBody2D:
-				grown_pet = entity
-				break
-	# Try any Node2D pet-like thing
-	if not grown_pet:
-		for entity in _summoned_entities:
-			if is_instance_valid(entity) and entity is Node2D:
-				grown_pet = entity
-				break
+		var s := abs(companion.scale.y)
+		if s < smallest_scale:
+			smallest_scale = s
+			grown_pet = companion
 	if grown_pet:
-		var current_scale: Vector2 = grown_pet.scale
-		var target_scale := Vector2(abs(current_scale.x) * 1.5, abs(current_scale.y) * 1.5)
-		# Cap at 3x original size
-		target_scale.x = min(target_scale.x, 3.0)
-		target_scale.y = min(target_scale.y, 3.0)
+		var abs_x := abs(grown_pet.scale.x)
+		var abs_y := abs(grown_pet.scale.y)
+		if abs_y >= 2.0:
+			# Already at max size
+			_show_summon_label(scene_root, _pos, {"label": "%s is already max size!" % grown_pet.name, "color": Color(1, 0.8, 0.3)})
+			return grown_pet
+		var new_abs := min(abs_x * 1.5, 2.0)
+		var new_y := min(abs_y * 1.5, 2.0)
+		# Preserve facing sign, only scale magnitude
+		var sx := sign(grown_pet.scale.x) if grown_pet.scale.x != 0 else 1.0
 		var tween := grown_pet.create_tween()
-		tween.tween_property(grown_pet, "scale", Vector2(sign(current_scale.x) * target_scale.x, target_scale.y), 0.5).set_trans(Tween.TRANS_BACK)
+		tween.tween_property(grown_pet, "scale", Vector2(sx * new_abs, new_y), 0.5).set_trans(Tween.TRANS_BACK)
+		# Persist the scale for future sessions
+		GameManager.big_scale = new_y
+		GameManager.save_game()
 		print("Francis-opia: %s got BIGGER!" % grown_pet.name)
 		return grown_pet
 	else:
@@ -1118,15 +1225,16 @@ func _summon_pig(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
 	col.shape = shape
 	pig.add_child(col)
 
-	scene_root.add_child(pig)
-
-	# Follow + oink behavior
+	# Follow + oink behavior (script set before add_child so _physics_process registers)
 	var script := GDScript.new()
 	script.source_code = """extends CharacterBody2D
 
 var _owner: Node2D = null
 var _gravity := 980.0
 var _time := 0.0
+var _follow_offset := Vector2(-70, 0)
+var _stuck_timer := 0.0
+var _last_dist := 0.0
 
 func _physics_process(delta):
 	if not _owner or not is_instance_valid(_owner):
@@ -1139,22 +1247,43 @@ func _physics_process(delta):
 	else:
 		velocity.y = 0
 
+	var target = _owner.global_position + _follow_offset
 	var dist = global_position.distance_to(_owner.global_position)
-	if dist > 500 or global_position.y > _owner.global_position.y + 400:
-		global_position = _owner.global_position + Vector2(40, 0)
+	var dist_to_target = global_position.distance_to(target)
+	if dist > 250 or global_position.y > _owner.global_position.y + 400:
+		global_position = _owner.global_position + _follow_offset
 		velocity = Vector2.ZERO
+		_stuck_timer = 0.0
 		return
 
+	# Stuck detection
 	if dist > 50:
-		var dir = global_position.direction_to(_owner.global_position)
-		velocity.x = dir.x * 100
+		if dist >= _last_dist - 2.0:
+			_stuck_timer += delta
+		else:
+			_stuck_timer = 0.0
+		if _stuck_timer > 1.5:
+			global_position = _owner.global_position + _follow_offset
+			velocity = Vector2.ZERO
+			_stuck_timer = 0.0
+			return
+	else:
+		_stuck_timer = 0.0
+	_last_dist = dist
+
+	if dist_to_target > 50:
+		var dir = global_position.direction_to(target)
+		velocity.x = dir.x * 150
 	else:
 		velocity.x = move_toward(velocity.x, 0, 80 * delta)
 
-	if is_on_floor() and _owner.global_position.y < global_position.y - 40:
-		velocity.y = -280
+	if is_on_floor() and (_owner.global_position.y < global_position.y - 20 or (dist > 50 and is_on_wall())):
+		velocity.y = -320
 
-	scale.x = -1.0 if velocity.x < -1 else 1.0 if velocity.x > 1 else scale.x
+	if velocity.x > 1:
+		scale.x = abs(scale.x)
+	elif velocity.x < -1:
+		scale.x = -abs(scale.x)
 
 	# Tail wiggle
 	var tail = get_node_or_null(\"Tail\")
@@ -1166,6 +1295,7 @@ func _physics_process(delta):
 	script.reload()
 	pig.set_script(script)
 	pig._owner = player
+	scene_root.add_child(pig)
 
 	print("Francis-opia: A cute pink pig appeared! Oink oink!")
 	return pig
@@ -1174,15 +1304,32 @@ func _summon_house(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
 	# Enterable house! Player walks through the open door on the right side.
 	var house := Node2D.new()
 	house.name = "MagicHouse"
-	var ground_y := 725.0
-	house.global_position = Vector2(pos.x + 80, ground_y)
+	var ground_y := 725.0  # Baseline ground, always flat
+	house.global_position = Vector2(pos.x + 120, ground_y)
 
-	var W := 200.0   # House width
-	var H := 130.0   # Wall height
-	var WALL := 10.0  # Wall thickness
-	var DOOR_W := 48.0
-	var DOOR_H := 56.0
-	var ROOF := 14.0
+	var W := 480.0   # House width (2.5x bigger)
+	var H := 300.0   # Wall height
+	var WALL := 16.0  # Wall thickness
+	var DOOR_W := 80.0
+	var DOOR_H := 120.0  # Tall enough for player (48px body + hat)
+	var ROOF := 24.0
+
+	# --- Flat ground platform under the house ---
+	var ground_pad := StaticBody2D.new()
+	ground_pad.position = Vector2(W / 2, 4)
+	ground_pad.collision_layer = 1
+	ground_pad.collision_mask = 0
+	house.add_child(ground_pad)
+	var gpad_col := CollisionShape2D.new()
+	var gpad_shape := RectangleShape2D.new()
+	gpad_shape.size = Vector2(W + 80, 8)
+	gpad_col.shape = gpad_shape
+	ground_pad.add_child(gpad_col)
+	var gpad_vis := ColorRect.new()
+	gpad_vis.position = Vector2(-(W + 80) / 2, -4)
+	gpad_vis.size = Vector2(W + 80, 8)
+	gpad_vis.color = Color(0.4, 0.55, 0.3, 1)
+	ground_pad.add_child(gpad_vis)
 
 	# --- Interior background (warm beige, behind everything) ---
 	var interior := ColorRect.new()
@@ -1476,6 +1623,17 @@ func _summon_house(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
 	var tween := house.create_tween()
 	tween.tween_property(house, "scale", Vector2(1.1, 1.1), 0.5).set_trans(Tween.TRANS_BACK)
 	tween.tween_property(house, "scale", Vector2(1.0, 1.0), 0.2)
+
+	# Store home position for companion management and teleport
+	_home_node = house
+	GameManager.home_pos_x = house.global_position.x + 240  # Center of house
+	GameManager.home_pos_y = house.global_position.y
+	GameManager.save_game()
+
+	# Send idle companions to home now that it exists
+	for word in _companions:
+		if is_instance_valid(_companions[word]) and word != GameManager.active_companion:
+			_send_companion_home(_companions[word])
 
 	print("Francis-opia: A cozy house appeared! Walk through the door to go inside!")
 	return house

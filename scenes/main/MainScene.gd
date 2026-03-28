@@ -85,6 +85,8 @@ var _player_scene: PackedScene = null
 var _pet_scene: PackedScene = null
 var _chunks: Dictionary = {}  # chunk_index -> Node2D
 var _last_chunk_index := -999
+var _teleport_beacon: Node2D = null  # Visual beacon node in the world
+var _home_teleport_pad: Node2D = null  # Teleport pad at HOME
 var _rng := RandomNumberGenerator.new()
 var _world_seed: int = 0  # Captured once at startup for deterministic terrain height
 var _thief_scene: PackedScene = null
@@ -153,6 +155,9 @@ func _ready() -> void:
 	if GameManager.words_summoned.size() > 0:
 		_restore_summons.call_deferred()
 
+	# Restore teleport beacon from save
+	_restore_teleport_beacon.call_deferred()
+
 	# Wire quest generator to quest scroll UI
 	if quest_scroll:
 		QuestGenerator.quest_added.connect(func(quest: Dictionary) -> void:
@@ -175,6 +180,7 @@ func _ready() -> void:
 	# Wire digging for all players
 	if player:
 		player.dig_requested.connect(_on_dig)
+		player.teleport_beacon_requested.connect(_on_teleport_beacon_placed)
 
 	# Start first word
 	WordEngine.select_word_for_area(GameManager.current_area)
@@ -191,13 +197,14 @@ func _ready() -> void:
 		# Generate initial chunks around player (must happen after position restore)
 		_update_chunks()
 		_last_chunk_index = _get_chunk_index(player.global_position.x)
-		if not has_saved_pos:
-			# First play: place player on terrain surface
-			var spawn_chunk := _get_chunk_index(player.global_position.x)
-			var spawn_local_x := player.global_position.x - spawn_chunk * CHUNK_WIDTH
-			var spawn_centers := _get_stairwell_centers(spawn_chunk)
-			var ground_at_spawn := _get_ground_y_at_px(spawn_chunk, spawn_local_x, spawn_centers)
-			player.global_position.y = ground_at_spawn - 30
+		# Always ensure player is above terrain (fixes stuck-in-hill on load)
+		var spawn_chunk := _get_chunk_index(player.global_position.x)
+		var spawn_local_x := player.global_position.x - spawn_chunk * CHUNK_WIDTH
+		var spawn_centers := _get_stairwell_centers(spawn_chunk)
+		var ground_at_spawn := _get_ground_y_at_px(spawn_chunk, spawn_local_x, spawn_centers)
+		var min_spawn_y := ground_at_spawn - 40  # 40px clearance above ground (player is 48px tall)
+		if player.global_position.y > min_spawn_y:
+			player.global_position.y = min_spawn_y
 		player._last_safe_position = player.global_position
 		if player2 and is_instance_valid(player2):
 			player2.global_position = player.global_position + Vector2(60, 0)
@@ -219,6 +226,7 @@ func _spawn_pets() -> void:
 	add_child(pet1)
 	if pet1.has_method("setup"):
 		pet1.setup(player, 0)  # 0 = DOG
+	pet1.follow_offset = Vector2(50, 0)
 
 	# Cat for Player 2 (or follows Player 1 if solo)
 	pet2 = _pet_scene.instantiate() as CharacterBody2D
@@ -228,6 +236,7 @@ func _spawn_pets() -> void:
 	add_child(pet2)
 	if pet2.has_method("setup"):
 		pet2.setup(cat_owner, 1)  # 1 = CAT
+	pet2.follow_offset = Vector2(-50, 0)
 
 func _reassign_cat_owner() -> void:
 	if pet2 and is_instance_valid(pet2):
@@ -827,6 +836,167 @@ func _add_teleport_pad(chunk: Node2D, pad_pos: Vector2, target_pos: Vector2, lab
 	script.reload()
 	pad.set_script(script)
 
+# === PLAYER TELEPORT BEACON SYSTEM ===
+
+func _on_teleport_beacon_placed(pos: Vector2) -> void:
+	# Remove old beacon if any
+	if _teleport_beacon and is_instance_valid(_teleport_beacon):
+		_teleport_beacon.queue_free()
+
+	# Create visual beacon at player position
+	_teleport_beacon = _create_beacon_visual(pos)
+	add_child(_teleport_beacon)
+
+	# Save beacon position
+	GameManager.teleport_beacon_x = pos.x
+	GameManager.teleport_beacon_y = pos.y
+	GameManager.save_game()
+
+	# Also create/update HOME teleport pad if house exists
+	_ensure_home_teleport()
+
+	print("Francis-opia: Teleport beacon placed! Press E near it to teleport HOME.")
+
+func _create_beacon_visual(pos: Vector2) -> Node2D:
+	var beacon := Area2D.new()
+	beacon.name = "TeleportBeacon"
+	beacon.global_position = pos
+	beacon.collision_layer = 4  # Interactable
+	beacon.collision_mask = 0
+
+	var col := CollisionShape2D.new()
+	var shape := RectangleShape2D.new()
+	shape.size = Vector2(40, 48)
+	col.shape = shape
+	beacon.add_child(col)
+
+	# Glowing pillar visual
+	var pillar := ColorRect.new()
+	pillar.position = Vector2(-6, -40)
+	pillar.size = Vector2(12, 40)
+	pillar.color = Color(0.3, 0.8, 1.0, 0.7)
+	beacon.add_child(pillar)
+
+	# Base
+	var base := ColorRect.new()
+	base.position = Vector2(-16, -4)
+	base.size = Vector2(32, 8)
+	base.color = Color(0.2, 0.6, 0.9, 0.9)
+	beacon.add_child(base)
+
+	# Glow
+	var glow := ColorRect.new()
+	glow.z_index = -1
+	glow.position = Vector2(-20, -44)
+	glow.size = Vector2(40, 52)
+	glow.color = Color(0.3, 0.7, 1.0, 0.12)
+	beacon.add_child(glow)
+
+	# Label
+	var label := Label.new()
+	label.text = "TELEPORT"
+	label.add_theme_font_size_override("font_size", 12)
+	label.add_theme_color_override("font_color", Color(0.5, 0.9, 1.0, 0.9))
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.position = Vector2(-30, -56)
+	label.size = Vector2(60, 16)
+	label.z_index = 5
+	beacon.add_child(label)
+
+	# Interaction script: teleport to HOME
+	var script := GDScript.new()
+	var code := "extends Area2D\n\n"
+	code += "func interact() -> void:\n"
+	code += "\tvar home_x := GameManager.home_pos_x\n"
+	code += "\tvar home_y := GameManager.home_pos_y\n"
+	code += "\tif home_x == 0.0 and home_y == 0.0:\n"
+	code += "\t\tprint(\"Francis-opia: No home yet! Spell HOUSE first.\")\n"
+	code += "\t\treturn\n"
+	code += "\tvar target := Vector2(home_x + 260, home_y - 30)\n"  # Outside house door
+	code += "\tvar bodies := get_overlapping_bodies()\n"
+	code += "\tfor body in bodies:\n"
+	code += "\t\tif body is CharacterBody2D and body.name.begins_with(\"Player\"):\n"
+	code += "\t\t\tbody.global_position = target\n"
+	code += "\t\t\tbody.velocity = Vector2.ZERO\n"
+	code += "\t\t\tvar magic := body.get_node_or_null(\"/root/MagicSummon\")\n"
+	code += "\t\t\tif magic:\n"
+	code += "\t\t\t\tmagic.teleport_active_companion(target)\n"
+	code += "\t\t\tprint(\"Francis-opia: Teleported HOME!\")\n"
+	script.source_code = code
+	script.reload()
+	beacon.set_script(script)
+
+	return beacon
+
+func _ensure_home_teleport() -> void:
+	if GameManager.home_pos_x == 0.0 and GameManager.home_pos_y == 0.0:
+		return
+	# Remove old home teleport pad
+	if _home_teleport_pad and is_instance_valid(_home_teleport_pad):
+		_home_teleport_pad.queue_free()
+
+	# Create teleport pad at HOME that goes back to beacon
+	var home_pos := Vector2(GameManager.home_pos_x + 260, GameManager.home_pos_y - 10)
+	_home_teleport_pad = Area2D.new()
+	_home_teleport_pad.name = "HomeTeleportPad"
+	_home_teleport_pad.global_position = home_pos
+	_home_teleport_pad.collision_layer = 4
+	_home_teleport_pad.collision_mask = 0
+
+	var col := CollisionShape2D.new()
+	var shape := RectangleShape2D.new()
+	shape.size = Vector2(40, 32)
+	col.shape = shape
+	_home_teleport_pad.add_child(col)
+
+	var base := ColorRect.new()
+	base.position = Vector2(-20, -6)
+	base.size = Vector2(40, 12)
+	base.color = Color(1.0, 0.6, 0.2, 0.8)
+	_home_teleport_pad.add_child(base)
+
+	var label := Label.new()
+	label.text = "RETURN"
+	label.add_theme_font_size_override("font_size", 12)
+	label.add_theme_color_override("font_color", Color(1.0, 0.8, 0.4, 0.9))
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.position = Vector2(-24, -24)
+	label.size = Vector2(48, 16)
+	label.z_index = 5
+	_home_teleport_pad.add_child(label)
+
+	# Script: teleport back to beacon
+	var script := GDScript.new()
+	var code := "extends Area2D\n\n"
+	code += "func interact() -> void:\n"
+	code += "\tvar bx := GameManager.teleport_beacon_x\n"
+	code += "\tvar by := GameManager.teleport_beacon_y\n"
+	code += "\tif bx == 0.0 and by == 0.0:\n"
+	code += "\t\tprint(\"Francis-opia: No beacon placed! Press T to place one.\")\n"
+	code += "\t\treturn\n"
+	code += "\tvar target := Vector2(bx, by)\n"
+	code += "\tvar bodies := get_overlapping_bodies()\n"
+	code += "\tfor body in bodies:\n"
+	code += "\t\tif body is CharacterBody2D and body.name.begins_with(\"Player\"):\n"
+	code += "\t\t\tbody.global_position = target\n"
+	code += "\t\t\tbody.velocity = Vector2.ZERO\n"
+	code += "\t\t\tvar magic := body.get_node_or_null(\"/root/MagicSummon\")\n"
+	code += "\t\t\tif magic:\n"
+	code += "\t\t\t\tmagic.teleport_active_companion(target)\n"
+	code += "\t\t\tprint(\"Francis-opia: Teleported back to beacon!\")\n"
+	script.source_code = code
+	script.reload()
+	_home_teleport_pad.set_script(script)
+
+	add_child(_home_teleport_pad)
+
+func _restore_teleport_beacon() -> void:
+	if GameManager.teleport_beacon_x != 0.0 or GameManager.teleport_beacon_y != 0.0:
+		var pos := Vector2(GameManager.teleport_beacon_x, GameManager.teleport_beacon_y)
+		_teleport_beacon = _create_beacon_visual(pos)
+		add_child(_teleport_beacon)
+		_ensure_home_teleport()
+
 # === LEVEL GENERATION (PARAMETERIZED) ===
 
 func _generate_level(chunk: Node2D, block_script: GDScript, chunk_index: int, above_bedrock_y: float, config: Dictionary) -> void:
@@ -1021,6 +1191,7 @@ func _add_l2_platform(chunk: Node2D, pos: Vector2, width: float) -> void:
 	var shape := RectangleShape2D.new()
 	shape.size = Vector2(width, 20)
 	col.shape = shape
+	col.one_way_collision = true
 	platform.add_child(col)
 
 	# Dark stone platform with mossy top
@@ -1083,6 +1254,7 @@ func _add_platform(chunk: Node2D, pos: Vector2, width: float) -> void:
 	var shape := RectangleShape2D.new()
 	shape.size = Vector2(width, 20)
 	col.shape = shape
+	col.one_way_collision = true
 	platform.add_child(col)
 
 	var visual := ColorRect.new()
@@ -1244,6 +1416,11 @@ func _spawn_dog_companion() -> void:
 		var dog: Variant = magic_summon.call("_summon_dog", self, player, player.global_position)
 		if dog is Node:
 			magic_summon._summoned_entities.append(dog)
+			magic_summon.register_companion("dog", dog, player)
+			if GameManager.big_scale > 1.0:
+				var s := GameManager.big_scale
+				var sx := sign(dog.scale.x) if dog.scale.x != 0 else 1.0
+				dog.scale = Vector2(sx * s, s)
 			print("Francis-opia: Your dog is here! Woof!")
 
 func _restore_summons() -> void:
@@ -1266,7 +1443,21 @@ func _restore_summons() -> void:
 			var summoned: Variant = magic_summon.call(builder_name, self, player, player.global_position)
 			if summoned is Node:
 				magic_summon._summoned_entities.append(summoned)
+				if magic_summon.is_companion_word(word):
+					magic_summon.register_companion(word, summoned, player)
 			print("Francis-opia: Restored %s from last session!" % word)
+	# Apply persisted BIG scale to first pet found
+	if GameManager.big_scale > 1.0:
+		_apply_big_scale.call_deferred(magic_summon)
+
+func _apply_big_scale(magic_summon: Node) -> void:
+	var s := GameManager.big_scale
+	for entity in magic_summon._summoned_entities:
+		if is_instance_valid(entity) and entity is CharacterBody2D:
+			var sx := sign(entity.scale.x) if entity.scale.x != 0 else 1.0
+			entity.scale = Vector2(sx * s, s)
+			print("Francis-opia: %s is still BIG!" % entity.name)
+			return  # Apply to first pet only, matching _summon_big behavior
 
 # Words that change the world when spelled — triggers chunk regeneration
 const WORLD_CHANGING_WORDS := ["tree"]
