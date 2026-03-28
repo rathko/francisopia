@@ -868,42 +868,82 @@ func _create_beacon_visual(pos: Vector2) -> Node2D:
 
 	var col := CollisionShape2D.new()
 	var shape := RectangleShape2D.new()
-	shape.size = Vector2(40, 48)
+	shape.size = Vector2(50, 70)
 	col.shape = shape
+	col.position = Vector2(0, -30)
 	beacon.add_child(col)
 
-	# Glowing pillar visual
-	var pillar := ColorRect.new()
-	pillar.position = Vector2(-6, -40)
-	pillar.size = Vector2(12, 40)
-	pillar.color = Color(0.3, 0.8, 1.0, 0.7)
-	beacon.add_child(pillar)
+	# Diablo 1 style town portal: red/orange glowing oval
+	# Outer glow
+	var outer_glow := ColorRect.new()
+	outer_glow.z_index = -1
+	outer_glow.position = Vector2(-28, -68)
+	outer_glow.size = Vector2(56, 76)
+	outer_glow.color = Color(0.8, 0.3, 0.1, 0.12)
+	beacon.add_child(outer_glow)
 
-	# Base
-	var base := ColorRect.new()
-	base.position = Vector2(-16, -4)
-	base.size = Vector2(32, 8)
-	base.color = Color(0.2, 0.6, 0.9, 0.9)
-	beacon.add_child(base)
+	# Portal ring segments (oval shape from rects)
+	var portal_colors := [Color(0.9, 0.35, 0.1, 0.7), Color(1.0, 0.5, 0.15, 0.6), Color(0.8, 0.2, 0.05, 0.65)]
+	for i in 16:
+		var angle := TAU * float(i) / 16.0
+		var rx := cos(angle) * 18.0
+		var ry := sin(angle) * 28.0
+		var seg := ColorRect.new()
+		seg.position = Vector2(rx - 4, -32 + ry - 4)
+		seg.size = Vector2(8, 8)
+		seg.color = portal_colors[i % portal_colors.size()]
+		seg.z_index = 1
+		beacon.add_child(seg)
 
-	# Glow
-	var glow := ColorRect.new()
-	glow.z_index = -1
-	glow.position = Vector2(-20, -44)
-	glow.size = Vector2(40, 52)
-	glow.color = Color(0.3, 0.7, 1.0, 0.12)
-	beacon.add_child(glow)
+	# Inner swirl (dark center)
+	var inner := ColorRect.new()
+	inner.position = Vector2(-10, -42)
+	inner.size = Vector2(20, 24)
+	inner.color = Color(0.15, 0.05, 0.2, 0.8)
+	inner.z_index = 2
+	beacon.add_child(inner)
+
+	# Core glow
+	var core := ColorRect.new()
+	core.position = Vector2(-6, -38)
+	core.size = Vector2(12, 16)
+	core.color = Color(0.9, 0.4, 0.15, 0.5)
+	core.z_index = 3
+	beacon.add_child(core)
+
+	# Base rune circle on ground
+	var rune := ColorRect.new()
+	rune.position = Vector2(-20, -4)
+	rune.size = Vector2(40, 6)
+	rune.color = Color(0.8, 0.3, 0.1, 0.6)
+	beacon.add_child(rune)
 
 	# Label
 	var label := Label.new()
-	label.text = "TELEPORT"
-	label.add_theme_font_size_override("font_size", 12)
-	label.add_theme_color_override("font_color", Color(0.5, 0.9, 1.0, 0.9))
+	label.text = "PORTAL"
+	label.add_theme_font_size_override("font_size", 14)
+	label.add_theme_color_override("font_color", Color(1.0, 0.6, 0.2, 0.9))
+	label.add_theme_color_override("font_outline_color", Color(0.2, 0.05, 0, 0.7))
+	label.add_theme_constant_override("outline_size", 2)
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label.position = Vector2(-30, -56)
-	label.size = Vector2(60, 16)
+	label.position = Vector2(-30, -76)
+	label.size = Vector2(60, 18)
 	label.z_index = 5
 	beacon.add_child(label)
+
+	# Pulsing animation
+	var pulser := Node2D.new()
+	pulser.name = "Pulser"
+	beacon.add_child(pulser)
+	var pulse_script := GDScript.new()
+	pulse_script.source_code = """extends Node2D
+var _time := 0.0
+func _process(delta):
+	_time += delta
+	get_parent().modulate.a = 0.8 + sin(_time * 2.5) * 0.2
+"""
+	pulse_script.reload()
+	pulser.set_script(pulse_script)
 
 	# Interaction script: teleport to HOME
 	var script := GDScript.new()
@@ -914,7 +954,7 @@ func _create_beacon_visual(pos: Vector2) -> Node2D:
 	code += "\tif home_x == 0.0 and home_y == 0.0:\n"
 	code += "\t\tprint(\"Francis-opia: No home yet! Spell HOUSE first.\")\n"
 	code += "\t\treturn\n"
-	code += "\tvar target := Vector2(home_x + 260, home_y - 30)\n"  # Outside house door
+	code += "\tvar target := Vector2(home_x, home_y)\n"  # Inside the house
 	code += "\tvar bodies := get_overlapping_bodies()\n"
 	code += "\tfor body in bodies:\n"
 	code += "\t\tif body is CharacterBody2D and body.name.begins_with(\"Player\"):\n"
@@ -938,7 +978,7 @@ func _ensure_home_teleport() -> void:
 		_home_teleport_pad.queue_free()
 
 	# Create teleport pad at HOME that goes back to beacon
-	var home_pos := Vector2(GameManager.home_pos_x + 260, GameManager.home_pos_y - 10)
+	var home_pos := Vector2(GameManager.home_pos_x, GameManager.home_pos_y)
 	_home_teleport_pad = Area2D.new()
 	_home_teleport_pad.name = "HomeTeleportPad"
 	_home_teleport_pad.global_position = home_pos
@@ -947,25 +987,64 @@ func _ensure_home_teleport() -> void:
 
 	var col := CollisionShape2D.new()
 	var shape := RectangleShape2D.new()
-	shape.size = Vector2(40, 32)
+	shape.size = Vector2(50, 70)
 	col.shape = shape
+	col.position = Vector2(0, -30)
 	_home_teleport_pad.add_child(col)
 
-	var base := ColorRect.new()
-	base.position = Vector2(-20, -6)
-	base.size = Vector2(40, 12)
-	base.color = Color(1.0, 0.6, 0.2, 0.8)
-	_home_teleport_pad.add_child(base)
-
+	# Matching Diablo 1 portal (blue tint for return)
+	var outer_glow := ColorRect.new()
+	outer_glow.z_index = -1
+	outer_glow.position = Vector2(-28, -68)
+	outer_glow.size = Vector2(56, 76)
+	outer_glow.color = Color(0.1, 0.3, 0.8, 0.12)
+	_home_teleport_pad.add_child(outer_glow)
+	var p_colors := [Color(0.2, 0.4, 0.9, 0.7), Color(0.3, 0.5, 1.0, 0.6), Color(0.15, 0.3, 0.85, 0.65)]
+	for i in 16:
+		var angle := TAU * float(i) / 16.0
+		var rx := cos(angle) * 18.0
+		var ry := sin(angle) * 28.0
+		var seg := ColorRect.new()
+		seg.position = Vector2(rx - 4, -32 + ry - 4)
+		seg.size = Vector2(8, 8)
+		seg.color = p_colors[i % p_colors.size()]
+		seg.z_index = 1
+		_home_teleport_pad.add_child(seg)
+	var inner := ColorRect.new()
+	inner.position = Vector2(-10, -42)
+	inner.size = Vector2(20, 24)
+	inner.color = Color(0.05, 0.1, 0.2, 0.8)
+	inner.z_index = 2
+	_home_teleport_pad.add_child(inner)
+	var core := ColorRect.new()
+	core.position = Vector2(-6, -38)
+	core.size = Vector2(12, 16)
+	core.color = Color(0.3, 0.5, 1.0, 0.5)
+	core.z_index = 3
+	_home_teleport_pad.add_child(core)
+	var rune := ColorRect.new()
+	rune.position = Vector2(-20, -4)
+	rune.size = Vector2(40, 6)
+	rune.color = Color(0.2, 0.4, 0.9, 0.6)
+	_home_teleport_pad.add_child(rune)
 	var label := Label.new()
 	label.text = "RETURN"
-	label.add_theme_font_size_override("font_size", 12)
-	label.add_theme_color_override("font_color", Color(1.0, 0.8, 0.4, 0.9))
+	label.add_theme_font_size_override("font_size", 14)
+	label.add_theme_color_override("font_color", Color(0.4, 0.7, 1.0, 0.9))
+	label.add_theme_color_override("font_outline_color", Color(0, 0.05, 0.2, 0.7))
+	label.add_theme_constant_override("outline_size", 2)
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label.position = Vector2(-24, -24)
-	label.size = Vector2(48, 16)
+	label.position = Vector2(-30, -76)
+	label.size = Vector2(60, 18)
 	label.z_index = 5
 	_home_teleport_pad.add_child(label)
+	# Pulse animation
+	var pulser := Node2D.new()
+	_home_teleport_pad.add_child(pulser)
+	var ps := GDScript.new()
+	ps.source_code = "extends Node2D\nvar _t := 0.0\nfunc _process(d):\n\t_t += d\n\tget_parent().modulate.a = 0.8 + sin(_t * 2.5) * 0.2\n"
+	ps.reload()
+	pulser.set_script(ps)
 
 	# Script: teleport back to beacon
 	var script := GDScript.new()
@@ -1394,7 +1473,11 @@ func hit_by_arrow() -> void:
 # === LETTER THIEF ===
 
 func _spawn_thief() -> void:
-	_active_thieves = _active_thieves.filter(func(t: Node2D) -> bool: return is_instance_valid(t))
+	var valid_thieves: Array[Node2D] = []
+	for t in _active_thieves:
+		if is_instance_valid(t):
+			valid_thieves.append(t)
+	_active_thieves = valid_thieves
 	if _active_thieves.size() >= MAX_THIEVES:
 		return
 	if not _thief_scene or not player:
@@ -1419,7 +1502,11 @@ func _on_new_word_thief_chance(_word: String, _hint: String) -> void:
 		get_tree().create_timer(2.0).timeout.connect(_spawn_thief)
 
 func _on_word_stun_thieves(_word: String) -> void:
-	_active_thieves = _active_thieves.filter(func(t: Node2D) -> bool: return is_instance_valid(t))
+	var valid_thieves: Array[Node2D] = []
+	for t in _active_thieves:
+		if is_instance_valid(t):
+			valid_thieves.append(t)
+	_active_thieves = valid_thieves
 	for thief in _active_thieves:
 		if thief.has_method("stunned_by_magic"):
 			thief.stunned_by_magic()
@@ -1434,10 +1521,10 @@ func _spawn_dog_companion() -> void:
 		var dog: Variant = magic_summon.call("_summon_dog", self, player, player.global_position)
 		if dog is Node:
 			magic_summon._summoned_entities.append(dog)
-			magic_summon.register_companion("dog", dog, player)
+			magic_summon.register_companion("dog", dog, player, false)
 			if GameManager.big_scale > 1.0:
-				var s := min(GameManager.big_scale, 2.0)
-				var sx := sign(dog.scale.x) if dog.scale.x != 0 else 1.0
+				var s: float = min(GameManager.big_scale, 2.0)
+				var sx: float = sign(dog.scale.x) if dog.scale.x != 0 else 1.0
 				dog.scale = Vector2(sx * s, s)
 			print("Francis-opia: Your dog is here! Woof!")
 
@@ -1462,21 +1549,21 @@ func _restore_summons() -> void:
 			if summoned is Node:
 				magic_summon._summoned_entities.append(summoned)
 				if magic_summon.is_companion_word(word):
-					magic_summon.register_companion(word, summoned, player)
+					magic_summon.register_companion(word, summoned, player, false)
 			print("Francis-opia: Restored %s from last session!" % word)
 	# Apply persisted BIG scale to first pet found
 	if GameManager.big_scale > 1.0:
 		_apply_big_scale.call_deferred(magic_summon)
 
 func _apply_big_scale(magic_summon: Node) -> void:
-	var s := min(GameManager.big_scale, 2.0)
+	var s: float = min(GameManager.big_scale, 2.0)
 	# Clamp persisted value too
 	if GameManager.big_scale > 2.0:
 		GameManager.big_scale = 2.0
 	for word in magic_summon._companions:
 		var entity: Node = magic_summon._companions[word]
 		if is_instance_valid(entity):
-			var sx := sign(entity.scale.x) if entity.scale.x != 0 else 1.0
+			var sx: float = sign(entity.scale.x) if entity.scale.x != 0 else 1.0
 			entity.scale = Vector2(sx * s, s)
 			print("Francis-opia: %s is still BIG!" % entity.name)
 

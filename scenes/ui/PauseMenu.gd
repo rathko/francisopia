@@ -130,6 +130,7 @@ func _show_controls() -> void:
 		["Aim", "Move direction"],
 		["Shoot Arrow", "Left Click"],
 		["Interact", "E"],
+		["Teleport", "T"],
 		["Quest Scroll", "Tab"],
 		["Pause", "Escape"],
 	]
@@ -154,6 +155,7 @@ func _show_controls() -> void:
 		["Aim Cursor", "Right Stick"],
 		["Shoot Arrow", "RT (Right Trigger)"],
 		["Interact", "X Button"],
+		["Teleport", "LT + RT together"],
 		["Quest Scroll", "Y Button"],
 		["Pause", "Start / Menu"],
 	]

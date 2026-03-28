@@ -230,7 +230,7 @@ func _physics_process(delta: float) -> void:
 	var dy := global_position.y - pet_owner.global_position.y
 	if abs(dx) < 20 and dy < -10 and dy > -60:
 		# On player's head, push toward follow offset side
-		var push_dir := sign(follow_offset.x) if follow_offset.x != 0 else 1.0
+		var push_dir: float = sign(follow_offset.x) if follow_offset.x != 0 else 1.0
 		velocity.x = push_dir * follow_speed * 1.5
 		move_and_slide()
 		return

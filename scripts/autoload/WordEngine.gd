@@ -20,7 +20,7 @@ var current_difficulty := 1
 var _word_attempts: Dictionary = {}  # word -> {correct: int, hints_used: int, time_ms: int}
 
 # Fixed starter sequence — these words always come first in order
-var _starter_sequence: Array[String] = ["dog", "sun", "tree", "hammer", "house", "rainbow"]
+var _starter_sequence: Array[String] = ["dog", "sun", "cat", "hat"]
 var _starter_index := 0
 var _starter_complete := false
 
@@ -263,13 +263,14 @@ func _use_builtin_words() -> void:
 	]
 
 func select_word_for_area(area: String) -> String:
-	# Force HOME if player has 4+ companions but no house yet
+	# Force HOME if player has 3+ companions but no house yet
 	if "house" not in GameManager.words_summoned:
+		var pet_words := ["dog", "cat", "frog", "pig", "bug", "fish", "bird", "hen", "bat", "rat", "fox", "pup"]
 		var companion_count := 0
 		for w in GameManager.words_summoned:
-			if w in ["dog", "cat", "frog", "pig", "bug", "fish", "bird"]:
+			if w in pet_words:
 				companion_count += 1
-		if companion_count >= 4:
+		if companion_count >= 3:
 			current_target_word = "HOUSE"
 			current_hint_image = "house"
 			collected_letters.clear()
@@ -296,7 +297,7 @@ func select_word_for_area(area: String) -> String:
 
 	# After starter sequence, use random selection by area and difficulty
 	# Prefer words not yet summoned. Repeatable words (big, hat, bow, hammer) are always allowed.
-	var repeatable := ["big", "hat", "bow", "hammer", "run", "red", "mud"]
+	var repeatable := ["big", "hat", "cap", "wig", "lip", "bow", "hammer", "run", "hop", "zip", "dig", "fan", "leg", "hug", "net", "web", "jam", "fog", "red", "mud", "hot", "wet", "mix", "mop", "gem", "pot", "bag", "six", "ten", "nut", "bun", "gum", "dot", "can", "map", "pin", "bit", "fin", "sit", "hit", "men", "bus", "pan"]
 	# Underground levels bump minimum difficulty: Level 2 uses words level 2+
 	var min_difficulty: int = maxi(1, GameManager.current_level)
 	var max_difficulty: int = maxi(current_difficulty, min_difficulty)

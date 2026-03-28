@@ -32,6 +32,7 @@ var _highlighted_letter: Node2D = null  # Currently proximity-highlighted letter
 var _highlight_original_modulate := Color.WHITE
 var _highlighted_companion: Node = null
 var _companion_original_modulate := Color.WHITE
+var _prev_lt_rt := false
 
 # Dig cursor visual
 var _dig_cursor: Node2D = null
@@ -191,8 +192,15 @@ func _is_next_weapon_just_pressed() -> bool:
 	return false
 
 func _is_teleport_just_pressed() -> bool:
-	if _joy_button_just_pressed(JOY_BUTTON_BACK):
+	# LT + RT held together on controller
+	var lt := Input.get_joy_axis(player_index, JOY_AXIS_TRIGGER_LEFT) > 0.7
+	var rt := Input.get_joy_axis(player_index, JOY_AXIS_TRIGGER_RIGHT) > 0.7
+	if lt and rt and not _prev_lt_rt:
+		_prev_lt_rt = true
 		return true
+	if not (lt and rt):
+		_prev_lt_rt = false
+	# T key for keyboard
 	if player_index == 0:
 		return Input.is_action_just_pressed("place_teleport")
 	return false

@@ -11,21 +11,80 @@ const PET_SCENE_PATH := "res://scenes/world/Pet.tscn"
 # summon_type: "pet", "world", "item", "cosmetic"
 # builder: method name that creates the summoned thing
 var summon_registry: Dictionary = {
-	# CVC words (Level 1) — simple, delightful
+	# === LEVEL 1: CVC words ===
+	# Companions
 	"cat": {"type": "pet", "builder": "_summon_cat", "label": "A cute cat!", "color": Color(0.95, 0.65, 0.25)},
 	"dog": {"type": "pet", "builder": "_summon_dog", "label": "A friendly dog!", "color": Color(0.6, 0.4, 0.2)},
-	"sun": {"type": "world", "builder": "_summon_sun", "label": "Sunshine!", "color": Color(1.0, 0.9, 0.2)},
-	"hat": {"type": "cosmetic", "builder": "_summon_hat", "label": "A magic hat!", "color": Color(0.7, 0.2, 0.8)},
-	"bed": {"type": "world", "builder": "_summon_bed", "label": "A cozy bed!", "color": Color(0.6, 0.5, 0.8)},
-	"cup": {"type": "world", "builder": "_summon_cup", "label": "A golden cup!", "color": Color(1.0, 0.85, 0.2)},
 	"bug": {"type": "pet", "builder": "_summon_bug", "label": "A friendly bug!", "color": Color(0.4, 0.8, 0.3)},
 	"hen": {"type": "pet", "builder": "_summon_hen", "label": "A clucky hen!", "color": Color(0.85, 0.6, 0.35)},
+	"pig": {"type": "pet", "builder": "_summon_pig", "label": "A cute pig!", "color": Color(1.0, 0.65, 0.7)},
+	"bat": {"type": "pet", "builder": "_summon_bat", "label": "A friendly bat!", "color": Color(0.4, 0.3, 0.5)},
+	"rat": {"type": "pet", "builder": "_summon_rat", "label": "A cheeky rat!", "color": Color(0.5, 0.45, 0.4)},
+	"fox": {"type": "pet", "builder": "_summon_fox", "label": "A clever fox!", "color": Color(0.9, 0.5, 0.15)},
+	"pup": {"type": "pet", "builder": "_summon_pup", "label": "A bouncy puppy!", "color": Color(0.7, 0.5, 0.3)},
+	# Cosmetics
+	"hat": {"type": "cosmetic", "builder": "_summon_hat", "label": "A magic hat!", "color": Color(0.7, 0.2, 0.8)},
+	"cap": {"type": "cosmetic", "builder": "_summon_cap", "label": "Cool cap!", "color": Color(0.2, 0.5, 0.9)},
+	"wig": {"type": "cosmetic", "builder": "_summon_wig", "label": "Funny wig!", "color": Color(1.0, 0.4, 0.8)},
+	"lip": {"type": "cosmetic", "builder": "_summon_lip", "label": "Silly lips!", "color": Color(1.0, 0.3, 0.4)},
+	"big": {"type": "cosmetic", "builder": "_summon_big", "label": "SUPER SIZE!", "color": Color(1.0, 0.5, 0.2)},
+	# Power-ups
 	"run": {"type": "cosmetic", "builder": "_summon_run", "label": "SUPER SPEED!", "color": Color(1.0, 0.9, 0.2)},
+	"hop": {"type": "cosmetic", "builder": "_summon_hop", "label": "SUPER JUMP!", "color": Color(0.5, 1.0, 0.5)},
+	"zip": {"type": "cosmetic", "builder": "_summon_zip", "label": "ZIP DASH!", "color": Color(0.3, 0.8, 1.0)},
+	"dig": {"type": "cosmetic", "builder": "_summon_dig", "label": "DIG POWER!", "color": Color(0.6, 0.4, 0.2)},
+	"fan": {"type": "cosmetic", "builder": "_summon_fan", "label": "Whoooosh!", "color": Color(0.7, 0.9, 1.0)},
+	"leg": {"type": "cosmetic", "builder": "_summon_leg", "label": "Fast legs!", "color": Color(0.9, 0.7, 0.5)},
+	"hug": {"type": "cosmetic", "builder": "_summon_hug", "label": "Big hug!", "color": Color(1.0, 0.5, 0.6)},
+	# Anti-thief
+	"net": {"type": "cosmetic", "builder": "_summon_net", "label": "Caught one!", "color": Color(0.6, 0.8, 0.4)},
+	"web": {"type": "cosmetic", "builder": "_summon_web", "label": "Sticky web!", "color": Color(0.9, 0.9, 0.95)},
+	"jam": {"type": "cosmetic", "builder": "_summon_jam", "label": "Sticky jam!", "color": Color(0.8, 0.2, 0.3)},
+	"fog": {"type": "cosmetic", "builder": "_summon_fog", "label": "Thick fog!", "color": Color(0.8, 0.8, 0.85)},
+	# Ground effects
 	"red": {"type": "cosmetic", "builder": "_summon_red", "label": "Everything is RED!", "color": Color(1.0, 0.2, 0.2)},
 	"mud": {"type": "cosmetic", "builder": "_summon_mud", "label": "So slippery!", "color": Color(0.5, 0.35, 0.2)},
+	"hot": {"type": "cosmetic", "builder": "_summon_hot", "label": "So hot!", "color": Color(1.0, 0.5, 0.1)},
+	"wet": {"type": "cosmetic", "builder": "_summon_wet", "label": "Rain!", "color": Color(0.5, 0.7, 1.0)},
+	"mix": {"type": "cosmetic", "builder": "_summon_mix", "label": "Color mix!", "color": Color(0.8, 0.4, 1.0)},
+	"mop": {"type": "cosmetic", "builder": "_summon_mop", "label": "All clean!", "color": Color(0.6, 0.85, 1.0)},
+	# Coin rewards
+	"gem": {"type": "cosmetic", "builder": "_summon_gem", "label": "A shiny gem!", "color": Color(0.4, 0.8, 1.0)},
+	"pot": {"type": "cosmetic", "builder": "_summon_pot", "label": "Pot of gold!", "color": Color(1.0, 0.85, 0.2)},
+	"bag": {"type": "cosmetic", "builder": "_summon_bag", "label": "Coin bag!", "color": Color(0.7, 0.5, 0.25)},
+	"six": {"type": "cosmetic", "builder": "_summon_six", "label": "Six coins!", "color": Color(1.0, 0.85, 0.2)},
+	"ten": {"type": "cosmetic", "builder": "_summon_ten", "label": "Ten coins!", "color": Color(1.0, 0.9, 0.3)},
+	"nut": {"type": "cosmetic", "builder": "_summon_nut", "label": "A squirrel!", "color": Color(0.6, 0.45, 0.2)},
+	"bun": {"type": "cosmetic", "builder": "_summon_bun", "label": "A tasty bun!", "color": Color(0.85, 0.65, 0.3)},
+	"gum": {"type": "cosmetic", "builder": "_summon_gum", "label": "Bubble gum!", "color": Color(1.0, 0.5, 0.7)},
+	# World objects
+	"sun": {"type": "world", "builder": "_summon_sun", "label": "Sunshine!", "color": Color(1.0, 0.9, 0.2)},
+	"bed": {"type": "world", "builder": "_summon_bed", "label": "A cozy bed!", "color": Color(0.6, 0.5, 0.8)},
+	"cup": {"type": "world", "builder": "_summon_cup", "label": "A golden cup!", "color": Color(1.0, 0.85, 0.2)},
 	"box": {"type": "world", "builder": "_summon_box", "label": "A mystery box!", "color": Color(0.7, 0.5, 0.2)},
+	"log": {"type": "world", "builder": "_summon_log", "label": "A log bridge!", "color": Color(0.5, 0.35, 0.15)},
+	"mat": {"type": "world", "builder": "_summon_mat", "label": "Bouncy mat!", "color": Color(0.9, 0.3, 0.5)},
+	"van": {"type": "world", "builder": "_summon_van", "label": "A fun van!", "color": Color(0.3, 0.6, 0.9)},
+	"hut": {"type": "world", "builder": "_summon_hut", "label": "A tiny hut!", "color": Color(0.6, 0.45, 0.2)},
+	"tub": {"type": "world", "builder": "_summon_tub", "label": "Bubble bath!", "color": Color(0.6, 0.8, 1.0)},
+	"bin": {"type": "cosmetic", "builder": "_summon_bin", "label": "Letter bin!", "color": Color(0.3, 0.7, 0.3)},
+	"cot": {"type": "world", "builder": "_summon_cot", "label": "A baby cot!", "color": Color(0.85, 0.75, 0.6)},
+	"pen": {"type": "world", "builder": "_summon_pen", "label": "A fence!", "color": Color(0.55, 0.4, 0.2)},
+	"jug": {"type": "world", "builder": "_summon_jug", "label": "A jug of water!", "color": Color(0.4, 0.65, 0.85)},
+	"pan": {"type": "cosmetic", "builder": "_summon_pan", "label": "Frying pan!", "color": Color(0.45, 0.45, 0.5)},
+	# Simple/visual effects
+	"dot": {"type": "cosmetic", "builder": "_summon_dot", "label": "Confetti!", "color": Color(1.0, 0.6, 0.2)},
+	"can": {"type": "cosmetic", "builder": "_summon_can", "label": "Kick the can!", "color": Color(0.6, 0.6, 0.65)},
+	"map": {"type": "cosmetic", "builder": "_summon_map", "label": "Treasure nearby!", "color": Color(0.85, 0.7, 0.4)},
+	"pin": {"type": "cosmetic", "builder": "_summon_pin", "label": "Marker placed!", "color": Color(1.0, 0.3, 0.3)},
+	"bit": {"type": "cosmetic", "builder": "_summon_bit", "label": "8-BIT MODE!", "color": Color(0.3, 1.0, 0.3)},
+	"fin": {"type": "cosmetic", "builder": "_summon_fin", "label": "Shark!", "color": Color(0.5, 0.55, 0.6)},
+	"sit": {"type": "cosmetic", "builder": "_summon_sit", "label": "Rest time!", "color": Color(0.7, 0.8, 0.5)},
+	"hit": {"type": "cosmetic", "builder": "_summon_hit", "label": "BOOM!", "color": Color(1.0, 0.8, 0.2)},
+	"men": {"type": "cosmetic", "builder": "_summon_men", "label": "Dance party!", "color": Color(0.5, 0.7, 1.0)},
+	"bus": {"type": "cosmetic", "builder": "_summon_bus", "label": "Beep beep!", "color": Color(1.0, 0.8, 0.1)},
 
-	# Blends / harder (Level 2)
+	# === LEVEL 2: Blends / digraphs ===
 	"fish": {"type": "pet", "builder": "_summon_fish", "label": "A magic fish!", "color": Color(0.3, 0.7, 1.0)},
 	"bird": {"type": "pet", "builder": "_summon_bird", "label": "A singing bird!", "color": Color(1.0, 0.6, 0.3)},
 	"frog": {"type": "pet", "builder": "_summon_frog", "label": "A bouncy frog!", "color": Color(0.3, 0.8, 0.3)},
@@ -37,17 +96,15 @@ var summon_registry: Dictionary = {
 	"bow":  {"type": "item", "builder": "_summon_bow_upgrade", "label": "Bow upgraded!", "color": Color(0.8, 0.4, 0.2)},
 	"hammer": {"type": "item", "builder": "_summon_hammer", "label": "Dig faster now!", "color": Color(0.6, 0.6, 0.65)},
 	"house": {"type": "world", "builder": "_summon_house", "label": "A cozy house!", "color": Color(0.85, 0.55, 0.25)},
-	"pig": {"type": "pet", "builder": "_summon_pig", "label": "A cute pig!", "color": Color(1.0, 0.65, 0.7)},
-	"big": {"type": "cosmetic", "builder": "_summon_big", "label": "SUPER SIZE!", "color": Color(1.0, 0.5, 0.2)},
 
-	# Long vowel / complex (Level 3+)
+	# === LEVEL 3+: Long vowels / complex ===
 	"flower": {"type": "world", "builder": "_summon_flower_garden", "label": "A flower garden!", "color": Color(1.0, 0.5, 0.7)},
 	"castle": {"type": "world", "builder": "_summon_castle", "label": "A tiny castle!", "color": Color(0.7, 0.7, 0.75)},
 	"rainbow": {"type": "world", "builder": "_summon_rainbow", "label": "A rainbow!", "color": Color(1.0, 0.4, 0.4)},
 }
 
 const MAX_COMPANIONS := 5
-const PET_WORDS := ["dog", "cat", "frog", "pig", "bug", "fish", "bird", "hen"]
+const PET_WORDS := ["dog", "cat", "frog", "pig", "bug", "fish", "bird", "hen", "bat", "rat", "fox", "pup"]
 
 var _pet_scene: PackedScene = null
 var _summoned_entities: Array[Node] = []
@@ -69,12 +126,13 @@ func get_companion_count() -> int:
 func is_companion_word(word: String) -> bool:
 	return word in PET_WORDS
 
-func register_companion(word: String, node: Node, player: Node2D) -> void:
+func register_companion(word: String, node: Node, player: Node2D, auto_activate: bool = true) -> void:
 	_companions[word] = node
-	# Clamp any oversized companion to 2x
 	_clamp_companion_scale(node)
-	# Active companions follow the player
-	if word in GameManager.active_companions:
+	if auto_activate:
+		# New pet always becomes active; oldest active gets sent home if over 3
+		activate_companion(word, player)
+	elif word in GameManager.active_companions:
 		_set_companion_owner(node, player)
 	else:
 		_send_companion_home(node)
@@ -95,25 +153,19 @@ func activate_companion(new_word: String, player: Node2D) -> void:
 	GameManager.save_game()
 
 func _evict_oldest_companion() -> void:
-	# Remove the oldest companion (first one not in active list, or first overall)
+	# Send the oldest idle companion home (don't destroy, just deactivate)
 	# Prefer evicting idle ones first
 	for word in _companions:
 		if word not in GameManager.active_companions and is_instance_valid(_companions[word]):
-			_companions[word].queue_free()
-			_companions.erase(word)
-			if word in GameManager.words_summoned:
-				GameManager.words_summoned.erase(word)
-			print("Francis-opia: %s went back to the wild to make room!" % word.capitalize())
+			_send_companion_home(_companions[word])
+			print("Francis-opia: %s went home to make room!" % word.capitalize())
 			return
-	# All are active, evict the oldest active one
+	# All are active, send the oldest active one home
 	if not GameManager.active_companions.is_empty():
 		var evicted: String = GameManager.active_companions.pop_front()
 		if evicted in _companions and is_instance_valid(_companions[evicted]):
-			_companions[evicted].queue_free()
-		_companions.erase(evicted)
-		if evicted in GameManager.words_summoned:
-			GameManager.words_summoned.erase(evicted)
-		print("Francis-opia: %s went back to the wild to make room!" % evicted.capitalize())
+			_send_companion_home(_companions[evicted])
+		print("Francis-opia: %s went home to make room!" % evicted.capitalize())
 
 func _set_companion_owner(node: Node, player: Node2D) -> void:
 	if node.has_method("setup"):
@@ -129,22 +181,29 @@ func _send_companion_home(node: Node) -> void:
 		node.pet_owner = null
 	elif "_owner" in node:
 		node._owner = null
-	# Move to home position if house exists
-	if GameManager.home_pos_x != 0.0 or GameManager.home_pos_y != 0.0:
-		var home := Vector2(GameManager.home_pos_x, GameManager.home_pos_y)
-		# Spread idle companions around the house
+	# Move to main house interior (offset left from portal room into the house)
+	if _home_node and is_instance_valid(_home_node):
+		# Main house interior: house origin + 240 (center), at ground level
+		var house_interior: Vector2 = (_home_node as Node2D).global_position + Vector2(240, -40)
 		var idx := 0
 		for word in _companions:
 			if is_instance_valid(_companions[word]) and _companions[word] == node:
 				break
 			idx += 1
-		var offset_x := (idx - 2) * 40.0  # Spread -80 to +80
-		# Flying companions (Node2D) go above, ground ones (CharacterBody2D) go to ground
+		var offset_x := (idx - 2) * 50.0
 		if node is CharacterBody2D:
-			node.global_position = home + Vector2(offset_x, -20)
+			node.global_position = house_interior + Vector2(offset_x, 10)
 			node.velocity = Vector2.ZERO
 		else:
-			node.global_position = home + Vector2(offset_x, -60)
+			node.global_position = house_interior + Vector2(offset_x, -30)
+	elif GameManager.home_pos_x != 0.0 or GameManager.home_pos_y != 0.0:
+		# Fallback if home node lost (e.g. after reload)
+		var home := Vector2(GameManager.home_pos_x - 200, GameManager.home_pos_y)
+		if node is CharacterBody2D:
+			node.global_position = home
+			node.velocity = Vector2.ZERO
+		else:
+			node.global_position = home + Vector2(0, -40)
 
 func teleport_active_companion(target_pos: Vector2) -> void:
 	for i in GameManager.active_companions.size():
@@ -156,9 +215,12 @@ func teleport_active_companion(target_pos: Vector2) -> void:
 				_companions[word].velocity = Vector2.ZERO
 
 func _clamp_companion_scale(node: Node) -> void:
-	if abs(node.scale.y) > 2.0:
-		var sx := sign(node.scale.x) if node.scale.x != 0 else 1.0
-		node.scale = Vector2(sx * 2.0, 2.0)
+	var n2d := node as Node2D
+	if not n2d:
+		return
+	if abs(n2d.scale.y) > 2.0:
+		var sx: float = sign(n2d.scale.x) if n2d.scale.x != 0 else 1.0
+		n2d.scale = Vector2(sx * 2.0, 2.0)
 
 func _on_word_spelled(word: String) -> void:
 	var entry: Dictionary = summon_registry.get(word, {})
@@ -700,7 +762,9 @@ func _summon_sun(scene_root: Node, _player: Node2D, _pos: Vector2) -> Node:
 
 func _summon_tree(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
 	var tree := Node2D.new()
-	tree.global_position = Vector2(pos.x, 725)  # On ground
+	# Spawn beside the player, not on their head
+	var offset_x: float = 120.0 if player.is_facing_right() else -120.0
+	tree.global_position = Vector2(player.global_position.x + offset_x, 725)  # On ground
 
 	# Big magical trunk
 	var trunk := ColorRect.new()
@@ -1318,20 +1382,20 @@ func _summon_big(scene_root: Node, player: Node2D, _pos: Vector2) -> Node:
 		var companion: Node = _companions[word]
 		if not is_instance_valid(companion):
 			continue
-		var s := abs(companion.scale.y)
+		var s: float = abs(companion.scale.y)
 		if s < smallest_scale:
 			smallest_scale = s
 			grown_pet = companion
 	if grown_pet:
-		var abs_y := abs(grown_pet.scale.y)
+		var abs_y: float = abs(grown_pet.scale.y)
 		if abs_y >= 2.0:
 			_show_summon_label(scene_root, _pos, {"label": "%s is already max size!" % grown_pet.name, "color": Color(1, 0.8, 0.3)})
 			return grown_pet
 		# Fixed steps: 1.0 -> 1.5 -> 2.0
-		var new_y := 1.5 if abs_y < 1.25 else 2.0
-		var new_abs := new_y
+		var new_y: float = 1.5 if abs_y < 1.25 else 2.0
+		var new_abs: float = new_y
 		# Preserve facing sign, only scale magnitude
-		var sx := sign(grown_pet.scale.x) if grown_pet.scale.x != 0 else 1.0
+		var sx: float = sign(grown_pet.scale.x) if grown_pet.scale.x != 0 else 1.0
 		var tween := grown_pet.create_tween()
 		tween.tween_property(grown_pet, "scale", Vector2(sx * new_abs, new_y), 0.5).set_trans(Tween.TRANS_BACK)
 		# Persist the scale for future sessions
@@ -1696,6 +1760,1038 @@ func _physics_process(delta):
 	print("Francis-opia: A clucky hen appeared! Bawk bawk!")
 	return hen
 
+# --- NEW COMPANIONS ---
+
+func _make_simple_companion(scene_root: Node, player: Node2D, pos: Vector2,
+		body_color: Color, head_color: Color, eye_color: Color, detail_color: Color,
+		body_size: Vector2, head_size: Vector2, offset: Vector2, name_str: String) -> CharacterBody2D:
+	## Helper to create a basic ground companion with follow behavior
+	var pet := CharacterBody2D.new()
+	pet.global_position = pos + Vector2(40, -10)
+	pet.collision_layer = 0
+	pet.collision_mask = 1
+	pet.z_index = 5
+	var body := ColorRect.new()
+	body.name = "Body"
+	body.position = Vector2(-body_size.x / 2, -body_size.y)
+	body.size = body_size
+	body.color = body_color
+	pet.add_child(body)
+	var head := ColorRect.new()
+	head.name = "Head"
+	head.position = Vector2(-head_size.x / 2, -body_size.y - head_size.y + 2)
+	head.size = head_size
+	head.color = head_color
+	pet.add_child(head)
+	var eye := ColorRect.new()
+	eye.position = Vector2(-4, -body_size.y - head_size.y + 4)
+	eye.size = Vector2(3, 3)
+	eye.color = eye_color
+	pet.add_child(eye)
+	var col := CollisionShape2D.new()
+	var shape := RectangleShape2D.new()
+	shape.size = Vector2(body_size.x, body_size.y * 0.8)
+	col.shape = shape
+	pet.add_child(col)
+	var script := GDScript.new()
+	script.source_code = "extends CharacterBody2D\n\nvar _owner: Node2D = null\nvar _gravity := 980.0\nvar _follow_offset := Vector2(%f, 0)\nvar _stuck_timer := 0.0\nvar _last_dist := 0.0\n\nfunc _physics_process(delta):\n\tif not _owner or not is_instance_valid(_owner):\n\t\treturn\n\tif not is_on_floor():\n\t\tvelocity.y += _gravity * delta\n\t\tvelocity.y = min(velocity.y, 400.0)\n\telse:\n\t\tvelocity.y = 0\n\tvar target = _owner.global_position + _follow_offset\n\tvar dist = global_position.distance_to(_owner.global_position)\n\tvar dx = global_position.x - _owner.global_position.x\n\tvar dy = global_position.y - _owner.global_position.y\n\tif abs(dx) < 20 and dy < -10 and dy > -60:\n\t\tvar push = 1.0 if _follow_offset.x >= 0 else -1.0\n\t\tvelocity.x = push * 150\n\t\tmove_and_slide()\n\t\treturn\n\tif dist > 250 or global_position.y > _owner.global_position.y + 400:\n\t\tglobal_position = _owner.global_position + _follow_offset\n\t\tvelocity = Vector2.ZERO\n\t\t_stuck_timer = 0.0\n\t\treturn\n\tif dist > 50:\n\t\tif dist >= _last_dist - 2.0:\n\t\t\t_stuck_timer += delta\n\t\telse:\n\t\t\t_stuck_timer = 0.0\n\t\tif _stuck_timer > 1.5:\n\t\t\tglobal_position = _owner.global_position + _follow_offset\n\t\t\tvelocity = Vector2.ZERO\n\t\t\t_stuck_timer = 0.0\n\t\t\treturn\n\telse:\n\t\t_stuck_timer = 0.0\n\t_last_dist = dist\n\tvar dist_to_target = global_position.distance_to(target)\n\tif dist_to_target > 50:\n\t\tvar dir = global_position.direction_to(target)\n\t\tvelocity.x = dir.x * 140\n\telse:\n\t\tvelocity.x = move_toward(velocity.x, 0, 80 * delta)\n\tif is_on_floor() and (_owner.global_position.y < global_position.y - 20 or (dist > 50 and is_on_wall())):\n\t\tvelocity.y = -320\n\tif velocity.x > 1:\n\t\tscale.x = abs(scale.x)\n\telif velocity.x < -1:\n\t\tscale.x = -abs(scale.x)\n\tmove_and_slide()\n" % offset.x
+	script.reload()
+	pet.set_script(script)
+	pet._owner = player
+	pet.add_collision_exception_with(player)
+	scene_root.add_child(pet)
+	return pet
+
+func _summon_bat(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
+	# Flying bat companion
+	var bat := Node2D.new()
+	bat.global_position = pos + Vector2(0, -80)
+	bat.z_index = 5
+	var body := ColorRect.new()
+	body.position = Vector2(-6, -4)
+	body.size = Vector2(12, 8)
+	body.color = Color(0.35, 0.25, 0.45, 1)
+	bat.add_child(body)
+	var wing_l := ColorRect.new()
+	wing_l.name = "WingL"
+	wing_l.position = Vector2(-16, -6)
+	wing_l.size = Vector2(12, 7)
+	wing_l.color = Color(0.3, 0.2, 0.4, 0.8)
+	bat.add_child(wing_l)
+	var wing_r := ColorRect.new()
+	wing_r.name = "WingR"
+	wing_r.position = Vector2(4, -6)
+	wing_r.size = Vector2(12, 7)
+	wing_r.color = Color(0.3, 0.2, 0.4, 0.8)
+	bat.add_child(wing_r)
+	var eye_l := ColorRect.new()
+	eye_l.position = Vector2(-4, -6)
+	eye_l.size = Vector2(3, 3)
+	eye_l.color = Color(1, 0.8, 0.2, 1)
+	bat.add_child(eye_l)
+	var eye_r := ColorRect.new()
+	eye_r.position = Vector2(1, -6)
+	eye_r.size = Vector2(3, 3)
+	eye_r.color = Color(1, 0.8, 0.2, 1)
+	bat.add_child(eye_r)
+	var script := GDScript.new()
+	script.source_code = """extends Node2D
+var _owner: Node2D = null
+var _time := 0.0
+func _process(delta):
+	_time += delta
+	if _owner and is_instance_valid(_owner):
+		var target = _owner.global_position + Vector2(sin(_time * 1.8) * 50, -75 + sin(_time * 3) * 10)
+		global_position = global_position.lerp(target, delta * 2.5)
+		scale.x = -1.0 if (target.x - global_position.x) < 0 else 1.0
+		var wl = get_node_or_null("WingL")
+		var wr = get_node_or_null("WingR")
+		if wl: wl.scale.y = 0.4 + abs(sin(_time * 10)) * 0.6
+		if wr: wr.scale.y = 0.4 + abs(sin(_time * 10)) * 0.6
+		if global_position.distance_to(_owner.global_position) > 400:
+			global_position = _owner.global_position + Vector2(0, -75)
+"""
+	script.reload()
+	bat.set_script(script)
+	bat._owner = player
+	scene_root.add_child(bat)
+	print("Francis-opia: A friendly bat appeared!")
+	return bat
+
+func _summon_rat(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
+	var rat := _make_simple_companion(scene_root, player, pos,
+		Color(0.5, 0.45, 0.4), Color(0.55, 0.48, 0.42), Color(0.1, 0.1, 0.1), Color(0.45, 0.4, 0.35),
+		Vector2(18, 12), Vector2(12, 10), Vector2(60, 0), "Rat")
+	# Add thin tail
+	var tail := ColorRect.new()
+	tail.name = "Tail"
+	tail.position = Vector2(8, -8)
+	tail.size = Vector2(10, 2)
+	tail.color = Color(0.6, 0.5, 0.45, 1)
+	rat.add_child(tail)
+	print("Francis-opia: A cheeky rat appeared!")
+	return rat
+
+func _summon_fox(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
+	var fox := _make_simple_companion(scene_root, player, pos,
+		Color(0.9, 0.5, 0.15), Color(0.95, 0.55, 0.2), Color(0.15, 0.15, 0.1), Color(0.95, 0.85, 0.7),
+		Vector2(24, 14), Vector2(14, 12), Vector2(-80, 0), "Fox")
+	# Bushy tail
+	var tail := ColorRect.new()
+	tail.position = Vector2(10, -14)
+	tail.size = Vector2(10, 12)
+	tail.color = Color(0.9, 0.5, 0.15, 1)
+	fox.add_child(tail)
+	var tail_tip := ColorRect.new()
+	tail_tip.position = Vector2(14, -10)
+	tail_tip.size = Vector2(6, 6)
+	tail_tip.color = Color(1, 1, 1, 0.9)
+	fox.add_child(tail_tip)
+	# Ears
+	var ear_l := ColorRect.new()
+	ear_l.position = Vector2(-8, -28)
+	ear_l.size = Vector2(5, 7)
+	ear_l.color = Color(0.9, 0.5, 0.15, 1)
+	fox.add_child(ear_l)
+	var ear_r := ColorRect.new()
+	ear_r.position = Vector2(3, -28)
+	ear_r.size = Vector2(5, 7)
+	ear_r.color = Color(0.9, 0.5, 0.15, 1)
+	fox.add_child(ear_r)
+	print("Francis-opia: A clever fox appeared!")
+	return fox
+
+func _summon_pup(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
+	var pup := _make_simple_companion(scene_root, player, pos,
+		Color(0.7, 0.5, 0.3), Color(0.75, 0.55, 0.35), Color(0.1, 0.1, 0.1), Color(0.6, 0.4, 0.2),
+		Vector2(18, 12), Vector2(12, 10), Vector2(70, 0), "Pup")
+	# Floppy ears
+	var ear := ColorRect.new()
+	ear.position = Vector2(-8, -22)
+	ear.size = Vector2(4, 8)
+	ear.color = Color(0.6, 0.4, 0.25, 1)
+	pup.add_child(ear)
+	# Tiny tail
+	var tail := ColorRect.new()
+	tail.position = Vector2(8, -10)
+	tail.size = Vector2(4, 6)
+	tail.color = Color(0.7, 0.5, 0.3, 1)
+	pup.add_child(tail)
+	print("Francis-opia: A bouncy puppy appeared!")
+	return pup
+
+# --- COSMETICS ---
+
+func _summon_cap(scene_root: Node, player: Node2D, _pos: Vector2) -> Node:
+	var old := player.get_node_or_null("MagicCap")
+	if old: old.queue_free()
+	var cap := ColorRect.new()
+	cap.name = "MagicCap"
+	cap.position = Vector2(-12, -44)
+	cap.size = Vector2(24, 8)
+	cap.color = Color(0.2, 0.5, 0.9, 1)
+	player.add_child(cap)
+	var brim := ColorRect.new()
+	brim.position = Vector2(-6, -38)
+	brim.size = Vector2(18, 4)
+	brim.color = Color(0.15, 0.4, 0.8, 1)
+	cap.add_child(brim)
+	print("Francis-opia: Cool cap!")
+	return cap
+
+func _summon_wig(scene_root: Node, player: Node2D, _pos: Vector2) -> Node:
+	var old := player.get_node_or_null("MagicWig")
+	if old: old.queue_free()
+	var wig := Node2D.new()
+	wig.name = "MagicWig"
+	var colors := [Color(1, 0.4, 0.8), Color(0.4, 0.8, 1), Color(1, 0.9, 0.2)]
+	for i in 5:
+		var strand := ColorRect.new()
+		strand.position = Vector2(-14 + i * 6, -52 - randi() % 8)
+		strand.size = Vector2(6, 14 + randi() % 8)
+		strand.color = colors[i % colors.size()]
+		wig.add_child(strand)
+	player.add_child(wig)
+	print("Francis-opia: Funny wig!")
+	return wig
+
+func _summon_lip(scene_root: Node, player: Node2D, _pos: Vector2) -> Node:
+	var old := player.get_node_or_null("MagicLip")
+	if old: old.queue_free()
+	var lip := ColorRect.new()
+	lip.name = "MagicLip"
+	lip.position = Vector2(-8, -18)
+	lip.size = Vector2(16, 6)
+	lip.color = Color(1.0, 0.3, 0.4, 0.9)
+	player.add_child(lip)
+	print("Francis-opia: Silly lips!")
+	return lip
+
+# --- POWER-UPS ---
+
+func _summon_hop(scene_root: Node, player: Node2D, _pos: Vector2) -> Node:
+	var orig: float = player.jump_velocity
+	player.jump_velocity = orig * 1.5
+	get_tree().create_timer(60.0).timeout.connect(func() -> void:
+		if is_instance_valid(player): player.jump_velocity = orig
+		print("Francis-opia: Jump boost wore off!"))
+	print("Francis-opia: SUPER JUMP for 60 seconds!")
+	return null
+
+func _summon_zip(scene_root: Node, player: Node2D, _pos: Vector2) -> Node:
+	var dir := 1.0 if player.is_facing_right() else -1.0
+	player.global_position.x += dir * 200
+	# Zip trail
+	for i in 5:
+		var trail := ColorRect.new()
+		trail.global_position = player.global_position - Vector2(dir * i * 40, 0)
+		trail.size = Vector2(20, 4)
+		trail.color = Color(0.3, 0.8, 1.0, 0.6 - i * 0.1)
+		trail.z_index = 5
+		scene_root.add_child(trail)
+		var tw := trail.create_tween()
+		tw.tween_property(trail, "modulate:a", 0.0, 0.5)
+		tw.tween_callback(trail.queue_free)
+	print("Francis-opia: ZIP!")
+	return null
+
+func _summon_dig(scene_root: Node, player: Node2D, _pos: Vector2) -> Node:
+	var orig_cd: float = player.dig_cooldown
+	var orig_range: float = player.dig_range
+	player.dig_cooldown = 0.05
+	player.dig_range = 160.0
+	get_tree().create_timer(60.0).timeout.connect(func() -> void:
+		if is_instance_valid(player):
+			player.dig_cooldown = orig_cd
+			player.dig_range = orig_range
+		print("Francis-opia: Dig power wore off!"))
+	print("Francis-opia: DIG POWER for 60 seconds!")
+	return null
+
+func _summon_fan(scene_root: Node, player: Node2D, _pos: Vector2) -> Node:
+	var orig_speed: float = player.move_speed
+	player.move_speed = orig_speed * 1.4
+	get_tree().create_timer(60.0).timeout.connect(func() -> void:
+		if is_instance_valid(player): player.move_speed = orig_speed
+		print("Francis-opia: Wind died down!"))
+	print("Francis-opia: Whoooosh! Wind boost for 60 seconds!")
+	return null
+
+func _summon_leg(scene_root: Node, player: Node2D, _pos: Vector2) -> Node:
+	var orig_speed: float = player.move_speed
+	player.move_speed = orig_speed * 1.5
+	get_tree().create_timer(30.0).timeout.connect(func() -> void:
+		if is_instance_valid(player): player.move_speed = orig_speed
+		print("Francis-opia: Speed wore off!"))
+	print("Francis-opia: Fast legs for 30 seconds!")
+	return null
+
+func _summon_hug(scene_root: Node, player: Node2D, _pos: Vector2) -> Node:
+	# Hearts burst from player and companions
+	for i in 8:
+		var heart := Label.new()
+		heart.text = "<3"
+		heart.add_theme_font_size_override("font_size", 24)
+		heart.add_theme_color_override("font_color", Color(1, 0.4, 0.5))
+		heart.global_position = player.global_position + Vector2(randf_range(-40, 40), randf_range(-60, -20))
+		heart.z_index = 20
+		scene_root.add_child(heart)
+		var tw := heart.create_tween()
+		tw.tween_property(heart, "position:y", heart.position.y - 60, 1.0)
+		tw.parallel().tween_property(heart, "modulate:a", 0.0, 1.2)
+		tw.tween_callback(heart.queue_free)
+	print("Francis-opia: Big hug! Everyone feels loved!")
+	return null
+
+# --- ANTI-THIEF ---
+
+func _summon_net(scene_root: Node, player: Node2D, _pos: Vector2) -> Node:
+	# Catch nearest thief
+	var main := get_tree().current_scene
+	if "_active_thieves" in main:
+		for thief in main._active_thieves:
+			if is_instance_valid(thief) and thief.has_method("scare_away"):
+				thief.scare_away()
+				print("Francis-opia: Caught a thief with the net!")
+				return null
+	print("Francis-opia: No thieves to catch!")
+	return null
+
+func _summon_web(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
+	var ground_y := 725.0
+	var web := Area2D.new()
+	web.name = "WebZone"
+	web.global_position = Vector2(player.global_position.x, ground_y)
+	web.collision_layer = 0
+	web.collision_mask = 0
+	var col := CollisionShape2D.new()
+	var shape := RectangleShape2D.new()
+	shape.size = Vector2(400, 60)
+	col.shape = shape
+	col.position = Vector2(0, -30)
+	web.add_child(col)
+	# Web visual
+	for i in 6:
+		var strand := ColorRect.new()
+		strand.position = Vector2(-180 + i * 60, -10 - randf() * 20)
+		strand.size = Vector2(50, 2)
+		strand.color = Color(0.9, 0.9, 0.95, 0.5)
+		strand.z_index = 1
+		web.add_child(strand)
+	for i in 4:
+		var strand := ColorRect.new()
+		strand.position = Vector2(-150 + i * 80, -30)
+		strand.size = Vector2(2, 30)
+		strand.color = Color(0.9, 0.9, 0.95, 0.4)
+		strand.z_index = 1
+		web.add_child(strand)
+	scene_root.add_child(web)
+	# Check for thieves touching the web
+	var script := GDScript.new()
+	script.source_code = """extends Area2D
+func _ready():
+	monitoring = true
+	collision_layer = 0
+	collision_mask = 16
+	body_entered.connect(_on_enter)
+func _on_enter(body):
+	if body.has_method("scare_away"):
+		body.scare_away()
+		print("Francis-opia: Thief caught in web!")
+"""
+	script.reload()
+	web.set_script(script)
+	get_tree().create_timer(60.0).timeout.connect(func() -> void:
+		if is_instance_valid(web): web.queue_free())
+	print("Francis-opia: Sticky web placed!")
+	return web
+
+func _summon_jam(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
+	var ground_y := 725.0
+	var jam_zone := Area2D.new()
+	jam_zone.name = "JamZone"
+	jam_zone.global_position = Vector2(player.global_position.x, ground_y)
+	jam_zone.collision_layer = 0
+	jam_zone.collision_mask = 16
+	jam_zone.monitoring = true
+	var col := CollisionShape2D.new()
+	var shape := RectangleShape2D.new()
+	shape.size = Vector2(500, 60)
+	col.shape = shape
+	col.position = Vector2(0, -30)
+	jam_zone.add_child(col)
+	# Jam visual
+	var vis := ColorRect.new()
+	vis.position = Vector2(-250, -12)
+	vis.size = Vector2(500, 16)
+	vis.color = Color(0.8, 0.15, 0.2, 0.5)
+	vis.z_index = 1
+	jam_zone.add_child(vis)
+	for i in 6:
+		var blob := ColorRect.new()
+		blob.position = Vector2(-200 + i * 70 + randf() * 30, -14 - randf() * 4)
+		blob.size = Vector2(25 + randf() * 20, 8 + randf() * 4)
+		blob.color = Color(0.85, 0.1, 0.15, 0.4)
+		blob.z_index = 1
+		jam_zone.add_child(blob)
+	scene_root.add_child(jam_zone)
+	var script := GDScript.new()
+	script.source_code = """extends Area2D
+func _ready():
+	body_entered.connect(_on_enter)
+func _on_enter(body):
+	if body.has_method("scare_away"):
+		body.scare_away()
+		print("Francis-opia: Thief got stuck in jam!")
+"""
+	script.reload()
+	jam_zone.set_script(script)
+	get_tree().create_timer(60.0).timeout.connect(func() -> void:
+		if is_instance_valid(jam_zone): jam_zone.queue_free())
+	print("Francis-opia: Sticky jam everywhere!")
+	return jam_zone
+
+func _summon_fog(scene_root: Node, player: Node2D, _pos: Vector2) -> Node:
+	# Fog: thieves wander randomly instead of chasing
+	var fog_layer := CanvasLayer.new()
+	fog_layer.layer = 3
+	var fog := ColorRect.new()
+	fog.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	fog.color = Color(0.85, 0.85, 0.9, 0.25)
+	fog.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	fog_layer.add_child(fog)
+	scene_root.add_child(fog_layer)
+	# Disable thief targeting during fog
+	var main := get_tree().current_scene
+	if "_active_thieves" in main:
+		for thief in main._active_thieves:
+			if is_instance_valid(thief) and "_target_player" in thief:
+				thief._target_player = null
+	get_tree().create_timer(60.0).timeout.connect(func() -> void:
+		if is_instance_valid(fog_layer):
+			var tw := fog.create_tween()
+			tw.tween_property(fog, "color:a", 0.0, 2.0)
+			tw.tween_callback(fog_layer.queue_free)
+		print("Francis-opia: Fog cleared!"))
+	print("Francis-opia: Thick fog! Thieves can't find you!")
+	return fog_layer
+
+# --- COIN REWARDS ---
+
+func _spawn_coins(scene_root: Node, pos: Vector2, count: int) -> void:
+	for i in count:
+		var coin := ColorRect.new()
+		coin.size = Vector2(8, 8)
+		coin.color = Color(1, 0.85, 0.2, 1)
+		coin.global_position = pos
+		coin.z_index = 15
+		scene_root.add_child(coin)
+		var angle := TAU * float(i) / float(count)
+		var target := pos + Vector2(cos(angle), sin(angle) - 0.5) * randf_range(30, 60)
+		var tw := coin.create_tween()
+		tw.tween_property(coin, "global_position", target, 0.4).set_trans(Tween.TRANS_BACK)
+		tw.tween_property(coin, "modulate:a", 0.0, 0.5)
+		tw.tween_callback(coin.queue_free)
+	GameManager.add_coins(count)
+
+func _summon_gem(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
+	_spawn_coins(scene_root, pos, 5)
+	print("Francis-opia: A shiny gem worth 5 coins!")
+	return null
+
+func _summon_pot(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
+	_spawn_coins(scene_root, pos, 10)
+	print("Francis-opia: Pot of gold! 10 coins!")
+	return null
+
+func _summon_bag(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
+	_spawn_coins(scene_root, pos, 3)
+	print("Francis-opia: Coin bag! 3 coins!")
+	return null
+
+func _summon_six(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
+	_spawn_coins(scene_root, pos, 6)
+	print("Francis-opia: Six coins!")
+	return null
+
+func _summon_ten(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
+	_spawn_coins(scene_root, pos, 10)
+	print("Francis-opia: Ten coins!")
+	return null
+
+func _summon_nut(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
+	# Squirrel runs in, grabs nut, drops coins
+	var squirrel := ColorRect.new()
+	squirrel.size = Vector2(12, 10)
+	squirrel.color = Color(0.6, 0.4, 0.15, 1)
+	squirrel.global_position = Vector2(pos.x + 200, 715)
+	squirrel.z_index = 10
+	scene_root.add_child(squirrel)
+	var tw := squirrel.create_tween()
+	tw.tween_property(squirrel, "global_position:x", pos.x, 0.6)
+	tw.tween_interval(0.3)
+	tw.tween_callback(func() -> void: _spawn_coins(scene_root, pos, 2))
+	tw.tween_property(squirrel, "global_position:x", pos.x - 200, 0.6)
+	tw.tween_callback(squirrel.queue_free)
+	print("Francis-opia: A squirrel grabbed the nut and left 2 coins!")
+	return null
+
+func _summon_bun(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
+	_spawn_coins(scene_root, pos, 1)
+	print("Francis-opia: A tasty bun! 1 coin!")
+	return null
+
+func _summon_gum(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
+	# Blow a bubble
+	var bubble := ColorRect.new()
+	bubble.size = Vector2(20, 20)
+	bubble.color = Color(1.0, 0.5, 0.7, 0.4)
+	bubble.global_position = player.global_position + Vector2(-10, -50)
+	bubble.z_index = 15
+	scene_root.add_child(bubble)
+	var tw := bubble.create_tween()
+	tw.tween_property(bubble, "size", Vector2(40, 40), 0.8)
+	tw.parallel().tween_property(bubble, "position:y", bubble.position.y - 40, 0.8)
+	tw.tween_property(bubble, "modulate:a", 0.0, 0.3)
+	tw.tween_callback(bubble.queue_free)
+	_spawn_coins(scene_root, pos, 1)
+	print("Francis-opia: Bubble gum! Pop!")
+	return null
+
+# --- VISUAL EFFECTS ---
+
+func _summon_hot(scene_root: Node, player: Node2D, _pos: Vector2) -> Node:
+	# Orange tint + heat shimmer
+	var affected: Array[Node] = []
+	for key in scene_root.get("_terrain_blocks") if "_terrain_blocks" in scene_root else {}:
+		var block: Node = scene_root._terrain_blocks[key]
+		if not is_instance_valid(block): continue
+		if block.global_position.distance_to(player.global_position) < 500:
+			var visual := block.get_node_or_null("Visual") as ColorRect
+			if visual:
+				affected.append(visual)
+				visual.set_meta("orig_color", visual.color)
+				visual.color = Color(0.9, 0.5 + randf() * 0.15, 0.1, 1)
+	get_tree().create_timer(30.0).timeout.connect(func() -> void:
+		for v in affected:
+			if is_instance_valid(v) and v.has_meta("orig_color"):
+				v.color = v.get_meta("orig_color"))
+	print("Francis-opia: So hot! The ground is glowing!")
+	return null
+
+func _summon_wet(scene_root: Node, player: Node2D, _pos: Vector2) -> Node:
+	# Rain particles
+	var rain := Node2D.new()
+	rain.name = "RainEffect"
+	rain.z_index = 15
+	scene_root.add_child(rain)
+	var script := GDScript.new()
+	script.source_code = """extends Node2D
+var _player: Node2D = null
+var _time := 0.0
+func _process(delta):
+	_time += delta
+	if _player and is_instance_valid(_player):
+		global_position = _player.global_position
+	if Engine.get_frames_drawn() % 3 == 0:
+		var drop = ColorRect.new()
+		drop.size = Vector2(2, 8)
+		drop.color = Color(0.5, 0.7, 1.0, 0.4)
+		drop.position = Vector2(randf_range(-400, 400), -300)
+		add_child(drop)
+		var tw = drop.create_tween()
+		tw.tween_property(drop, "position:y", drop.position.y + 500, randf_range(0.4, 0.8))
+		tw.tween_callback(drop.queue_free)
+"""
+	script.reload()
+	rain.set_script(script)
+	rain._player = player
+	get_tree().create_timer(60.0).timeout.connect(func() -> void:
+		if is_instance_valid(rain): rain.queue_free()
+		print("Francis-opia: Rain stopped!"))
+	print("Francis-opia: It's raining!")
+	return rain
+
+func _summon_dot(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
+	var colors := [Color(1, 0.3, 0.3), Color(0.3, 1, 0.3), Color(0.3, 0.3, 1), Color(1, 1, 0.3), Color(1, 0.5, 0)]
+	for i in 30:
+		var dot := ColorRect.new()
+		dot.size = Vector2(6, 6)
+		dot.color = colors[randi() % colors.size()]
+		dot.global_position = pos + Vector2(randf_range(-20, 20), -20)
+		dot.z_index = 20
+		scene_root.add_child(dot)
+		var target := pos + Vector2(randf_range(-150, 150), randf_range(-200, 50))
+		var tw := dot.create_tween()
+		tw.tween_property(dot, "global_position", target, randf_range(0.5, 1.5)).set_trans(Tween.TRANS_QUAD)
+		tw.parallel().tween_property(dot, "modulate:a", 0.0, 1.5)
+		tw.tween_callback(dot.queue_free)
+	print("Francis-opia: Confetti!")
+	return null
+
+func _summon_mix(scene_root: Node, player: Node2D, _pos: Vector2) -> Node:
+	var colors := [Color(1, 0.3, 0.5), Color(0.3, 0.8, 1), Color(1, 0.9, 0.2), Color(0.5, 1, 0.4), Color(1, 0.5, 0)]
+	for key in scene_root.get("_terrain_blocks") if "_terrain_blocks" in scene_root else {}:
+		var block: Node = scene_root._terrain_blocks[key]
+		if not is_instance_valid(block): continue
+		if block.global_position.distance_to(player.global_position) < 400:
+			var visual := block.get_node_or_null("Visual") as ColorRect
+			if visual:
+				visual.set_meta("orig_color", visual.color)
+				visual.color = colors[randi() % colors.size()]
+	get_tree().create_timer(30.0).timeout.connect(func() -> void:
+		for key2 in scene_root.get("_terrain_blocks") if "_terrain_blocks" in scene_root else {}:
+			var block2: Node = scene_root._terrain_blocks[key2]
+			if is_instance_valid(block2):
+				var v := block2.get_node_or_null("Visual") as ColorRect
+				if v and v.has_meta("orig_color"): v.color = v.get_meta("orig_color"))
+	print("Francis-opia: Colors mixed up!")
+	return null
+
+func _summon_mop(scene_root: Node, player: Node2D, _pos: Vector2) -> Node:
+	# Remove active mud/jam/web zones
+	for child in scene_root.get_children():
+		if child.name in ["MudZone", "JamZone", "WebZone"]:
+			child.queue_free()
+	# Sparkle effect
+	for i in 12:
+		var sparkle := ColorRect.new()
+		sparkle.size = Vector2(4, 4)
+		sparkle.color = Color(0.6, 0.85, 1.0, 0.8)
+		sparkle.global_position = player.global_position + Vector2(randf_range(-100, 100), randf_range(-20, 20))
+		sparkle.z_index = 10
+		scene_root.add_child(sparkle)
+		var tw := sparkle.create_tween()
+		tw.tween_property(sparkle, "modulate:a", 0.0, 1.0)
+		tw.tween_callback(sparkle.queue_free)
+	print("Francis-opia: All clean and sparkly!")
+	return null
+
+func _summon_pin(scene_root: Node, player: Node2D, _pos: Vector2) -> Node:
+	var pin := Node2D.new()
+	pin.global_position = player.global_position
+	pin.z_index = 10
+	var pole := ColorRect.new()
+	pole.position = Vector2(-1, -40)
+	pole.size = Vector2(3, 40)
+	pole.color = Color(0.7, 0.7, 0.75, 1)
+	pin.add_child(pole)
+	var head := ColorRect.new()
+	head.position = Vector2(-6, -48)
+	head.size = Vector2(12, 12)
+	head.color = Color(1, 0.3, 0.3, 1)
+	pin.add_child(head)
+	scene_root.add_child(pin)
+	print("Francis-opia: Marker placed!")
+	return pin
+
+func _summon_bit(scene_root: Node, player: Node2D, _pos: Vector2) -> Node:
+	# 8-bit pixel filter (just make everything chunky for 10s)
+	var filter := CanvasLayer.new()
+	filter.layer = 40
+	var overlay := ColorRect.new()
+	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	overlay.color = Color(0, 0.3, 0, 0.08)
+	overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	filter.add_child(overlay)
+	# Scanlines
+	for i in 40:
+		var line := ColorRect.new()
+		line.offset_top = i * 20
+		line.offset_bottom = i * 20 + 1
+		line.offset_left = 0
+		line.offset_right = 1280
+		line.color = Color(0, 0, 0, 0.1)
+		line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		filter.add_child(line)
+	scene_root.add_child(filter)
+	get_tree().create_timer(10.0).timeout.connect(func() -> void:
+		if is_instance_valid(filter): filter.queue_free())
+	print("Francis-opia: 8-BIT MODE!")
+	return filter
+
+func _summon_fin(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
+	var fin := Node2D.new()
+	fin.global_position = Vector2(pos.x + 100, 720)
+	fin.z_index = 2
+	var tri := ColorRect.new()
+	tri.position = Vector2(-4, -16)
+	tri.size = Vector2(8, 16)
+	tri.color = Color(0.5, 0.55, 0.6, 0.8)
+	fin.add_child(tri)
+	scene_root.add_child(fin)
+	var script := GDScript.new()
+	script.source_code = """extends Node2D
+var _time := 0.0
+var _start_x: float
+func _ready(): _start_x = global_position.x
+func _process(delta):
+	_time += delta
+	global_position.x = _start_x + sin(_time * 1.5) * 150
+	global_position.y = 720 + sin(_time * 3) * 3
+"""
+	script.reload()
+	fin.set_script(script)
+	get_tree().create_timer(15.0).timeout.connect(func() -> void:
+		if is_instance_valid(fin): fin.queue_free())
+	print("Francis-opia: Is that a shark fin?!")
+	return fin
+
+func _summon_sit(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
+	_spawn_coins(scene_root, pos, 1)
+	# Brief sparkle
+	for i in 6:
+		var sp := ColorRect.new()
+		sp.size = Vector2(4, 4)
+		sp.color = Color(1, 1, 0.5, 0.7)
+		sp.global_position = player.global_position + Vector2(randf_range(-20, 20), randf_range(-40, -10))
+		sp.z_index = 15
+		scene_root.add_child(sp)
+		var tw := sp.create_tween()
+		tw.tween_property(sp, "position:y", sp.position.y - 30, 0.8)
+		tw.parallel().tween_property(sp, "modulate:a", 0.0, 0.8)
+		tw.tween_callback(sp.queue_free)
+	print("Francis-opia: Rest time!")
+	return null
+
+func _summon_hit(scene_root: Node, player: Node2D, _pos: Vector2) -> Node:
+	# Screen pulse + sound effect style
+	var flash := CanvasLayer.new()
+	flash.layer = 50
+	var rect := ColorRect.new()
+	rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	rect.color = Color(1, 0.9, 0.3, 0.4)
+	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	flash.add_child(rect)
+	scene_root.add_child(flash)
+	var tw := rect.create_tween()
+	tw.tween_property(rect, "color:a", 0.0, 0.3)
+	tw.tween_callback(flash.queue_free)
+	print("Francis-opia: BOOM!")
+	return null
+
+func _summon_men(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
+	# Three dancing stick figures
+	for i in 3:
+		var man := Node2D.new()
+		man.global_position = pos + Vector2(-40 + i * 40, 0)
+		man.z_index = 10
+		var body := ColorRect.new()
+		body.position = Vector2(-2, -20)
+		body.size = Vector2(4, 16)
+		body.color = Color(0.4 + randf() * 0.3, 0.4 + randf() * 0.3, 0.8, 1)
+		man.add_child(body)
+		var head := ColorRect.new()
+		head.position = Vector2(-4, -28)
+		head.size = Vector2(8, 8)
+		head.color = Color(0.95, 0.8, 0.65, 1)
+		man.add_child(head)
+		scene_root.add_child(man)
+		var script := GDScript.new()
+		script.source_code = """extends Node2D
+var _time := 0.0
+func _process(delta):
+	_time += delta
+	rotation = sin(_time * 6 + %f) * 0.3
+	position.y += sin(_time * 4) * 0.3
+""" % (float(i) * 2.0)
+		script.reload()
+		man.set_script(script)
+		get_tree().create_timer(8.0).timeout.connect(func() -> void:
+			if is_instance_valid(man):
+				var tw := man.create_tween()
+				tw.tween_property(man, "modulate:a", 0.0, 0.5)
+				tw.tween_callback(man.queue_free))
+	print("Francis-opia: Dance party!")
+	return null
+
+func _summon_bus(scene_root: Node, player: Node2D, _pos: Vector2) -> Node:
+	var bus := Node2D.new()
+	bus.global_position = Vector2(player.global_position.x + 700, 690)
+	bus.z_index = 3
+	var body := ColorRect.new()
+	body.position = Vector2(-40, -30)
+	body.size = Vector2(80, 30)
+	body.color = Color(1, 0.8, 0.1, 1)
+	bus.add_child(body)
+	var roof := ColorRect.new()
+	roof.position = Vector2(-38, -38)
+	roof.size = Vector2(60, 10)
+	roof.color = Color(1, 0.75, 0.05, 1)
+	bus.add_child(roof)
+	for wi in 3:
+		var win := ColorRect.new()
+		win.position = Vector2(-30 + wi * 22, -28)
+		win.size = Vector2(14, 10)
+		win.color = Color(0.6, 0.8, 1, 0.8)
+		bus.add_child(win)
+	# Wheels
+	for wx in [-25, 25]:
+		var wheel := ColorRect.new()
+		wheel.position = Vector2(wx - 5, -2)
+		wheel.size = Vector2(10, 10)
+		wheel.color = Color(0.2, 0.2, 0.2, 1)
+		bus.add_child(wheel)
+	scene_root.add_child(bus)
+	var tw := bus.create_tween()
+	tw.tween_property(bus, "global_position:x", player.global_position.x - 700, 3.0)
+	tw.tween_callback(bus.queue_free)
+	print("Francis-opia: Beep beep! School bus!")
+	return null
+
+# --- WORLD OBJECTS ---
+
+func _summon_log(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
+	var log := StaticBody2D.new()
+	log.global_position = Vector2(pos.x + 60, 715)
+	log.collision_layer = 1
+	log.collision_mask = 0
+	var visual := ColorRect.new()
+	visual.position = Vector2(-50, -6)
+	visual.size = Vector2(100, 12)
+	visual.color = Color(0.5, 0.35, 0.15, 1)
+	log.add_child(visual)
+	var rings := ColorRect.new()
+	rings.position = Vector2(-4, -4)
+	rings.size = Vector2(8, 8)
+	rings.color = Color(0.6, 0.42, 0.2, 1)
+	log.add_child(rings)
+	var col := CollisionShape2D.new()
+	var shape := RectangleShape2D.new()
+	shape.size = Vector2(100, 12)
+	col.shape = shape
+	log.add_child(col)
+	scene_root.add_child(log)
+	print("Francis-opia: A log bridge!")
+	return log
+
+func _summon_mat(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
+	# Bouncy mat (like trampoline)
+	var mat := StaticBody2D.new()
+	mat.global_position = Vector2(pos.x, 725)
+	var visual := ColorRect.new()
+	visual.position = Vector2(-30, -6)
+	visual.size = Vector2(60, 6)
+	visual.color = Color(0.9, 0.3, 0.5, 1)
+	mat.add_child(visual)
+	var col := CollisionShape2D.new()
+	var shape := RectangleShape2D.new()
+	shape.size = Vector2(60, 6)
+	col.shape = shape
+	mat.add_child(col)
+	scene_root.add_child(mat)
+	print("Francis-opia: Bouncy mat!")
+	return mat
+
+func _summon_van(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
+	var van := Node2D.new()
+	van.global_position = Vector2(pos.x + 80, 725)
+	var body := ColorRect.new()
+	body.position = Vector2(-35, -40)
+	body.size = Vector2(70, 40)
+	body.color = Color(0.3, 0.6, 0.9, 1)
+	van.add_child(body)
+	var cabin := ColorRect.new()
+	cabin.position = Vector2(-35, -55)
+	cabin.size = Vector2(30, 18)
+	cabin.color = Color(0.25, 0.5, 0.85, 1)
+	van.add_child(cabin)
+	var window := ColorRect.new()
+	window.position = Vector2(-30, -52)
+	window.size = Vector2(20, 12)
+	window.color = Color(0.6, 0.8, 1, 0.8)
+	van.add_child(window)
+	# "FRANCIS" text
+	var txt := Label.new()
+	txt.text = "FRANCIS"
+	txt.add_theme_font_size_override("font_size", 10)
+	txt.add_theme_color_override("font_color", Color(1, 1, 1))
+	txt.position = Vector2(-28, -30)
+	van.add_child(txt)
+	for wx in [-20, 20]:
+		var wheel := ColorRect.new()
+		wheel.position = Vector2(wx - 5, -4)
+		wheel.size = Vector2(10, 8)
+		wheel.color = Color(0.2, 0.2, 0.2, 1)
+		van.add_child(wheel)
+	scene_root.add_child(van)
+	print("Francis-opia: A fun van!")
+	return van
+
+func _summon_hut(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
+	var hut := Node2D.new()
+	hut.global_position = Vector2(pos.x + 60, 725)
+	var wall := ColorRect.new()
+	wall.position = Vector2(-20, -30)
+	wall.size = Vector2(40, 30)
+	wall.color = Color(0.6, 0.45, 0.2, 1)
+	hut.add_child(wall)
+	var roof := ColorRect.new()
+	roof.position = Vector2(-25, -42)
+	roof.size = Vector2(50, 14)
+	roof.color = Color(0.5, 0.35, 0.15, 1)
+	hut.add_child(roof)
+	var door := ColorRect.new()
+	door.position = Vector2(-6, -18)
+	door.size = Vector2(12, 18)
+	door.color = Color(0.35, 0.22, 0.1, 1)
+	hut.add_child(door)
+	scene_root.add_child(hut)
+	print("Francis-opia: A tiny hut!")
+	return hut
+
+func _summon_tub(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
+	var tub := Node2D.new()
+	tub.global_position = Vector2(pos.x + 50, 725)
+	var basin := ColorRect.new()
+	basin.position = Vector2(-22, -20)
+	basin.size = Vector2(44, 20)
+	basin.color = Color(0.9, 0.9, 0.95, 1)
+	tub.add_child(basin)
+	for i in 4:
+		var bubble := ColorRect.new()
+		bubble.position = Vector2(-15 + i * 10 + randf() * 5, -24 - randf() * 10)
+		bubble.size = Vector2(6, 6)
+		bubble.color = Color(0.7, 0.85, 1, 0.5)
+		tub.add_child(bubble)
+	scene_root.add_child(tub)
+	print("Francis-opia: Bubble bath!")
+	return tub
+
+func _summon_bin(scene_root: Node, player: Node2D, _pos: Vector2) -> Node:
+	# Auto-collect nearest scattered letter
+	var spawner := scene_root.get_node_or_null("LetterSpawner")
+	if spawner:
+		var closest: Node2D = null
+		var closest_dist := 999.0
+		for child in spawner.get_children():
+			if child.has_method("is_needed") and child.is_needed():
+				var d := player.global_position.distance_to(child.global_position)
+				if d < closest_dist:
+					closest_dist = d
+					closest = child
+		if closest:
+			var tw := closest.create_tween()
+			tw.tween_property(closest, "global_position", player.global_position, 0.5)
+			print("Francis-opia: Letter bin pulled a letter closer!")
+			return null
+	print("Francis-opia: Letter bin!")
+	return null
+
+func _summon_cot(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
+	var cot := Node2D.new()
+	cot.global_position = Vector2(pos.x + 40, 725)
+	var frame := ColorRect.new()
+	frame.position = Vector2(-16, -14)
+	frame.size = Vector2(32, 14)
+	frame.color = Color(0.75, 0.6, 0.4, 1)
+	cot.add_child(frame)
+	var blanket := ColorRect.new()
+	blanket.position = Vector2(-14, -18)
+	blanket.size = Vector2(28, 8)
+	blanket.color = Color(0.7, 0.8, 1, 0.8)
+	cot.add_child(blanket)
+	scene_root.add_child(cot)
+	print("Francis-opia: A baby cot!")
+	return cot
+
+func _summon_pen(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
+	var fence := Node2D.new()
+	fence.global_position = Vector2(pos.x + 60, 725)
+	for i in 5:
+		var post := ColorRect.new()
+		post.position = Vector2(-30 + i * 15, -24)
+		post.size = Vector2(4, 24)
+		post.color = Color(0.55, 0.4, 0.2, 1)
+		fence.add_child(post)
+	var rail := ColorRect.new()
+	rail.position = Vector2(-30, -20)
+	rail.size = Vector2(60, 3)
+	rail.color = Color(0.6, 0.45, 0.25, 1)
+	fence.add_child(rail)
+	var rail2 := ColorRect.new()
+	rail2.position = Vector2(-30, -10)
+	rail2.size = Vector2(60, 3)
+	rail2.color = Color(0.6, 0.45, 0.25, 1)
+	fence.add_child(rail2)
+	scene_root.add_child(fence)
+	print("Francis-opia: A fence!")
+	return fence
+
+func _summon_jug(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
+	var jug := Node2D.new()
+	jug.global_position = Vector2(pos.x + 40, 725)
+	var body := ColorRect.new()
+	body.position = Vector2(-10, -22)
+	body.size = Vector2(20, 22)
+	body.color = Color(0.5, 0.7, 0.85, 1)
+	jug.add_child(body)
+	var handle := ColorRect.new()
+	handle.position = Vector2(10, -18)
+	handle.size = Vector2(5, 12)
+	handle.color = Color(0.4, 0.6, 0.75, 1)
+	jug.add_child(handle)
+	# Water puddle
+	var puddle := ColorRect.new()
+	puddle.position = Vector2(-20, -3)
+	puddle.size = Vector2(50, 4)
+	puddle.color = Color(0.3, 0.6, 0.9, 0.4)
+	jug.add_child(puddle)
+	scene_root.add_child(jug)
+	print("Francis-opia: A jug of water!")
+	return jug
+
+func _summon_pan(scene_root: Node, player: Node2D, _pos: Vector2) -> Node:
+	_spawn_coins(scene_root, player.global_position, 1)
+	print("Francis-opia: Frying pan! 1 coin!")
+	return null
+
+func _summon_can(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
+	var can := ColorRect.new()
+	can.size = Vector2(10, 14)
+	can.color = Color(0.6, 0.6, 0.65, 1)
+	can.global_position = player.global_position + Vector2(20, -10)
+	can.z_index = 10
+	scene_root.add_child(can)
+	var tw := can.create_tween()
+	tw.tween_property(can, "global_position:x", can.global_position.x + 150, 0.8).set_trans(Tween.TRANS_QUAD)
+	tw.parallel().tween_property(can, "global_position:y", can.global_position.y - 30, 0.4).set_trans(Tween.TRANS_QUAD)
+	tw.tween_property(can, "global_position:y", 720, 0.4).set_trans(Tween.TRANS_BOUNCE)
+	tw.tween_property(can, "modulate:a", 0.0, 0.5)
+	tw.tween_callback(can.queue_free)
+	_spawn_coins(scene_root, pos, 1)
+	print("Francis-opia: Kick the can!")
+	return null
+
+func _summon_map(scene_root: Node, player: Node2D, _pos: Vector2) -> Node:
+	# Glow nearest treasure block
+	var closest_treasure: Node = null
+	var closest_dist := 99999.0
+	for key in scene_root.get("_terrain_blocks") if "_terrain_blocks" in scene_root else {}:
+		var block: Node = scene_root._terrain_blocks[key]
+		if not is_instance_valid(block): continue
+		if "has_treasure" in block and block.has_treasure:
+			var d := player.global_position.distance_to(block.global_position)
+			if d < closest_dist:
+				closest_dist = d
+				closest_treasure = block
+	if closest_treasure:
+		var glow := ColorRect.new()
+		glow.size = Vector2(36, 36)
+		glow.position = Vector2(-18, -18)
+		glow.color = Color(1, 0.85, 0.2, 0.4)
+		glow.z_index = 5
+		closest_treasure.add_child(glow)
+		var tw := glow.create_tween().set_loops(6)
+		tw.tween_property(glow, "modulate:a", 0.2, 0.5)
+		tw.tween_property(glow, "modulate:a", 1.0, 0.5)
+		get_tree().create_timer(6.0).timeout.connect(func() -> void:
+			if is_instance_valid(glow): glow.queue_free())
+		print("Francis-opia: Treasure nearby! Look for the glow!")
+	else:
+		print("Francis-opia: No treasure found nearby...")
+	return null
+
 func _summon_house(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
 	# Enterable house! Player walks through the open door on the right side.
 	var house := Node2D.new()
@@ -1710,22 +2806,30 @@ func _summon_house(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
 	var DOOR_H := 120.0  # Tall enough for player (48px body + hat)
 	var ROOF := 24.0
 
-	# --- Flat ground platform under the house ---
+	# --- Solid foundation under the house (deep enough to survive digging) ---
+	var foundation_depth := 200.0  # Deep foundation so house never floats
 	var ground_pad := StaticBody2D.new()
-	ground_pad.position = Vector2(W / 2, 4)
+	ground_pad.position = Vector2(W / 2, foundation_depth / 2 + 4)
 	ground_pad.collision_layer = 1
 	ground_pad.collision_mask = 0
 	house.add_child(ground_pad)
 	var gpad_col := CollisionShape2D.new()
 	var gpad_shape := RectangleShape2D.new()
-	gpad_shape.size = Vector2(W + 80, 8)
+	gpad_shape.size = Vector2(W + 80, foundation_depth)
 	gpad_col.shape = gpad_shape
 	ground_pad.add_child(gpad_col)
+	# Surface layer (visible grass)
 	var gpad_vis := ColorRect.new()
-	gpad_vis.position = Vector2(-(W + 80) / 2, -4)
+	gpad_vis.position = Vector2(-(W + 80) / 2, -foundation_depth / 2)
 	gpad_vis.size = Vector2(W + 80, 8)
 	gpad_vis.color = Color(0.4, 0.55, 0.3, 1)
 	ground_pad.add_child(gpad_vis)
+	# Underground fill (dirt, hidden behind terrain but solid)
+	var fill := ColorRect.new()
+	fill.position = Vector2(-(W + 80) / 2, -foundation_depth / 2 + 8)
+	fill.size = Vector2(W + 80, foundation_depth - 8)
+	fill.color = Color(0.45, 0.32, 0.18, 1)
+	ground_pad.add_child(fill)
 
 	# --- Interior background (warm beige, behind everything) ---
 	var interior := ColorRect.new()
@@ -2037,6 +3141,122 @@ func _summon_house(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
 	home_label.position = Vector2(W - WALL - 1, -DOOR_H - 17)
 	house.add_child(home_label)
 
+	# === TELEPORT ROOM (attached to right side of house) ===
+	var TR_W := 100.0   # Teleport room width
+	var TR_H := 140.0   # Teleport room height
+	var TR_X := W + 6   # Start just past right wall
+	var TR_WALL := 10.0
+
+	# Teleport room floor (solid, with own foundation)
+	var tr_floor := StaticBody2D.new()
+	tr_floor.position = Vector2(TR_X + TR_W / 2, 4)
+	tr_floor.collision_layer = 1
+	tr_floor.collision_mask = 0
+	house.add_child(tr_floor)
+	var trf_col := CollisionShape2D.new()
+	var trf_shape := RectangleShape2D.new()
+	trf_shape.size = Vector2(TR_W + 20, 200)  # Deep foundation
+	trf_col.shape = trf_shape
+	trf_col.position = Vector2(0, 100)
+	tr_floor.add_child(trf_col)
+	var trf_vis := ColorRect.new()
+	trf_vis.position = Vector2(-(TR_W + 20) / 2, -4)
+	trf_vis.size = Vector2(TR_W + 20, 8)
+	trf_vis.color = Color(0.35, 0.35, 0.4, 1)  # Stone floor
+	tr_floor.add_child(trf_vis)
+	# Underground fill
+	var trf_fill := ColorRect.new()
+	trf_fill.position = Vector2(-(TR_W + 20) / 2, 4)
+	trf_fill.size = Vector2(TR_W + 20, 196)
+	trf_fill.color = Color(0.3, 0.3, 0.35, 1)
+	tr_floor.add_child(trf_fill)
+
+	# Right wall of teleport room
+	var tr_rw := StaticBody2D.new()
+	tr_rw.position = Vector2(TR_X + TR_W - TR_WALL / 2, -TR_H / 2)
+	tr_rw.collision_layer = 1
+	tr_rw.collision_mask = 0
+	house.add_child(tr_rw)
+	var trw_col := CollisionShape2D.new()
+	var trw_shape := RectangleShape2D.new()
+	trw_shape.size = Vector2(TR_WALL, TR_H)
+	trw_col.shape = trw_shape
+	tr_rw.add_child(trw_col)
+	var trw_vis := ColorRect.new()
+	trw_vis.position = Vector2(-TR_WALL / 2, -TR_H / 2)
+	trw_vis.size = Vector2(TR_WALL, TR_H)
+	trw_vis.color = Color(0.45, 0.4, 0.5, 1)  # Dark stone
+	tr_rw.add_child(trw_vis)
+
+	# Teleport room roof
+	var tr_roof := StaticBody2D.new()
+	tr_roof.position = Vector2(TR_X + TR_W / 2, -TR_H - 6)
+	tr_roof.collision_layer = 1
+	tr_roof.collision_mask = 0
+	house.add_child(tr_roof)
+	var trr_col := CollisionShape2D.new()
+	var trr_shape := RectangleShape2D.new()
+	trr_shape.size = Vector2(TR_W + 10, 12)
+	trr_col.shape = trr_shape
+	tr_roof.add_child(trr_col)
+	var trr_vis := ColorRect.new()
+	trr_vis.position = Vector2(-(TR_W + 10) / 2, -6)
+	trr_vis.size = Vector2(TR_W + 10, 12)
+	trr_vis.color = Color(0.4, 0.35, 0.45, 1)
+	tr_roof.add_child(trr_vis)
+
+	# Interior background (dark mystical)
+	var tr_interior := ColorRect.new()
+	tr_interior.z_index = -2
+	tr_interior.position = Vector2(TR_X + TR_WALL, -TR_H + TR_WALL)
+	tr_interior.size = Vector2(TR_W - TR_WALL * 2, TR_H - TR_WALL)
+	tr_interior.color = Color(0.12, 0.08, 0.18, 1)
+	house.add_child(tr_interior)
+
+	# Mystical runes on floor
+	var rune_colors := [Color(0.8, 0.3, 0.1, 0.4), Color(0.6, 0.2, 0.8, 0.3), Color(0.9, 0.5, 0.1, 0.35)]
+	for i in 3:
+		var rune := ColorRect.new()
+		rune.z_index = -1
+		rune.position = Vector2(TR_X + 20 + i * 22, -8)
+		rune.size = Vector2(16, 4)
+		rune.color = rune_colors[i]
+		house.add_child(rune)
+
+	# "PORTAL" sign above entrance
+	var portal_sign := ColorRect.new()
+	portal_sign.position = Vector2(TR_X - 4, -TR_H - 20)
+	portal_sign.size = Vector2(TR_W + 8, 16)
+	portal_sign.color = Color(0.25, 0.15, 0.35, 0.9)
+	house.add_child(portal_sign)
+	var portal_label := Label.new()
+	portal_label.text = "PORTAL ROOM"
+	portal_label.add_theme_font_size_override("font_size", 11)
+	portal_label.add_theme_color_override("font_color", Color(1.0, 0.6, 0.2, 0.9))
+	portal_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	portal_label.position = Vector2(TR_X - 2, -TR_H - 19)
+	portal_label.size = Vector2(TR_W + 4, 14)
+	house.add_child(portal_label)
+
+	# Glowing torch on each side of entrance
+	for side in [0, 1]:
+		var torch_x := TR_X - 8 if side == 0 else TR_X + TR_W - 2
+		var torch := ColorRect.new()
+		torch.position = Vector2(torch_x, -TR_H + 20)
+		torch.size = Vector2(4, 16)
+		torch.color = Color(0.5, 0.35, 0.15, 1)
+		house.add_child(torch)
+		var flame := ColorRect.new()
+		flame.position = Vector2(torch_x - 2, -TR_H + 12)
+		flame.size = Vector2(8, 10)
+		flame.color = Color(1.0, 0.6, 0.1, 0.7)
+		house.add_child(flame)
+		var flame_core := ColorRect.new()
+		flame_core.position = Vector2(torch_x, -TR_H + 14)
+		flame_core.size = Vector2(4, 6)
+		flame_core.color = Color(1.0, 0.9, 0.3, 0.8)
+		house.add_child(flame_core)
+
 	scene_root.add_child(house)
 
 	# Pop-in animation
@@ -2046,9 +3266,10 @@ func _summon_house(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
 	tween.tween_property(house, "scale", Vector2(1.0, 1.0), 0.2)
 
 	# Store home position for companion management and teleport
+	# Teleport room center (where the return portal goes)
 	_home_node = house
-	GameManager.home_pos_x = house.global_position.x + 240  # Center of house
-	GameManager.home_pos_y = house.global_position.y
+	GameManager.home_pos_x = house.global_position.x + TR_X + TR_W / 2  # Center of teleport room
+	GameManager.home_pos_y = house.global_position.y - 40               # Above floor inside teleport room
 	GameManager.save_game()
 
 	# Send idle companions to home now that it exists
