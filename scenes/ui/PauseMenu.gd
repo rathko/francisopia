@@ -22,6 +22,12 @@ func _input(event: InputEvent) -> void:
 		else:
 			_open()
 		get_viewport().set_input_as_handled()
+	elif _active and event.is_action_pressed("ui_cancel"):
+		if _current_page == MenuPage.MAIN:
+			_close()
+		else:
+			_show_main_menu()
+		get_viewport().set_input_as_handled()
 
 func _open() -> void:
 	_active = true
@@ -85,14 +91,14 @@ func _show_main_menu() -> void:
 	_content.add_child(_make_spacer(16))
 
 	# Menu buttons
-	_add_menu_button("Controls", _show_controls)
+	_add_menu_button("Controls", _show_controls, true)
 	_add_menu_button("Restart Progress", _show_restart_confirm)
 	_add_menu_button("Resume", _close)
 
 	_content.add_child(_make_spacer(24))
 
 	# Footer hint
-	var hint := _make_label("Press Escape / Start to resume", 24, Color(0.6, 0.6, 0.7))
+	var hint := _make_label("Escape / Start to resume  |  B to go back", 24, Color(0.6, 0.6, 0.7))
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_content.add_child(hint)
 
@@ -130,7 +136,7 @@ func _show_controls() -> void:
 		["Aim", "Move direction"],
 		["Shoot Arrow", "Left Click"],
 		["Interact", "E"],
-		["Teleport", "T"],
+		["Portal", "T  (spell PORTAL first)"],
 		["Quest Scroll", "Tab"],
 		["Pause", "Escape"],
 	]
@@ -155,7 +161,7 @@ func _show_controls() -> void:
 		["Aim Cursor", "Right Stick"],
 		["Shoot Arrow", "RT (Right Trigger)"],
 		["Interact", "X Button"],
-		["Teleport", "LT + RT together"],
+		["Portal", "LT + RT  (spell PORTAL)"],
 		["Quest Scroll", "Y Button"],
 		["Pause", "Start / Menu"],
 	]
@@ -182,7 +188,7 @@ func _show_controls() -> void:
 	_content.add_child(_make_spacer(8))
 
 	# Back button
-	_add_menu_button("Back", _show_main_menu)
+	_add_menu_button("Back", _show_main_menu, true)
 
 func _show_restart_confirm() -> void:
 	_current_page = MenuPage.RESTART_CONFIRM
@@ -217,7 +223,7 @@ func _show_restart_confirm() -> void:
 	_content.add_child(_make_spacer(24))
 
 	_add_menu_button("Yes, Restart", _do_restart)
-	_add_menu_button("No, Go Back", _show_main_menu)
+	_add_menu_button("No, Go Back", _show_main_menu, true)
 
 func _do_restart() -> void:
 	GameManager.reset_progress()
@@ -251,12 +257,13 @@ func _make_control_row(action_name: String, binding: String) -> HBoxContainer:
 
 	return row
 
-func _add_menu_button(text: String, callback: Callable) -> void:
+func _add_menu_button(text: String, callback: Callable, grab_focus_now := false) -> Button:
 	var btn := Button.new()
 	btn.text = text
 	btn.add_theme_font_size_override("font_size", 32)
 	btn.custom_minimum_size = Vector2(300, 50)
 	btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	btn.focus_mode = Control.FOCUS_ALL
 
 	# Style
 	var normal := StyleBoxFlat.new()
@@ -282,5 +289,7 @@ func _add_menu_button(text: String, callback: Callable) -> void:
 	btn.pressed.connect(callback)
 	_content.add_child(btn)
 
-	# Auto-focus first button
-	btn.call_deferred("grab_focus")
+	if grab_focus_now:
+		btn.call_deferred("grab_focus")
+
+	return btn

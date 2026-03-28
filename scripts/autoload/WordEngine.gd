@@ -204,6 +204,8 @@ func _use_builtin_words() -> void:
 		{"word": "hammer", "level": 2, "area": "meadow", "image": "hammer"},
 		{"word": "house", "level": 2, "area": "meadow", "image": "house"},
 
+		{"word": "portal", "level": 2, "area": "meadow", "image": "portal"},
+
 		# ============================================================
 		# LEVEL 3 — Long vowels, CVCe (magic E), vowel teams, multi-syllable
 		# ============================================================
@@ -263,6 +265,14 @@ func _use_builtin_words() -> void:
 	]
 
 func select_word_for_area(area: String) -> String:
+	# Force PORTAL as the first word on Level 2
+	if GameManager.current_level >= 2 and "portal" not in GameManager.words_summoned:
+		current_target_word = "PORTAL"
+		current_hint_image = "portal"
+		collected_letters.clear()
+		target_word_changed.emit(current_target_word, current_hint_image)
+		return current_target_word
+
 	# Force HOME if player has 3+ companions but no house yet
 	if "house" not in GameManager.words_summoned:
 		var pet_words := ["dog", "cat", "frog", "pig", "bug", "fish", "bird", "hen", "bat", "rat", "fox", "pup"]

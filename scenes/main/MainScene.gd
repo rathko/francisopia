@@ -215,6 +215,10 @@ func _ready() -> void:
 	print("Francis-opia: Ground at Y=%d, Player at Y=%d, Chunks: %d, Seed: %d" % [GROUND_Y, player.global_position.y, _chunks.size(), _world_seed])
 	print("Francis-opia: WASD/arrows to move, Space to jump, Click/RT to shoot, Q/LB to dig, Tab for quests")
 
+	# Steam Deck: show on-screen hint if no gamepad detected
+	if Input.get_connected_joypads().size() == 0 and OS.has_feature("linux"):
+		_show_no_gamepad_warning()
+
 # === PETS ===
 
 func _spawn_pets() -> void:
@@ -466,14 +470,15 @@ func _generate_chunk(index: int) -> void:
 		_generate_stairwell(chunk, terrain_container, block_script, index, stairwell_start_x, bedrock_y)
 		# Surface marker
 		_add_stairwell_marker(chunk, stairwell_start_x)
-		# Teleport pad next to stairwell exit in L2 to return to L1
-		var l2_sky_h: float = LEVEL_CONFIGS[1].get("sky_height", 450.0)
-		var l2_ground_y := bedrock_y + 20 + l2_sky_h
-		_add_teleport_pad(chunk, Vector2(
-			(stairwell_start_x - 2) * BLOCK_SIZE + BLOCK_SIZE / 2.0,
-			l2_ground_y - BLOCK_SIZE / 2.0),
-			Vector2(stairwell_start_x * BLOCK_SIZE + BLOCK_SIZE * 3, GROUND_Y - 40),
-			"Level 1")
+		# Teleport pad next to stairwell exit in L2 (only if player has spelled "portal")
+		if "portal" in GameManager.words_summoned:
+			var l2_sky_h: float = LEVEL_CONFIGS[1].get("sky_height", 450.0)
+			var l2_ground_y := bedrock_y + 20 + l2_sky_h
+			_add_teleport_pad(chunk, Vector2(
+				(stairwell_start_x - 2) * BLOCK_SIZE + BLOCK_SIZE / 2.0,
+				l2_ground_y - BLOCK_SIZE / 2.0),
+				Vector2(stairwell_start_x * BLOCK_SIZE + BLOCK_SIZE * 3, GROUND_Y - 40),
+				"Level 1")
 	else:
 		# Solid bedrock — no stairwell
 		_add_bedrock_segment(chunk, 0.0, CHUNK_WIDTH, bedrock_y)
@@ -787,7 +792,7 @@ func _add_teleport_pad(chunk: Node2D, pad_pos: Vector2, target_pos: Vector2, lab
 	pad.name = "TeleportPad"
 	pad.position = pad_pos
 	pad.collision_layer = 4  # Interactable layer
-	pad.collision_mask = 0
+	pad.collision_mask = 1  # Detect player bodies (layer 1)
 	chunk.add_child(pad)
 
 	# Collision area for detection
@@ -864,7 +869,7 @@ func _create_beacon_visual(pos: Vector2) -> Node2D:
 	beacon.name = "TeleportBeacon"
 	beacon.global_position = pos
 	beacon.collision_layer = 4  # Interactable
-	beacon.collision_mask = 0
+	beacon.collision_mask = 1  # Detect player bodies (layer 1)
 
 	var col := CollisionShape2D.new()
 	var shape := RectangleShape2D.new()
@@ -983,7 +988,7 @@ func _ensure_home_teleport() -> void:
 	_home_teleport_pad.name = "HomeTeleportPad"
 	_home_teleport_pad.global_position = home_pos
 	_home_teleport_pad.collision_layer = 4
-	_home_teleport_pad.collision_mask = 0
+	_home_teleport_pad.collision_mask = 1  # Detect player bodies (layer 1)
 
 	var col := CollisionShape2D.new()
 	var shape := RectangleShape2D.new()
@@ -1568,7 +1573,7 @@ func _apply_big_scale(magic_summon: Node) -> void:
 			print("Francis-opia: %s is still BIG!" % entity.name)
 
 # Words that change the world when spelled — triggers chunk regeneration
-const WORLD_CHANGING_WORDS := ["tree"]
+const WORLD_CHANGING_WORDS := ["tree", "portal"]
 
 func _on_world_word_completed(word: String) -> void:
 	if word.to_lower() in WORLD_CHANGING_WORDS:
@@ -1581,3 +1586,26 @@ func _regenerate_all_chunks() -> void:
 		_remove_chunk(idx)
 	_last_chunk_index = -999
 	_update_chunks()
+
+func _show_no_gamepad_warning() -> void:
+	## On-screen warning when no gamepad is detected (Steam Deck help).
+	var warning := Label.new()
+	warning.text = "No gamepad detected!\nSteam Deck: Press Steam button > Controller Settings\n> Change layout to 'Gamepad'"
+	warning.add_theme_font_size_override("font_size", 28)
+	warning.add_theme_color_override("font_color", Color(1, 0.4, 0.3))
+	warning.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
+	warning.add_theme_constant_override("outline_size", 4)
+	warning.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	warning.position = Vector2(200, 300)
+	warning.size = Vector2(880, 200)
+	warning.z_index = 100
+	add_child(warning)
+	# Auto-dismiss after 10 seconds or when a gamepad connects
+	get_tree().create_timer(10.0).timeout.connect(func() -> void:
+		if is_instance_valid(warning):
+			warning.queue_free()
+	)
+	Input.joy_connection_changed.connect(func(_device: int, connected: bool) -> void:
+		if connected and is_instance_valid(warning):
+			warning.queue_free()
+	)

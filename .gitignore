@@ -13,3 +13,6 @@ Thumbs.db
 
 # Save data (user-specific)
 *.tmp
+
+# Smoke test screenshots (generated artifacts)
+tests/screenshots/

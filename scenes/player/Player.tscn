@@ -6,7 +6,7 @@
 [ext_resource type="PackedScene" path="res://scenes/world/Arrow.tscn" id="4"]
 
 [sub_resource type="RectangleShape2D" id="body_shape"]
-size = Vector2(32, 48)
+size = Vector2(28, 48)
 
 [sub_resource type="CircleShape2D" id="letter_detect_shape"]
 radius = 40.0

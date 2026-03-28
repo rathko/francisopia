@@ -96,6 +96,7 @@ var summon_registry: Dictionary = {
 	"bow":  {"type": "item", "builder": "_summon_bow_upgrade", "label": "Bow upgraded!", "color": Color(0.8, 0.4, 0.2)},
 	"hammer": {"type": "item", "builder": "_summon_hammer", "label": "Dig faster now!", "color": Color(0.6, 0.6, 0.65)},
 	"house": {"type": "world", "builder": "_summon_house", "label": "A cozy house!", "color": Color(0.85, 0.55, 0.25)},
+	"portal": {"type": "world", "builder": "_summon_portal_unlock", "label": "Portals unlocked!", "color": Color(0.6, 0.2, 0.9)},
 
 	# === LEVEL 3+: Long vowels / complex ===
 	"flower": {"type": "world", "builder": "_summon_flower_garden", "label": "A flower garden!", "color": Color(1.0, 0.5, 0.7)},
@@ -3279,6 +3280,38 @@ func _summon_house(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
 
 	print("Francis-opia: A cozy house appeared! Walk through the door to go inside!")
 	return house
+
+func _summon_portal_unlock(_scene_root: Node, player: Node2D, _pos: Vector2) -> Node:
+	# Portal is an ability unlock — no physical summon, just enables LT+RT beacon placement
+	# Show a brief visual effect on the player
+	var effect := Node2D.new()
+	effect.name = "PortalUnlockEffect"
+	effect.global_position = player.global_position
+	_scene_root.add_child(effect)
+
+	# Purple swirl particles
+	for i in 12:
+		var particle := ColorRect.new()
+		particle.size = Vector2(8, 8)
+		particle.color = Color(0.6, 0.2, 0.9, 0.8)
+		particle.z_index = 10
+		effect.add_child(particle)
+		var angle := TAU * float(i) / 12.0
+		var start := Vector2(cos(angle) * 10, sin(angle) * 10 - 20)
+		var end := Vector2(cos(angle) * 60, sin(angle) * 60 - 20)
+		particle.position = start
+		var tween := particle.create_tween()
+		tween.tween_property(particle, "position", end, 0.8)
+		tween.parallel().tween_property(particle, "modulate:a", 0.0, 0.8)
+		tween.tween_callback(particle.queue_free)
+
+	# Clean up container after animation
+	var cleanup_tween := effect.create_tween()
+	cleanup_tween.tween_interval(1.0)
+	cleanup_tween.tween_callback(effect.queue_free)
+
+	print("Francis-opia: Portal magic unlocked! Press LT+RT to place a portal!")
+	return effect
 
 # --- HELPER: Get hint shape for HUD ---
 

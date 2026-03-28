@@ -66,6 +66,11 @@ func _process(_delta: float) -> bool:
 	root.add_child(terrain_tests)
 	terrain_tests.run_all_tests()
 
+	# Run input system smoke tests
+	var input_tests = load("res://tests/test_input_system.gd").new()
+	root.add_child(input_tests)
+	input_tests.run_all_tests()
+
 	print("")
 	print("========================================")
 	print("  All tests complete!")

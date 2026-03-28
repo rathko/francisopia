@@ -37,12 +37,23 @@ All actions have `device: -1` (respond to any controller).
 - Aim snaps to 32px grid for block-aligned digging
 - Visual dig cursor shows targeted block
 
+### Input Priority (Steam Deck Fix)
+
+For Player 0, all input helpers check the Godot **action system first** (e.g. `Input.is_action_just_pressed("jump")`), then fall back to direct joy API (`Input.is_joy_button_pressed()`). This ensures Steam Input's virtual gamepad works regardless of how Steam presents the controls (gamepad events, keyboard translation, etc.).
+
+For Player 2+, direct joy API is the primary path since actions use `device: -1` and can't distinguish controllers.
+
+### Joy Button Cache
+
+`_joy_button_just_pressed()` results are computed **once per physics frame** in `_update_joy_button_cache()` and stored in a dictionary. Multiple handlers reading the same button in one frame get the same result. This prevents the old bug where `_handle_jump_buffer()` consumed the "just pressed" state before `_handle_wall_jump()` could see it.
+
 ## Known Issues
 
 - All actions use `device: -1` which means both controllers trigger both players for non-axis inputs
 - No rebinding UI
 - Move deadzone (0.2) may be too sensitive for worn controllers
 - No touch input support (potential for mobile/tablet port)
+- Steam Deck: if controller layout is set to "Desktop" instead of "Gamepad", stick maps to mouse movement (unfixable in code — user must change layout)
 
 ## Future Work
 

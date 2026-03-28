@@ -23,6 +23,8 @@ Each doc describes **what the code currently does** (verifiable against source),
 
 ## Testing
 
+### Unit Tests
+
 Tests use a lightweight assert-based runner (no plugin required):
 
 ```bash
@@ -30,6 +32,16 @@ godot --path . --headless --script tests/run_tests.gd
 ```
 
 See `tests/` for test files. Each tests a specific autoload or system.
+
+### Visual Smoke Test
+
+Launches the game, sends keyboard input (move, jump), takes screenshots, verifies the game doesn't crash. See [testing.md](testing.md) for full setup details.
+
+```bash
+./tests/smoke_test.sh                # Auto-detect display
+./tests/smoke_test.sh --xvfb         # Xvfb (requires nvidia <= 590)
+./tests/smoke_test.sh --display :1   # Use Radek's display directly
+```
 
 ## Architecture
 

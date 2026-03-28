@@ -33,6 +33,13 @@ var _highlight_original_modulate := Color.WHITE
 var _highlighted_companion: Node = null
 var _companion_original_modulate := Color.WHITE
 var _prev_lt_rt := false
+var _stuck_timer := 0.0
+const STUCK_THRESHOLD := 2.0  # Seconds before auto-unstuck
+
+# Per-frame joy button cache — computed ONCE in _physics_process to avoid
+# double-consumption when multiple handlers check the same button.
+var _joy_just_pressed_cache: Dictionary = {}  # button -> bool
+var _prev_joy_buttons: Dictionary = {}        # button -> bool (previous frame)
 
 # Dig cursor visual
 var _dig_cursor: Node2D = null
@@ -46,6 +53,13 @@ var _cursor_target_pos := Vector2.ZERO
 
 func _ready() -> void:
 	_last_safe_position = global_position
+	# Diagnostic: log connected joypads (helps debug Steam Deck issues)
+	var joypads := Input.get_connected_joypads()
+	if joypads.size() == 0:
+		print("Francis-opia: WARNING — No gamepads detected! On Steam Deck, check controller layout is set to 'Gamepad' (Steam button > Controller Settings).")
+	else:
+		for idx in joypads:
+			print("Francis-opia: Gamepad %d: %s (GUID: %s)" % [idx, Input.get_joy_name(idx), Input.get_joy_guid(idx)])
 	if letter_detector:
 		letter_detector.body_entered.connect(_on_letter_contact)
 		letter_detector.area_entered.connect(_on_letter_area_contact)
@@ -81,6 +95,7 @@ func _create_dig_cursor() -> void:
 	add_child(_dig_cursor)
 
 func _physics_process(delta: float) -> void:
+	_update_joy_button_cache()
 	_check_respawn()
 	_apply_gravity(delta)
 	_handle_wall_detection()
@@ -111,9 +126,30 @@ func _physics_process(delta: float) -> void:
 	if is_on_floor():
 		_last_safe_position = global_position
 
+	# Stuck detection — if player is pressing movement but velocity stays near zero
+	var pressing_move: bool = abs(_get_movement_axis()) > 0.3 or _is_jump_just_pressed()
+	var barely_moving: bool = velocity.length() < 5.0
+	if pressing_move and barely_moving and not is_on_floor():
+		_stuck_timer += delta
+		if _stuck_timer >= STUCK_THRESHOLD:
+			print("Francis-opia: Oops, you were stuck! Popping you free.")
+			global_position = _last_safe_position
+			velocity = Vector2.ZERO
+			_stuck_timer = 0.0
+	else:
+		_stuck_timer = 0.0
+
 # === Per-player input helpers ===
 
 func _get_movement_axis() -> float:
+	# Player 0: use action system FIRST — it handles all devices (keyboard, gamepad,
+	# Steam Input virtual gamepad) via device=-1 bindings in the input map.
+	if player_index == 0:
+		var action_val := Input.get_axis("move_left", "move_right")
+		if abs(action_val) > 0.1:
+			return action_val
+	# Direct joy API — needed for player 2+ (multiplayer), also works as extra
+	# path for player 0 if action system misses something.
 	var joy_val := Input.get_joy_axis(player_index, JOY_AXIS_LEFT_X)
 	if abs(joy_val) > 0.2:
 		return joy_val
@@ -123,12 +159,11 @@ func _get_movement_axis() -> float:
 		return -1.0
 	if dpad_right:
 		return 1.0
-	if player_index == 0:
-		return Input.get_axis("move_left", "move_right")
 	return 0.0
 
 func _get_vertical_axis() -> float:
 	## Returns vertical input: -1 = up, +1 = down
+	# Direct joy — vertical axis has no action map equivalent, so direct API is fine here
 	var joy_val := Input.get_joy_axis(player_index, JOY_AXIS_LEFT_Y)
 	if abs(joy_val) > 0.3:
 		return joy_val
@@ -141,57 +176,60 @@ func _get_vertical_axis() -> float:
 	return 0.0
 
 func _is_jump_pressed() -> bool:
+	if player_index == 0 and Input.is_action_pressed("jump"):
+		return true
 	if Input.is_joy_button_pressed(player_index, JOY_BUTTON_A):
 		return true
-	if player_index == 0:
-		return Input.is_action_pressed("jump")
 	return false
 
 func _is_jump_just_pressed() -> bool:
+	if player_index == 0 and Input.is_action_just_pressed("jump"):
+		return true
 	if _joy_button_just_pressed(JOY_BUTTON_A):
 		return true
-	if player_index == 0:
-		return Input.is_action_just_pressed("jump")
 	return false
 
 func _is_interact_just_pressed() -> bool:
+	if player_index == 0 and Input.is_action_just_pressed("interact"):
+		return true
 	if _joy_button_just_pressed(JOY_BUTTON_X):
 		return true
-	if player_index == 0:
-		return Input.is_action_just_pressed("interact")
 	return false
 
 func _is_shoot_just_pressed() -> bool:
+	if player_index == 0 and Input.is_action_just_pressed("shoot"):
+		return true
 	var trigger := Input.get_joy_axis(player_index, JOY_AXIS_TRIGGER_RIGHT)
 	if trigger > 0.5:
 		return true
-	if player_index == 0:
-		return Input.is_action_just_pressed("shoot")
 	return false
 
 func _is_dig_held() -> bool:
 	## Terraria-style: HOLD to keep mining, not just press
+	if player_index == 0 and Input.is_action_pressed("dig"):
+		return true
 	if Input.is_joy_button_pressed(player_index, JOY_BUTTON_LEFT_SHOULDER):
 		return true
-	if player_index == 0:
-		return Input.is_action_pressed("dig")
 	return false
 
 func _is_dig_just_pressed() -> bool:
+	if player_index == 0 and Input.is_action_just_pressed("dig"):
+		return true
 	if _joy_button_just_pressed(JOY_BUTTON_LEFT_SHOULDER):
 		return true
-	if player_index == 0:
-		return Input.is_action_just_pressed("dig")
 	return false
 
 func _is_next_weapon_just_pressed() -> bool:
+	if player_index == 0 and Input.is_action_just_pressed("next_weapon"):
+		return true
 	if _joy_button_just_pressed(JOY_BUTTON_RIGHT_SHOULDER):
 		return true
-	if player_index == 0:
-		return Input.is_action_just_pressed("next_weapon")
 	return false
 
 func _is_teleport_just_pressed() -> bool:
+	# T key / action map (works with Steam Input virtual gamepad)
+	if player_index == 0 and Input.is_action_just_pressed("place_teleport"):
+		return true
 	# LT + RT held together on controller
 	var lt := Input.get_joy_axis(player_index, JOY_AXIS_TRIGGER_LEFT) > 0.7
 	var rt := Input.get_joy_axis(player_index, JOY_AXIS_TRIGGER_RIGHT) > 0.7
@@ -200,19 +238,24 @@ func _is_teleport_just_pressed() -> bool:
 		return true
 	if not (lt and rt):
 		_prev_lt_rt = false
-	# T key for keyboard
-	if player_index == 0:
-		return Input.is_action_just_pressed("place_teleport")
 	return false
 
-var _prev_joy_buttons: Dictionary = {}
+func _update_joy_button_cache() -> void:
+	## Snapshot all joy button "just pressed" states ONCE per frame.
+	## This prevents double-consumption when multiple handlers query the same button.
+	_joy_just_pressed_cache.clear()
+	var buttons_to_track := [
+		JOY_BUTTON_A, JOY_BUTTON_X, JOY_BUTTON_Y,
+		JOY_BUTTON_LEFT_SHOULDER, JOY_BUTTON_RIGHT_SHOULDER,
+	]
+	for button in buttons_to_track:
+		var current := Input.is_joy_button_pressed(player_index, button)
+		var prev: bool = _prev_joy_buttons.get(button, false)
+		_joy_just_pressed_cache[button] = current and not prev
+		_prev_joy_buttons[button] = current
 
 func _joy_button_just_pressed(button: int) -> bool:
-	var current := Input.is_joy_button_pressed(player_index, button)
-	var key := button
-	var prev: bool = _prev_joy_buttons.get(key, false)
-	_prev_joy_buttons[key] = current
-	return current and not prev
+	return _joy_just_pressed_cache.get(button, false)
 
 # === WEAPON SYSTEM ===
 
@@ -442,7 +485,7 @@ func _try_companion_swap() -> bool:
 	return false
 
 func _handle_teleport() -> void:
-	if _is_teleport_just_pressed() and "house" in GameManager.words_summoned:
+	if _is_teleport_just_pressed() and "portal" in GameManager.words_summoned:
 		teleport_beacon_requested.emit(global_position)
 
 func _check_respawn() -> void:
