@@ -73,34 +73,19 @@ Cross-system communication goes through Events autoload or direct signals on sou
 
 ## Testing
 
-### Running tests (from Claude user)
+### Running unit tests
 ```bash
-XDG_DATA_HOME="/tmp/claude-1001/godot_xdg" xvfb-run --auto-servernum --server-args="-screen 0 1280x800x24" godot --rendering-driver opengl3 --headless --path /home/claude/src/pai/francisopia --script tests/run_tests.gd
+./tests/run_unit_tests.sh        # Works from both Claude and Radek
 ```
-Godot crashes with signal 11 without `xvfb-run` and `XDG_DATA_HOME` in the Claude sandbox. This command works reliably.
+Handles Xvfb/mesa setup automatically. Falls back to direct headless for Radek's session.
+5 test files, ~130 test cases. All must pass before declaring work done.
 
-### Running tests (from Radek)
+### Visual smoke test
 ```bash
-godot --headless --path ~/src/pai/francisopia --script tests/run_tests.gd
+./tests/smoke_test.sh            # Requires xdotool
 ```
-
-5 test files: test_game_manager.gd, test_word_engine.gd, test_magic_summon.gd, test_quest_generator.gd, test_terrain_height.gd. No external test framework needed. ~130 test cases total.
-
-### Visual smoke test (from Claude user, requires xdotool)
-```bash
-# Start game on virtual display, take screenshot, send inputs, verify
-export DISPLAY=:99
-Xvfb :99 -screen 0 1280x800x24 &
-XDG_DATA_HOME="/tmp/claude-1001/godot_xdg" godot --rendering-driver opengl3 --path /home/claude/src/pai/francisopia &
-sleep 4
-import -window root /tmp/claude-1001/game_screenshot.png  # Take screenshot
-xdotool key d d d space  # Move right + jump
-sleep 2
-import -window root /tmp/claude-1001/game_after_input.png
-kill %2  # Stop game
-kill %1  # Stop Xvfb
-```
-Requires: xdotool (install via `ans eos-install.yml`; listed under Game Development packages)
+Launches game on virtual display (Xvfb + mesa llvmpipe), takes 3 screenshots (startup, after move, after jump), verifies the game doesn't crash. Screenshots saved to `$TMPDIR/screenshots/`.
+Requires: xdotool (`ans eos-install.yml`, Game Development section)
 
 ## Common Pitfalls
 
