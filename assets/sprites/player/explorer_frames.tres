@@ -1,0 +1,53 @@
+[gd_resource type="SpriteFrames" load_steps=8 format=3]
+
+[ext_resource type="Texture2D" path="res://assets/sprites/player/idle_0.png" id="idle_0"]
+[ext_resource type="Texture2D" path="res://assets/sprites/player/walk_0.png" id="walk_0"]
+[ext_resource type="Texture2D" path="res://assets/sprites/player/walk_1.png" id="walk_1"]
+[ext_resource type="Texture2D" path="res://assets/sprites/player/walk_2.png" id="walk_2"]
+[ext_resource type="Texture2D" path="res://assets/sprites/player/walk_3.png" id="walk_3"]
+[ext_resource type="Texture2D" path="res://assets/sprites/player/jump_0.png" id="jump_0"]
+[ext_resource type="Texture2D" path="res://assets/sprites/player/fall_0.png" id="fall_0"]
+
+[resource]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("idle_0")
+}],
+"loop": true,
+"name": &"idle",
+"speed": 6.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("walk_0")
+}, {
+"duration": 1.0,
+"texture": ExtResource("walk_1")
+}, {
+"duration": 1.0,
+"texture": ExtResource("walk_2")
+}, {
+"duration": 1.0,
+"texture": ExtResource("walk_3")
+}],
+"loop": true,
+"name": &"walk",
+"speed": 8.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("jump_0")
+}],
+"loop": false,
+"name": &"jump",
+"speed": 8.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("fall_0")
+}],
+"loop": true,
+"name": &"fall",
+"speed": 6.0
+}]

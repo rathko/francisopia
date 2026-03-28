@@ -294,9 +294,14 @@ func _play_summon_animation(word: String, entry: Dictionary) -> void:
 		swirl_tween.tween_property(letter_label, "modulate:a", 0.0, 0.3)
 	swirl_tween.chain().tween_callback(letters_container.queue_free)
 
-	# === PHASE 3: Sparkle particles at summon point (delayed) ===
+	# === PHASE 3: GPUParticles2D sparkle burst + camera + atmosphere ===
 	await get_tree().create_timer(0.6).timeout
-	_spawn_sparkles(scene_root, summon_pos, entry.get("color", Color.WHITE))
+	var vfx_color := MagicVFX.get_color_for_type(entry.get("type", "world"))
+	MagicVFX.spawn_sparkle_burst(scene_root, summon_pos, vfx_color, 24)
+	MagicVFX.flash_warm_atmosphere(scene_root)
+	# Camera zoom + gentle shake
+	var active_camera := get_viewport().get_camera_2d()
+	MagicVFX.camera_word_complete(active_camera)
 
 	# === PHASE 4: Summon the thing! ===
 	await get_tree().create_timer(0.3).timeout
@@ -2799,12 +2804,77 @@ func _summon_map(scene_root: Node, player: Node2D, _pos: Vector2) -> Node:
 		print("Francis-opia: No treasure found nearby...")
 	return null
 
+func _hide_colorrects_recursive(node: Node) -> void:
+	## Hide all ColorRect children (keep collision, hide old visuals).
+	for child in node.get_children():
+		if child is ColorRect:
+			child.visible = false
+		if child is Label:
+			child.visible = false  # Hide old text labels too
+		if child.get_child_count() > 0:
+			_hide_colorrects_recursive(child)
+
 func _summon_house(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
 	# Enterable house! Player walks through the open door on the right side.
 	var house := Node2D.new()
 	house.name = "MagicHouse"
 	var ground_y := 725.0  # Baseline ground, always flat
 	house.global_position = Vector2(pos.x + 120, ground_y)
+
+	# Castle sprite overlay (replaces old ColorRect visuals, collision still built below)
+	var _has_castle_sprite := false
+	if ResourceLoader.exists("res://assets/sprites/world/castle_0.png"):
+		var tex = load("res://assets/sprites/world/castle_0.png") as Texture2D
+		if tex:
+			var spr := Sprite2D.new()
+			spr.texture = tex
+			# Castle is 256x200 at 2x scale = 512x400 rendered
+			# House ground_y is at position 0, castle bottom should be at ground
+			# Position sprite relative to house node (which is at ground level).
+			# Don't use offset — just set position directly for clarity.
+			spr.position = Vector2(240, 0)  # Center over 480px house width
+			spr.offset = Vector2(0, -100)  # Bottom-align (half of 200px texture height)
+			spr.scale = Vector2(2.5, 2.5)  # Bigger castle (256*2.5 = 640px wide)
+			spr.z_index = -2  # Behind player (player default z=0)
+			house.add_child(spr)
+			_has_castle_sprite = true
+
+	# If we have the castle sprite, add a one-way roof platform (no old house walls).
+	# Player can jump through from below and land on the roof.
+	if _has_castle_sprite:
+		# Roof platform (one-way: pass through from below, stand on top)
+		# Castle sprite is at scale 2.5, texture 256x200
+		# Rendered: 640x500. Roof is near the top of the sprite.
+		var roof := StaticBody2D.new()
+		roof.position = Vector2(240, -420)  # Near top of castle
+		roof.collision_layer = 1
+		roof.collision_mask = 0
+		house.add_child(roof)
+		var roof_col := CollisionShape2D.new()
+		roof_col.one_way_collision = true
+		var roof_shape := RectangleShape2D.new()
+		roof_shape.size = Vector2(400, 16)  # Wide enough for the castle width
+		roof_col.shape = roof_shape
+		roof.add_child(roof_col)
+
+		# Mid-level ledge (balcony area)
+		var ledge := StaticBody2D.new()
+		ledge.position = Vector2(240, -200)
+		ledge.collision_layer = 1
+		ledge.collision_mask = 0
+		house.add_child(ledge)
+		var ledge_col := CollisionShape2D.new()
+		ledge_col.one_way_collision = true
+		var ledge_shape := RectangleShape2D.new()
+		ledge_shape.size = Vector2(500, 16)
+		ledge_col.shape = ledge_shape
+		ledge.add_child(ledge_col)
+
+		scene_root.add_child(house)
+		GameManager.home_pos_x = house.global_position.x + 240
+		GameManager.home_pos_y = house.global_position.y - 40
+		print("Francis-opia: A magnificent castle appeared!")
+		return house
 
 	var W := 480.0   # House width (2.5x bigger)
 	var H := 300.0   # Wall height
@@ -3283,6 +3353,10 @@ func _summon_house(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
 	for word in _companions:
 		if is_instance_valid(_companions[word]) and word not in GameManager.active_companions:
 			_send_companion_home(_companions[word])
+
+	# Hide ColorRect visuals when castle sprite is present
+	if _has_castle_sprite:
+		_hide_colorrects_recursive(house)
 
 	print("Francis-opia: A cozy house appeared! Walk through the door to go inside!")
 	return house

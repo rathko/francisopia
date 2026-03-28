@@ -6,13 +6,15 @@ enum PetType { DOG, CAT }
 
 @export var pet_type: PetType = PetType.DOG
 @export var follow_speed := 180.0
-@export var jump_velocity := -350.0
+@export var jump_velocity := -250.0  # Lower jump than player for realism
 @export var teleport_distance := 250.0
 @export var follow_distance := 50.0  # Stay this far from owner
 @export var gravity_val := 980.0
 @export var follow_offset := Vector2.ZERO  # Offset from owner to spread companions
 
 var pet_owner: CharacterBody2D = null
+var _animated_sprite: AnimatedSprite2D = null
+var _has_sprite := false
 var _idle_timer := 0.0
 var _wag_time := 0.0
 var _stuck_timer := 0.0
@@ -49,9 +51,28 @@ func setup(p_owner: CharacterBody2D, p_type: PetType) -> void:
 func _build_visuals() -> void:
 	# Clear existing visuals
 	for child in get_children():
-		if child is ColorRect:
+		if child is ColorRect or child is AnimatedSprite2D:
 			child.queue_free()
+	_animated_sprite = null
+	_has_sprite = false
 
+	# Try sprite first
+	var frames_path := "res://assets/sprites/creatures/dog_frames.tres" if pet_type == PetType.DOG else "res://assets/sprites/creatures/cat_frames.tres"
+	if ResourceLoader.exists(frames_path):
+		var frames = load(frames_path) as SpriteFrames
+		if frames:
+			_animated_sprite = AnimatedSprite2D.new()
+			_animated_sprite.sprite_frames = frames
+			# Cat bigger than dog
+			var pet_scale := 0.7 if pet_type == PetType.DOG else 1.3
+			_animated_sprite.offset = Vector2(0, -24)  # Lift more so feet clear ground
+			_animated_sprite.scale = Vector2(pet_scale, pet_scale)
+			_animated_sprite.play("idle")
+			add_child(_animated_sprite)
+			_has_sprite = true
+			return
+
+	# Fallback: ColorRect visuals
 	if pet_type == PetType.DOG:
 		_build_dog()
 	else:
@@ -283,26 +304,39 @@ func _physics_process(delta: float) -> void:
 			velocity.x = move_toward(velocity.x, 0, current_follow_speed * 0.3)
 			_idle_timer += delta
 
-	# Jump if pet_owner is above and we're on the floor (or if blocked by terrain)
-	if not chasing_thief and is_on_floor() and (pet_owner.global_position.y < global_position.y - 20 or (dist_to_target > follow_distance and is_on_wall())):
+	# Jump only when actively following (not when owner is stationary)
+	var owner_moving := pet_owner.velocity.length() > 20
+	if not chasing_thief and is_on_floor() and owner_moving and (pet_owner.global_position.y < global_position.y - 20 or (dist_to_target > follow_distance and is_on_wall())):
 		velocity.y = jump_velocity
 
-	# Flip to face direction of movement (preserve scale magnitude for BIG)
-	if velocity.x > 1:
-		scale.x = abs(scale.x)
-	elif velocity.x < -1:
-		scale.x = -abs(scale.x)
+	# Flip to face direction of movement
+	if _has_sprite and _animated_sprite:
+		if velocity.x > 1:
+			_animated_sprite.flip_h = false
+		elif velocity.x < -1:
+			_animated_sprite.flip_h = true
+		# Animation state
+		if abs(velocity.x) > 10:
+			if _animated_sprite.animation != "walk":
+				_animated_sprite.play("walk")
+		else:
+			if _animated_sprite.animation != "idle":
+				_animated_sprite.play("idle")
+	else:
+		# Legacy ColorRect flip (preserve scale magnitude for BIG)
+		if velocity.x > 1:
+			scale.x = abs(scale.x)
+		elif velocity.x < -1:
+			scale.x = -abs(scale.x)
 
-	# Cute idle animation — slight bob
-	if _idle_timer > 1.0 and is_on_floor():
+	# Cute idle animation (ColorRect fallback only)
+	if not _has_sprite and _idle_timer > 1.0 and is_on_floor():
 		_wag_time += delta
 		if pet_type == PetType.DOG:
-			# Tail wag
 			var tail := get_node_or_null("Tail")
 			if tail:
 				tail.rotation = sin(_wag_time * 8.0) * 0.4
 		else:
-			# Cat tail sway
 			var tail := get_node_or_null("Tail")
 			if tail:
 				tail.rotation = sin(_wag_time * 3.0) * 0.3

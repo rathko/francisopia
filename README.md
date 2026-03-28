@@ -4,13 +4,14 @@ A cozy 2D exploration-platformer where words have magical power. Built in Godot 
 
 **Target platform:** Steam Deck (Linux x86_64, 1280x800)
 **Goal:** Steam release to help kids worldwide learn to read through play
-**Art status:** All visuals are placeholder ColorRect rectangles. Sprite system designed, not yet implemented.
+**Art status:** Pixel art sprites for player, dog, cat, trees, flowers, crystals, mushrooms, castle. Ghibli-warm style.
 
 ## Documentation
 
 | Doc | What |
 |-----|------|
-| [Sprite Architecture](docs/sprite-architecture.md) | How the visual system works: asset pipeline, animation, entity registry, VFX, refactor plan |
+| [Roadmap](docs/roadmap.md) | Full project roadmap with phases, status, and design principles |
+| [Sprite Architecture](docs/sprite-architecture.md) | Visual system, asset pipeline, animation, Kingdom learnings |
 | [Procedural Generation](docs/procedural-generation-plan.md) | Terrain hills, biomes, world seed system |
 | [Spelling & Words](docs/spelling.md) | Word magic system, letter collection, phonics |
 | [Controls](docs/controls.md) | Gamepad + keyboard input mapping |

@@ -8,10 +8,13 @@ var _active := false
 var _current_page := MenuPage.MAIN
 var _panel: PanelContainer = null
 var _content: VBoxContainer = null
+var _bold_font: Font = null
 
 func _ready() -> void:
 	layer = 100
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	if ResourceLoader.exists("res://assets/fonts/Andika-Bold.ttf"):
+		_bold_font = load("res://assets/fonts/Andika-Bold.ttf") as Font
 	_build_ui()
 	visible = false
 
@@ -34,6 +37,15 @@ func _open() -> void:
 	visible = true
 	get_tree().paused = true
 	_show_main_menu()
+	# Slide-in animation — must use TWEEN_PAUSE_PROCESS since tree is paused
+	if _panel:
+		_panel.modulate.a = 0.0
+		_panel.scale = Vector2(0.9, 0.9)
+		var tween := create_tween()
+		tween.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
+		tween.set_parallel(true)
+		tween.tween_property(_panel, "modulate:a", 1.0, 0.2)
+		tween.tween_property(_panel, "scale", Vector2(1.0, 1.0), 0.25).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
 func _close() -> void:
 	_active = false
@@ -84,7 +96,7 @@ func _show_main_menu() -> void:
 	_clear_content()
 
 	# Title
-	var title := _make_label("Francis-opia", 48, Color(1, 0.9, 0.3))
+	var title := _make_label("Francis-opia", 48, Color(1, 0.9, 0.3), true)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_content.add_child(title)
 
@@ -233,11 +245,13 @@ func _do_restart() -> void:
 
 # === UI Helpers ===
 
-func _make_label(text: String, size: int, color: Color) -> Label:
+func _make_label(text: String, size: int, color: Color, bold: bool = false) -> Label:
 	var label := Label.new()
 	label.text = text
 	label.add_theme_font_size_override("font_size", size)
 	label.add_theme_color_override("font_color", color)
+	if bold and _bold_font:
+		label.add_theme_font_override("font", _bold_font)
 	return label
 
 func _make_spacer(height: float) -> Control:
@@ -274,6 +288,8 @@ func _add_menu_button(text: String, callback: Callable, grab_focus_now := false)
 
 	var hover := StyleBoxFlat.new()
 	hover.bg_color = Color(0.3, 0.35, 0.55, 0.9)
+	hover.border_color = Color(0.6, 0.7, 1.0, 0.4)
+	hover.set_border_width_all(1)
 	hover.set_corner_radius_all(8)
 	hover.set_content_margin_all(8)
 	btn.add_theme_stylebox_override("hover", hover)

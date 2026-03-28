@@ -515,7 +515,10 @@ assets/
     bird_visual.tres
     explorer_visual.tres
   fonts/
-    SassoonPrimary-Regular.ttf    # Primary reading font
+    Andika-Regular.ttf            # Primary reading font (SIL, evidence-based for literacy)
+    Andika-Bold.ttf
+    Andika-Italic.ttf
+    Andika-BoldItalic.ttf
     FredokaOne-Regular.ttf        # Fallback (current)
 ```
 
@@ -532,7 +535,7 @@ assets/
 
 ### Localization
 
-- All in-game text already uses the font system (will use Sassoon Primary)
+- All in-game text already uses the font system (will use Andika)
 - Word bank is data-driven (JSON/Resource), language packs are just new word files
 - Future: `data/words_fr.json`, `data/words_lv.json`, etc.
 - Letter sprites: Latin alphabet covers English, French, Latvian, Spanish, German
@@ -549,33 +552,37 @@ assets/
 
 ## 13. Implementation Phases
 
-### Phase 1: Foundation (Next Session)
-**Goal**: Extract visual code, set up asset pipeline, no new art yet.
-- Extract decoration builders into scene files
-- Install Aseprite Wizard plugin
-- Set up Godot import settings for pixel art
-- Create EntityVisual resource class
-- Verify game still works identically (ColorRect fallback)
+### Phase 1: Foundation -- COMPLETE (2026-03-28)
+- SpriteLoader utility (try sprite, fallback ColorRect)
+- EntityVisual resource class
+- Pixel art import settings (Nearest filter, snap to pixel)
+- Andika font (4 variants) in assets/fonts/
+- 6 visual functions with sprite fallback hooks (tree, flower, mushroom, glow_tree, crystal, platform)
+- Asset directory structure created
 
-### Phase 2: Player Character
-**Goal**: First real sprite in the game. Biggest visual impact.
-- Create explorer character in Aseprite (32x32, 8 animation tags)
-- Import via Aseprite Wizard
-- Replace PlayerController visual with AnimatedSprite2D
-- Implement animation state machine
-- Add anticipation/impact frames
+### Phase 2: Player Character -- COMPLETE (2026-03-28)
+- AI-generated explorer sprite (GPT-image-1, magenta background, 2x2 grid)
+- 7 frames: 1 idle, 4 walk cycle, 1 jump, 1 fall (64x64 each)
+- SpriteFrames resource (explorer_frames.tres) with 4 named animations
+- AnimatedSprite2D in Player.tscn, ColorRects hidden
+- Animation state machine: idle/walk/jump/fall + direction flip
+- **Import note**: Radek must open Godot editor once after new PNGs are added
 
 ### Phase 3: Companions
-**Goal**: Dog and cat become animated creatures.
-- Create dog and cat sprites (24x24, 5 animation tags each)
-- Replace Pet.gd ColorRects with AnimatedSprite2D
-- Add follow behavior animation transitions
+**Goal**: Dog and cat become animated pixel creatures.
+- AI-generate dog sprite (48x48, idle/walk/sit poses)
+- AI-generate cat sprite (48x48, idle/walk/sit poses)
+- Process: magenta bg removal, trim, resize with nearest-neighbor
+- Add AnimatedSprite2D to Pet.gd
+- Animation state machine: idle when stationary, walk when following
+- Radek opens editor for PNG import
 
-### Phase 4: World Decorations
-**Goal**: Trees, flowers, crystals become sprites.
-- Create decoration spritesheets
-- Replace extracted scene visuals
-- Add idle animations (tree sway, flower bob, crystal pulse)
+### Phase 4: World Decorations -- COMPLETE (2026-03-28)
+- 3 tree variants (64x96), 5 flower variants (24x32), 3 crystal variants (48x64), 3 mushroom variants (32x40)
+- SpriteLoader.try_load_random_sprite() picks variant based on existing RNG values
+- L2 glow trees reuse tree sprites with cyan-green modulate tint
+- RNG sequence preserved across sprite/fallback paths
+- Platforms remain ColorRects (dynamic width incompatible with fixed sprites)
 
 ### Phase 5: Terrain Tiles
 **Goal**: Block grid becomes visually rich.
@@ -605,6 +612,33 @@ assets/
 - Localization framework setup
 
 ---
+
+## Lessons from Kingdom (Noio/Licorice)
+
+Kingdom (Classic/Two Crowns) is a 2D side-scrolling pixel art game with procedural terrain that solves many problems similar to ours. Key learnings:
+
+### What They Did Right (Apply to Francis-opia)
+1. **Flat terrain where structures go.** Kingdom's world is entirely flat, eliminating placement issues. Our approach: terrain flat zones that automatically level ground around structures (stairwells, houses, future shops).
+2. **Engine-level lighting over rough pixel art.** The pixel art is "consistently rough" but engine lighting (golden hour, glow) makes it beautiful. We should add CanvasModulate for warm Ghibli lighting rather than perfecting every pixel.
+3. **Low resolution + HD effects.** Rendering at low res then adding shader effects (reflections, particles) is performant and looks magical. Our pixel sprites at 48-64px + future GPUParticles2D follow this pattern.
+4. **Predetermined structure anchor points.** Kingdom pre-determines valid building locations during generation. Our stairwells and houses use deterministic hash-based positioning for the same reason.
+5. **Consistent visual vocabulary.** Kingdom uses ~4 colors for everything, creating instant readability. Our Ghibli palette serves the same purpose.
+
+### What To Research Further
+- Kingdom's water reflection technique (documented on TIGSource devlog, topic 40539)
+- Their behavior tree AI for NPCs (could inform pet/companion behavior)
+- PyxelEdit workflow for pixel-perfect animation (alternative to our AI pipeline)
+- GitHub: [noio/kingdom](https://github.com/noio/kingdom) (Flash source code, non-commercial license)
+- 80 Level interviews: [creating environments](https://80.lv/articles/kingdom-developer-on-creating-pixel-environments), [how 2 guys made Kingdom](https://80.lv/articles/kingdom-how-2-guys-created-a-side-scrolling-strategy)
+
+### Design Principle: Structures Own Their Ground
+Any structure larger than 2 blocks wide should register a flat zone in `TerrainHeight`. This prevents floating/clipping. The pattern:
+```
+1. Structure spawns at position X
+2. Register flat zone: {"center": X, "flat_radius": width/2, "blend_radius": width/2 + 4}
+3. Terrain height returns 0 within flat_radius, blends to natural at blend_radius
+4. Dark earth background visible behind dug-out terrain (z_index -5)
+```
 
 ## References
 

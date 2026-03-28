@@ -16,6 +16,7 @@ const TREASURE_CHANCE := 0.06 # 6% chance per underground block
 const STAIRWELL_WIDTH := 6    # Blocks wide (outer 2 are walls, inner 4 are traversable)
 const CAVE_TREASURE_CHANCE := 0.10 # Default, overridden per level config
 const TerrainHeight = preload("res://scripts/world/TerrainHeight.gd")
+const SpriteLoader = preload("res://scripts/world/SpriteLoader.gd")
 # Fixed bedrock accommodates max hill amplitude so L2 anchoring is stable
 const BEDROCK_Y := GROUND_Y + (TerrainHeight.MAX_AMPLITUDE + UNDERGROUND_ROWS + 1) * BLOCK_SIZE + BLOCK_SIZE / 2.0 + 10
 # Stairwell spacing: guaranteed every N chunks (±jitter). Deeper levels = longer walks.
@@ -212,6 +213,9 @@ func _ready() -> void:
 			player2.global_position = player.global_position + Vector2(60, 0)
 			player2._last_safe_position = player2.global_position
 
+	# Parallax background layers for depth
+	_setup_parallax_background()
+
 	print("Francis-opia: Ground at Y=%d, Player at Y=%d, Chunks: %d, Seed: %d" % [GROUND_Y, player.global_position.y, _chunks.size(), _world_seed])
 	print("Francis-opia: WASD/arrows to move, Space to jump, Click/RT to shoot, Q/LB to dig, Tab for quests")
 
@@ -315,6 +319,12 @@ func _process(_delta: float) -> void:
 		GameManager.player_pos_x = player.global_position.x
 		GameManager.player_pos_y = player.global_position.y
 
+		# Parallax: offset mountain and cloud layers based on camera position
+		if _mountain_container:
+			_mountain_container.position.x = player.global_position.x * (1.0 - PARALLAX_MOUNTAIN_RATE)
+		if _cloud_container:
+			_cloud_container.position.x = player.global_position.x * (1.0 - PARALLAX_CLOUD_RATE)
+
 		var current_chunk := _get_chunk_index(player.global_position.x)
 		if current_chunk != _last_chunk_index:
 			_last_chunk_index = current_chunk
@@ -325,11 +335,13 @@ func _get_chunk_index(x: float) -> int:
 
 func _get_ground_y_at_px(chunk_index: int, local_pixel_x: float, centers: Array[int]) -> float:
 	## Returns the ground Y position for a given pixel X within a chunk.
+	## Uses flat zones (stairwells + houses) for terrain flattening.
 	var gx := int(floor(local_pixel_x / BLOCK_SIZE))
 	gx = clampi(gx, 0, BLOCKS_PER_CHUNK - 1)
 	var world_block_x := chunk_index * BLOCKS_PER_CHUNK + gx
-	var offset := TerrainHeight.get_height_with_stairwell(
-		world_block_x, _world_seed, centers)
+	var zones := _get_flat_zones(chunk_index)
+	var offset := TerrainHeight.get_height_with_flat_zones(
+		world_block_x, _world_seed, zones)
 	return GROUND_Y + offset * BLOCK_SIZE
 
 func _get_stairwell_start_x(chunk_index: int) -> int:
@@ -349,6 +361,25 @@ func _get_stairwell_centers(chunk_index: int) -> Array[int]:
 		var center := chunk_index * BLOCKS_PER_CHUNK + start_x + STAIRWELL_WIDTH / 2
 		centers.append(center)
 	return centers
+
+func _get_flat_zones(chunk_index: int) -> Array[Dictionary]:
+	## Returns all flat zones for this chunk (stairwells + houses).
+	## Each zone: {"center": int, "flat_radius": int, "blend_radius": int}
+	var zones: Array[Dictionary] = []
+	# Stairwell flat zones
+	if _should_have_stairwell(chunk_index):
+		var start_x := _get_stairwell_start_x(chunk_index)
+		var center := chunk_index * BLOCKS_PER_CHUNK + start_x + STAIRWELL_WIDTH / 2
+		zones.append({"center": center, "flat_radius": 4, "blend_radius": 6})
+		# House flat zone next to stairwell (if houses are unlocked)
+		if "house" in GameManager.words_summoned:
+			var house_center := center + 10  # House is placed to the right of stairwell
+			zones.append({"center": house_center, "flat_radius": 8, "blend_radius": 12})
+	# Home castle (chunk 0, near spawn)
+	if "house" in GameManager.words_summoned and chunk_index == 0:
+		var home_center := 12 + 8  # Player starts at x=400, ~block 12. House at +8 blocks right
+		zones.append({"center": home_center, "flat_radius": 10, "blend_radius": 14})
+	return zones
 
 func _update_chunks() -> void:
 	var center := _get_chunk_index(player.global_position.x)
@@ -384,6 +415,92 @@ func _remove_chunk(idx: int) -> void:
 		_chunks[idx].queue_free()
 		_chunks.erase(idx)
 
+# === PARALLAX BACKGROUND ===
+
+var _mountain_container: Node2D = null
+var _cloud_container: Node2D = null
+const PARALLAX_MOUNTAIN_RATE := 0.3  # Mountains scroll at 30% of camera speed
+const PARALLAX_CLOUD_RATE := 0.5    # Clouds scroll at 50% of camera speed
+
+func _setup_parallax_background() -> void:
+	## Terraria-inspired parallax layers — mountains and clouds behind the sky.
+	## Uses manual position offset in _process() for seamless infinite-world parallax.
+	if not camera:
+		return
+
+	# Mountain silhouette container — positioned behind sky chunks
+	_mountain_container = Node2D.new()
+	_mountain_container.name = "MountainParallax"
+	_mountain_container.z_index = -9  # Behind chunks (-10 is sky, -9 is mountains)
+	add_child(_mountain_container)
+
+	# Generate procedural mountain silhouettes
+	var mountain_span := 12000.0  # Wide enough for parallax-reduced travel
+	var mountain_start_x := -mountain_span / 2.0
+	var mountain_base_y := GROUND_Y - 80
+
+	# Back range — taller, softer mountains
+	for i in 50:
+		var peak_x := mountain_start_x + i * 240.0
+		var peak_hash := absi((i * 7919 + _world_seed) % 1000)
+		var peak_height := 100.0 + float(peak_hash % 160)
+		var peak_width := 140.0 + float(peak_hash % 120)
+
+		var mountain := ColorRect.new()
+		mountain.position = Vector2(peak_x - peak_width / 2.0, mountain_base_y - peak_height)
+		mountain.size = Vector2(peak_width, peak_height + 200)
+		mountain.color = Color(0.30, 0.38, 0.52, 0.45)
+		_mountain_container.add_child(mountain)
+
+		# Narrower peak on top for triangle-ish shape
+		var peak := ColorRect.new()
+		peak.position = Vector2(peak_x - peak_width * 0.2, mountain_base_y - peak_height - 25)
+		peak.size = Vector2(peak_width * 0.4, 25)
+		peak.color = Color(0.33, 0.40, 0.55, 0.35)
+		_mountain_container.add_child(peak)
+
+	# Front range — shorter, darker
+	for i in 35:
+		var peak_x := mountain_start_x + i * 340.0 + 100.0
+		var peak_hash := absi((i * 3571 + _world_seed + 42) % 1000)
+		var peak_height := 50.0 + float(peak_hash % 90)
+		var peak_width := 100.0 + float(peak_hash % 100)
+
+		var mountain := ColorRect.new()
+		mountain.position = Vector2(peak_x - peak_width / 2.0, mountain_base_y - peak_height)
+		mountain.size = Vector2(peak_width, peak_height + 200)
+		mountain.color = Color(0.22, 0.28, 0.40, 0.55)
+		_mountain_container.add_child(mountain)
+
+	# Cloud layer
+	_cloud_container = Node2D.new()
+	_cloud_container.name = "CloudParallax"
+	_cloud_container.z_index = -8  # Above mountains, behind chunks
+	add_child(_cloud_container)
+
+	var cloud_span := 8000.0
+	var cloud_start_x := -cloud_span / 2.0
+
+	for i in 25:
+		var cloud_hash := absi((i * 4999 + _world_seed + 137) % 1000)
+		var cx := cloud_start_x + float(cloud_hash % int(cloud_span))
+		var cy := 30.0 + float(cloud_hash % 220)
+		var cw := 80.0 + float(cloud_hash % 130)
+		var ch := 18.0 + float(cloud_hash % 28)
+
+		var cloud := ColorRect.new()
+		cloud.position = Vector2(cx, cy)
+		cloud.size = Vector2(cw, ch)
+		cloud.color = Color(1, 1, 1, 0.12 + float(cloud_hash % 100) / 600.0)
+		_cloud_container.add_child(cloud)
+
+		# Puff for fluffy shape
+		var puff := ColorRect.new()
+		puff.position = Vector2(cx + cw * 0.2, cy - ch * 0.4)
+		puff.size = Vector2(cw * 0.6, ch * 0.7)
+		puff.color = Color(1, 1, 1, 0.10 + float(cloud_hash % 70) / 700.0)
+		_cloud_container.add_child(puff)
+
 # === CHUNK GENERATION WITH BLOCK TERRAIN ===
 
 func _generate_chunk(index: int) -> void:
@@ -402,11 +519,25 @@ func _generate_chunk(index: int) -> void:
 	sky.color = Color(0.53, 0.81, 0.92, 1)
 	chunk.add_child(sky)
 
+	# Dark earth behind terrain — visible when blocks are dug out
+	var earth_bg := ColorRect.new()
+	earth_bg.z_index = -5
+	earth_bg.position = Vector2(0, GROUND_Y - 4 * BLOCK_SIZE)  # Start above highest possible hill
+	earth_bg.size = Vector2(CHUNK_WIDTH, (UNDERGROUND_ROWS + TerrainHeight.MAX_AMPLITUDE + 6) * BLOCK_SIZE)
+	earth_bg.color = Color(0.18, 0.12, 0.08, 1)  # Very dark brown
+	chunk.add_child(earth_bg)
+
 	# === BLOCK-BASED TERRAIN ===
 	# Top row = grass, rows below = dirt, some contain treasure
 	var terrain_container := Node2D.new()
 	terrain_container.name = "Terrain"
 	chunk.add_child(terrain_container)
+
+	# Background wall layer — darker blocks behind terrain, visible when blocks are dug out
+	var wall_container := Node2D.new()
+	wall_container.name = "BackgroundWalls"
+	wall_container.z_index = -3
+	chunk.add_child(wall_container)
 
 	var block_script := load("res://scenes/world/TerrainBlock.gd") as GDScript
 
@@ -415,12 +546,13 @@ func _generate_chunk(index: int) -> void:
 	var has_stairwell := _should_have_stairwell(index)
 	var stairwell_start_x := _get_stairwell_start_x(index) if has_stairwell else -1
 	var stairwell_centers := _get_stairwell_centers(index)
+	var flat_zones := _get_flat_zones(index)
 
 	for gx in BLOCKS_PER_CHUNK:
-		# Per-column height offset for rolling hills
+		# Per-column height offset for rolling hills (flattened around structures)
 		var world_block_x := index * BLOCKS_PER_CHUNK + gx
-		var height_offset := TerrainHeight.get_height_with_stairwell(
-			world_block_x, _world_seed, stairwell_centers)
+		var height_offset := TerrainHeight.get_height_with_flat_zones(
+			world_block_x, _world_seed, flat_zones)
 		var column_ground_y := GROUND_Y + height_offset * BLOCK_SIZE
 		# Underground fills from surface down to fixed bedrock
 		var column_underground := int((BEDROCK_Y - column_ground_y) / BLOCK_SIZE) - 1
@@ -432,14 +564,19 @@ func _generate_chunk(index: int) -> void:
 			# Always consume RNG to keep sequence deterministic regardless of dug state
 			var has_treasure := (not is_grass and _rng.randf() < TREASURE_CHANCE)
 
+			var block_x := gx * BLOCK_SIZE + BLOCK_SIZE / 2.0
+			var block_y := column_ground_y + gy * BLOCK_SIZE + BLOCK_SIZE / 2.0
+
+			# Background wall — always present, visible when foreground block is dug
+			if not is_grass:
+				_add_background_wall(wall_container, block_x, block_y, gx, gy, column_underground)
+
 			var key := "%d,%d,%d" % [index, gx, gy]
 			# Skip blocks that were previously dug out
 			if GameManager.block_changes.has(key):
 				continue
 
 			var block := StaticBody2D.new()
-			var block_x := gx * BLOCK_SIZE + BLOCK_SIZE / 2.0
-			var block_y := column_ground_y + gy * BLOCK_SIZE + BLOCK_SIZE / 2.0
 			block.position = Vector2(block_x, block_y)
 			block.collision_layer = 1
 			block.collision_mask = 0
@@ -454,6 +591,7 @@ func _generate_chunk(index: int) -> void:
 
 			if block_script:
 				block.set_script(block_script)
+				block.total_depth = column_underground
 				block.setup(gx, gy, is_grass, has_treasure)
 
 			_terrain_blocks[key] = block
@@ -624,11 +762,43 @@ func _add_bedrock_segment(chunk: Node2D, x_offset: float, width: float, y_pos: f
 	bedrock_col.shape = bedrock_shape
 	bedrock.add_child(bedrock_col)
 
+	# Try bedrock tile sprite, tiled across width
+	var bedrock_tex_path := "res://assets/sprites/world/tile_bedrock.png"
+	if ResourceLoader.exists(bedrock_tex_path):
+		var tex = load(bedrock_tex_path) as Texture2D
+		if tex:
+			# Tile the 32px texture across the bedrock width
+			var tile_count: int = int(ceil((width + 4) / 32.0))
+			for ti in tile_count:
+				var spr := Sprite2D.new()
+				spr.texture = tex
+				spr.position = Vector2(-width / 2.0 - 2 + ti * 32 + 16, 0)
+				bedrock.add_child(spr)
+			return
+
+	# Fallback: ColorRect
 	var bedrock_visual := ColorRect.new()
 	bedrock_visual.position = Vector2(-width / 2.0 - 2, -10)
 	bedrock_visual.size = Vector2(width + 4, 20)
 	bedrock_visual.color = Color(0.3, 0.3, 0.35, 1)
 	bedrock.add_child(bedrock_visual)
+
+func _add_background_wall(container: Node2D, block_x: float, block_y: float, gx: int, gy: int, col_underground: int) -> void:
+	## Background wall block — darker semi-transparent, visible when foreground is dug.
+	var wall := ColorRect.new()
+	wall.position = Vector2(block_x - BLOCK_SIZE / 2.0, block_y - BLOCK_SIZE / 2.0)
+	wall.size = Vector2(BLOCK_SIZE, BLOCK_SIZE)
+	var wall_shade := float(absi((gx * 2654435761 + gy * 340573321) % 80)) / 1000.0
+	if gy >= TerrainHeight.MAX_AMPLITUDE + 2:  # Roughly stone depth
+		wall.color = Color(0.25 + wall_shade, 0.25 + wall_shade, 0.28 + wall_shade, 0.6)
+	else:
+		wall.color = Color(0.30 + wall_shade, 0.22 + wall_shade, 0.12 + wall_shade, 0.6)
+	# Depth darkening on walls
+	if gy >= 3:
+		var depth_ratio := float(gy - 3) / float(maxi(col_underground - 3, 1))
+		var brightness := lerpf(1.0, 0.4, clampf(depth_ratio, 0.0, 1.0))
+		wall.modulate = Color(brightness, brightness, brightness, 1.0)
+	container.add_child(wall)
 
 # === STAIRWELL GENERATION ===
 
@@ -1156,9 +1326,11 @@ func _generate_level(chunk: Node2D, block_script: GDScript, chunk_index: int, ab
 
 			if block_script:
 				block.set_script(block_script)
+				block.is_cave = true  # Mark as cave block for tile selection
 				block.setup(gx, gy, is_surface, has_treasure)
-				var visual: ColorRect = block.get_node_or_null("Visual")
-				if visual:
+				# Only recolor if using ColorRect fallback (not sprite tiles)
+				var visual = block.get_node_or_null("Visual")
+				if visual and visual is ColorRect:
 					if is_surface:
 						visual.color = surface_color
 					else:
@@ -1214,28 +1386,36 @@ func _generate_level(chunk: Node2D, block_script: GDScript, chunk_index: int, ab
 		chunk.add_child(particle)
 
 func _add_l2_mushroom(chunk: Node2D, pos: Vector2) -> void:
+	var cap_idx := _rng.randi()  # Consume RNG regardless of path
+
+	var mush_sprite := SpriteLoader.try_load_random_sprite(
+		"res://assets/sprites/world/mushroom_", 3, cap_idx, Vector2(0, -18))
+	if mush_sprite:
+		mush_sprite.position = pos
+		# Still consume dot RNG to keep sequence stable
+		_rng.randf_range(-7, 5)
+		_rng.randf_range(-7, 5)
+		chunk.add_child(mush_sprite)
+		return
+
 	var mushroom := Node2D.new()
 	mushroom.position = pos
 	chunk.add_child(mushroom)
-
-	# Stem
 	var stem := ColorRect.new()
 	stem.position = Vector2(-3, -18)
 	stem.size = Vector2(6, 18)
 	stem.color = Color(0.75, 0.7, 0.6, 1)
 	mushroom.add_child(stem)
-
-	# Cap — glowing colors
 	var cap_colors := [
-		Color(0.8, 0.2, 0.3, 1),   # Red
-		Color(0.3, 0.6, 0.9, 1),   # Blue
-		Color(0.9, 0.5, 0.1, 1),   # Orange
-		Color(0.6, 0.3, 0.8, 1),   # Purple
+		Color(0.8, 0.2, 0.3, 1),
+		Color(0.3, 0.6, 0.9, 1),
+		Color(0.9, 0.5, 0.1, 1),
+		Color(0.6, 0.3, 0.8, 1),
 	]
 	var cap := ColorRect.new()
 	cap.position = Vector2(-10, -26)
 	cap.size = Vector2(20, 10)
-	cap.color = cap_colors[_rng.randi() % cap_colors.size()]
+	cap.color = cap_colors[cap_idx % cap_colors.size()]
 	mushroom.add_child(cap)
 
 	# Glow spots on cap
@@ -1247,27 +1427,31 @@ func _add_l2_mushroom(chunk: Node2D, pos: Vector2) -> void:
 		mushroom.add_child(dot)
 
 func _add_l2_tree(chunk: Node2D, pos: Vector2) -> void:
+	var trunk_h := _rng.randf_range(50, 80)
+	var canopy_size := _rng.randf_range(20, 35)
+
+	# L2 glow trees reuse the tree sprites with a tint
+	var glow_tree_sprite := SpriteLoader.try_load_random_sprite(
+		"res://assets/sprites/world/tree_", 3, int(trunk_h), Vector2(0, -55))
+	if glow_tree_sprite:
+		glow_tree_sprite.position = pos
+		glow_tree_sprite.modulate = Color(0.5, 1.0, 0.85, 0.9)  # Cyan-green bioluminescent tint
+		chunk.add_child(glow_tree_sprite)
+		return
+
 	var tree := Node2D.new()
 	tree.position = pos
 	chunk.add_child(tree)
-
-	var trunk_h := _rng.randf_range(50, 80)
-	# Dark twisted trunk
 	var trunk := ColorRect.new()
 	trunk.position = Vector2(-6, -trunk_h)
 	trunk.size = Vector2(12, trunk_h)
 	trunk.color = Color(0.25, 0.2, 0.3, 1)
 	tree.add_child(trunk)
-
-	# Glowing canopy — cyan/teal bioluminescent
-	var canopy_size := _rng.randf_range(20, 35)
 	var leaves := ColorRect.new()
 	leaves.position = Vector2(-canopy_size, -trunk_h - canopy_size)
 	leaves.size = Vector2(canopy_size * 2, canopy_size)
 	leaves.color = Color(0.1, 0.65, 0.55, 0.85)
 	tree.add_child(leaves)
-
-	# Glow effect (slightly larger, transparent)
 	var glow := ColorRect.new()
 	glow.z_index = -1
 	glow.position = Vector2(-canopy_size - 4, -trunk_h - canopy_size - 4)
@@ -1283,10 +1467,10 @@ func _add_l2_platform(chunk: Node2D, pos: Vector2, width: float) -> void:
 	chunk.add_child(platform)
 
 	var col := CollisionShape2D.new()
+	col.one_way_collision = true
 	var shape := RectangleShape2D.new()
 	shape.size = Vector2(width, 20)
 	col.shape = shape
-	col.one_way_collision = true
 	platform.add_child(col)
 
 	# Dark stone platform with mossy top
@@ -1303,18 +1487,26 @@ func _add_l2_platform(chunk: Node2D, pos: Vector2, width: float) -> void:
 	platform.add_child(moss)
 
 func _add_l2_crystal(chunk: Node2D, pos: Vector2) -> void:
+	var crystal_colors := [
+		Color(0.3, 0.7, 1.0, 0.85),
+		Color(0.7, 0.3, 0.9, 0.85),
+		Color(0.2, 0.9, 0.5, 0.85),
+		Color(1.0, 0.6, 0.2, 0.85),
+	]
+	var color_idx := _rng.randi()
+	var color: Color = crystal_colors[color_idx % crystal_colors.size()]
+	var h := _rng.randf_range(16, 32)
+
+	var crystal_sprite := SpriteLoader.try_load_random_sprite(
+		"res://assets/sprites/world/crystal_", 3, color_idx, Vector2(0, -32))
+	if crystal_sprite:
+		crystal_sprite.position = pos
+		chunk.add_child(crystal_sprite)
+		return
+
 	var crystal := Node2D.new()
 	crystal.position = pos
 	chunk.add_child(crystal)
-
-	var crystal_colors := [
-		Color(0.3, 0.7, 1.0, 0.85),   # Ice blue
-		Color(0.7, 0.3, 0.9, 0.85),   # Amethyst
-		Color(0.2, 0.9, 0.5, 0.85),   # Emerald
-		Color(1.0, 0.6, 0.2, 0.85),   # Amber
-	]
-	var color: Color = crystal_colors[_rng.randi() % crystal_colors.size()]
-	var h := _rng.randf_range(16, 32)
 
 	# Main crystal shard (tall thin triangle approximated as narrow rect)
 	var shard := ColorRect.new()
@@ -1341,23 +1533,25 @@ func _add_l2_crystal(chunk: Node2D, pos: Vector2) -> void:
 # === DECORATIONS ===
 
 func _add_platform(chunk: Node2D, pos: Vector2, width: float) -> void:
+	# Note: platforms need collision even with sprites, so no early return
 	var platform := StaticBody2D.new()
 	platform.position = pos
 	chunk.add_child(platform)
 
 	var col := CollisionShape2D.new()
+	col.one_way_collision = true  # Can jump through from below, land on top
 	var shape := RectangleShape2D.new()
 	shape.size = Vector2(width, 20)
 	col.shape = shape
-	col.one_way_collision = true
 	platform.add_child(col)
+
+	# Platforms stay as ColorRects (they need dynamic width, sprites would tile poorly)
 
 	var visual := ColorRect.new()
 	visual.position = Vector2(-width / 2.0, -10)
 	visual.size = Vector2(width, 20)
 	visual.color = Color(0.55, 0.4, 0.25, 1)
 	platform.add_child(visual)
-
 	var grass_top := ColorRect.new()
 	grass_top.position = Vector2(-width / 2.0, -14)
 	grass_top.size = Vector2(width, 4)
@@ -1365,25 +1559,51 @@ func _add_platform(chunk: Node2D, pos: Vector2, width: float) -> void:
 	platform.add_child(grass_top)
 
 func _add_tree(chunk: Node2D, pos: Vector2) -> void:
+	# Consume RNG to keep sequence deterministic regardless of sprite/fallback path
+	var trunk_h := _rng.randf_range(60, 100)
+	var trunk_r := _rng.randf_range(0.4, 0.5)
+	var trunk_g := _rng.randf_range(0.25, 0.35)
+	var trunk_b := _rng.randf_range(0.1, 0.2)
+	var canopy_size := _rng.randf_range(25, 40)
+	var leaf_r := _rng.randf_range(0.18, 0.3)
+	var leaf_g := _rng.randf_range(0.55, 0.75)
+	var leaf_b := _rng.randf_range(0.2, 0.35)
+
+	# Try sprite first (pick variant based on trunk_h RNG)
+	# Offset: sprite is 80x110, bottom-anchored. Place so bottom touches ground.
+	var tree_sprite := SpriteLoader.try_load_random_sprite(
+		"res://assets/sprites/world/tree_", 3, int(trunk_h), Vector2(0, -55))
+	if tree_sprite:
+		tree_sprite.position = pos
+		chunk.add_child(tree_sprite)
+		return
+
+	# Fallback: procedural ColorRect tree
 	var tree := Node2D.new()
 	tree.position = pos
 	chunk.add_child(tree)
-
-	var trunk_h := _rng.randf_range(60, 100)
 	var trunk := ColorRect.new()
 	trunk.position = Vector2(-8, -trunk_h)
 	trunk.size = Vector2(16, trunk_h)
-	trunk.color = Color(_rng.randf_range(0.4, 0.5), _rng.randf_range(0.25, 0.35), _rng.randf_range(0.1, 0.2), 1)
+	trunk.color = Color(trunk_r, trunk_g, trunk_b, 1)
 	tree.add_child(trunk)
-
-	var canopy_size := _rng.randf_range(25, 40)
 	var leaves := ColorRect.new()
 	leaves.position = Vector2(-canopy_size, -trunk_h - canopy_size * 1.5)
 	leaves.size = Vector2(canopy_size * 2, canopy_size * 1.5)
-	leaves.color = Color(_rng.randf_range(0.18, 0.3), _rng.randf_range(0.55, 0.75), _rng.randf_range(0.2, 0.35), 1)
+	leaves.color = Color(leaf_r, leaf_g, leaf_b, 1)
 	tree.add_child(leaves)
 
 func _add_flower(chunk: Node2D, pos: Vector2) -> void:
+	var color_idx := _rng.randi()  # Consume RNG regardless of path
+
+	# Offset: sprite is 20x28, bottom-anchored. Place so stem base touches ground.
+	var flower_sprite := SpriteLoader.try_load_random_sprite(
+		"res://assets/sprites/world/flower_", 5, color_idx, Vector2(0, -14))
+	if flower_sprite:
+		flower_sprite.position = pos
+		chunk.add_child(flower_sprite)
+		return
+
 	var flower := ColorRect.new()
 	flower.position = pos + Vector2(0, -12)
 	flower.size = Vector2(10, 12)
@@ -1392,7 +1612,7 @@ func _add_flower(chunk: Node2D, pos: Vector2) -> void:
 		Color(0.7, 0.4, 1, 1), Color(1, 0.6, 0.8, 1),
 		Color(0.5, 0.8, 1, 1)
 	]
-	flower.color = colors[_rng.randi() % colors.size()]
+	flower.color = colors[color_idx % colors.size()]
 	chunk.add_child(flower)
 
 func _spawn_surface_chest(chunk: Node2D, pos: Vector2) -> void:
@@ -1601,9 +1821,29 @@ func _on_world_word_completed(word: String) -> void:
 		_regenerate_all_chunks()
 
 func _add_stairwell_house(chunk: Node2D, pos: Vector2) -> void:
-	## Places a smaller "travel house" near a stairwell. Same visual style as the
-	## magic house but non-interactive (no teleport room). Just a cozy landmark
-	## so Francis feels at home on every level.
+	## Places a travel castle near a stairwell as a cozy landmark.
+	# Cozy cottage/inn next to stairwell (160x130, bottom-anchored)
+	var cottage_sprite := SpriteLoader.try_load_sprite(
+		"res://assets/sprites/world/cottage_0.png", Vector2(0, -65))
+	if cottage_sprite:
+		cottage_sprite.position = pos + Vector2(100, 0)
+		cottage_sprite.z_index = -2  # Behind player
+		chunk.add_child(cottage_sprite)
+		# One-way roof platform (cottage is 160x130)
+		var roof := StaticBody2D.new()
+		roof.position = pos + Vector2(100, -120)
+		roof.collision_layer = 1
+		roof.collision_mask = 0
+		chunk.add_child(roof)
+		var roof_col := CollisionShape2D.new()
+		roof_col.one_way_collision = true
+		var roof_shape := RectangleShape2D.new()
+		roof_shape.size = Vector2(120, 12)
+		roof_col.shape = roof_shape
+		roof.add_child(roof_col)
+		return
+
+	# Fallback: old ColorRect house
 	var house := Node2D.new()
 	house.name = "TravelHouse"
 	house.position = pos

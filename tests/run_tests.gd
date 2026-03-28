@@ -30,6 +30,10 @@ func _initialize() -> void:
 	ms.name = "MagicSummon"
 	root.add_child(ms)
 
+	var mvfx = load("res://scripts/autoload/MagicVFX.gd").new()
+	mvfx.name = "MagicVFX"
+	root.add_child(mvfx)
+
 func _process(_delta: float) -> bool:
 	if _has_run:
 		return true
@@ -70,6 +74,21 @@ func _process(_delta: float) -> bool:
 	var input_tests = load("res://tests/test_input_system.gd").new()
 	root.add_child(input_tests)
 	input_tests.run_all_tests()
+
+	# Run sprite loader tests
+	var sprite_tests = load("res://tests/test_sprite_loader.gd").new()
+	root.add_child(sprite_tests)
+	sprite_tests.run_all_tests()
+
+	# Run terrain block visual tests
+	var terrain_block_tests = load("res://tests/test_terrain_block.gd").new()
+	root.add_child(terrain_block_tests)
+	terrain_block_tests.run_all_tests()
+
+	# Run magic VFX tests
+	var vfx_tests = load("res://tests/test_magic_vfx.gd").new()
+	root.add_child(vfx_tests)
+	vfx_tests.run_all_tests()
 
 	print("")
 	print("========================================")

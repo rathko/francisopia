@@ -9,7 +9,7 @@ signal teleport_beacon_requested(position: Vector2)
 @export var player_index := 0  # 0 = Player 1 (device 0 + keyboard), 1 = Player 2 (device 1)
 @export var player_color := Color(0.25, 0.55, 0.85, 1)
 @export var move_speed := 200.0
-@export var jump_velocity := -350.0
+@export var jump_velocity := -280.0  # Lower, gentler jump for a children's game
 @export var gravity_multiplier := 1.0
 @export var coyote_time := 0.15
 @export var jump_buffer_time := 0.1
@@ -46,6 +46,7 @@ var _dig_cursor: Node2D = null
 var _cursor_target_pos := Vector2.ZERO
 
 @onready var sprite: Sprite2D = $Sprite2D
+@onready var animated_sprite: AnimatedSprite2D = $AnimatedSprite
 @onready var collision_shape: CollisionShape2D = $CollisionShape2D
 @onready var letter_detector: Area2D = $LetterDetector
 @onready var interact_area: Area2D = $InteractArea
@@ -53,6 +54,9 @@ var _cursor_target_pos := Vector2.ZERO
 
 func _ready() -> void:
 	_last_safe_position = global_position
+	# Start animated sprite if available
+	if animated_sprite and animated_sprite.sprite_frames:
+		animated_sprite.play("idle")
 	# Diagnostic: log connected joypads (helps debug Steam Deck issues)
 	var joypads := Input.get_connected_joypads()
 	if joypads.size() == 0:
@@ -163,7 +167,13 @@ func _get_movement_axis() -> float:
 
 func _get_vertical_axis() -> float:
 	## Returns vertical input: -1 = up, +1 = down
-	# Direct joy — vertical axis has no action map equivalent, so direct API is fine here
+	# Keyboard: W/Up = aim up, S/Down = aim down
+	if player_index == 0:
+		if Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_UP):
+			return -1.0
+		if Input.is_key_pressed(KEY_S) or Input.is_key_pressed(KEY_DOWN):
+			return 1.0
+	# Gamepad
 	var joy_val := Input.get_joy_axis(player_index, JOY_AXIS_LEFT_Y)
 	if abs(joy_val) > 0.3:
 		return joy_val
@@ -498,9 +508,22 @@ func is_facing_right() -> bool:
 	return _facing_right
 
 func _update_animation() -> void:
-	if sprite:
+	# Animated sprite state machine
+	if animated_sprite and animated_sprite.sprite_frames:
+		animated_sprite.flip_h = not _facing_right
+		if not is_on_floor():
+			if velocity.y < 0:
+				_play_anim("jump")
+			else:
+				_play_anim("fall")
+		elif abs(velocity.x) > 10:
+			_play_anim("walk")
+		else:
+			_play_anim("idle")
+	# Legacy Sprite2D flip
+	if sprite and sprite.visible:
 		sprite.flip_h = not _facing_right
-	# Wall slide visual feedback — slight rotation toward wall
+	# Wall slide visual feedback
 	if _touching_wall and not is_on_floor():
 		var body_rect := get_node_or_null("BodyColor") as ColorRect
 		if body_rect:
@@ -509,6 +532,10 @@ func _update_animation() -> void:
 		var body_rect := get_node_or_null("BodyColor") as ColorRect
 		if body_rect:
 			body_rect.rotation = 0.0
+
+func _play_anim(anim_name: String) -> void:
+	if animated_sprite and animated_sprite.animation != anim_name:
+		animated_sprite.play(anim_name)
 
 func _update_letter_highlight() -> void:
 	## Show green/blue tint on the closest correct letter, red on wrong ones

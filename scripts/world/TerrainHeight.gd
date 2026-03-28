@@ -34,13 +34,31 @@ static func get_height_with_stairwell(
 	world_block_x: int, world_seed: int,
 	stairwell_centers: Array[int]
 ) -> int:
-	var natural: int = get_height(world_block_x, world_seed)
+	## Legacy wrapper. Calls get_height_with_flat_zones with stairwell-sized zones.
+	var zones: Array[Dictionary] = []
 	for center in stairwell_centers:
+		zones.append({"center": center, "flat_radius": 2, "blend_radius": STAIRWELL_FLAT_RADIUS})
+	return get_height_with_flat_zones(world_block_x, world_seed, zones)
+
+
+static func get_height_with_flat_zones(
+	world_block_x: int, world_seed: int,
+	flat_zones: Array[Dictionary]
+) -> int:
+	## Returns height with terrain flattened around structures.
+	## Each zone: {"center": int, "flat_radius": int, "blend_radius": int}
+	## flat_radius = columns that are forced to 0 (completely flat)
+	## blend_radius = total radius including transition (must be > flat_radius)
+	var natural: int = get_height(world_block_x, world_seed)
+	for zone in flat_zones:
+		var center: int = zone.get("center", 0)
+		var flat_r: int = zone.get("flat_radius", 2)
+		var blend_r: int = zone.get("blend_radius", 4)
 		var dist: int = absi(world_block_x - center)
-		if dist <= STAIRWELL_FLAT_RADIUS:
-			if dist <= 2:
+		if dist <= blend_r:
+			if dist <= flat_r:
 				return 0
 			else:
-				var blend: float = float(dist - 2) / float(STAIRWELL_FLAT_RADIUS - 2)
-				return int(roundf(float(natural) * blend))
+				var t: float = float(dist - flat_r) / float(blend_r - flat_r)
+				return int(roundf(float(natural) * t))
 	return natural

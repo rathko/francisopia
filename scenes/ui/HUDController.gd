@@ -1,15 +1,22 @@
 extends CanvasLayer
 ## HUD — all nodes created in code. Uses a root Control for proper rendering.
+## Phase 7: Andika font, styled letter slots, coin icon, polished layout.
 
 var _hint_label: RichTextLabel = null
 var _word_box: HBoxContainer = null
 var _coin_label: Label = null
 var _weapon_label: Label = null
 var _letter_labels: Array[Label] = []
+var _letter_panels: Array[PanelContainer] = []
 var _magic_summon: Node = null
+var _bold_font: Font = null
 
 func _ready() -> void:
 	_magic_summon = get_node_or_null("/root/MagicSummon")
+
+	# Load Andika-Bold for emphasis elements
+	if ResourceLoader.exists("res://assets/fonts/Andika-Bold.ttf"):
+		_bold_font = load("res://assets/fonts/Andika-Bold.ttf") as Font
 
 	# Root control fills the viewport — required for CanvasLayer children to render
 	var root_ctrl := Control.new()
@@ -17,13 +24,22 @@ func _ready() -> void:
 	root_ctrl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(root_ctrl)
 
-	# Dark background panel across top
+	# Subtle gradient-style top bar — darker at top, fading to transparent
 	var bg := ColorRect.new()
 	bg.set_anchors_preset(Control.PRESET_TOP_WIDE)
-	bg.offset_bottom = 170.0
-	bg.color = Color(0.0, 0.0, 0.1, 0.75)
+	bg.offset_bottom = 180.0
+	bg.color = Color(0.02, 0.02, 0.08, 0.7)
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root_ctrl.add_child(bg)
+
+	# Fade-out strip at bottom of HUD bar
+	var fade := ColorRect.new()
+	fade.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	fade.offset_top = 170.0
+	fade.offset_bottom = 190.0
+	fade.color = Color(0.02, 0.02, 0.08, 0.0)
+	fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root_ctrl.add_child(fade)
 
 	# "Spell: DOG" rich text — word gets a distinct color
 	_hint_label = RichTextLabel.new()
@@ -32,35 +48,72 @@ func _ready() -> void:
 	_hint_label.fit_content = true
 	_hint_label.scroll_active = false
 	_hint_label.set_anchors_preset(Control.PRESET_TOP_WIDE)
-	_hint_label.offset_top = 15.0
-	_hint_label.offset_bottom = 80.0
-	_hint_label.add_theme_font_size_override("normal_font_size", 52)
-	_hint_label.add_theme_font_size_override("bold_font_size", 52)
-	_hint_label.add_theme_color_override("default_color", Color(1.0, 1.0, 1.0, 0.9))
+	_hint_label.offset_top = 12.0
+	_hint_label.offset_bottom = 70.0
+	_hint_label.add_theme_font_size_override("normal_font_size", 48)
+	_hint_label.add_theme_font_size_override("bold_font_size", 48)
+	if _bold_font:
+		_hint_label.add_theme_font_override("bold_font", _bold_font)
+	_hint_label.add_theme_color_override("default_color", Color(1.0, 1.0, 1.0, 0.85))
 	_hint_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root_ctrl.add_child(_hint_label)
 
-	# Letter slots container
+	# Letter slots container — centered
 	_word_box = HBoxContainer.new()
 	_word_box.set_anchors_preset(Control.PRESET_TOP_WIDE)
-	_word_box.offset_top = 85.0
+	_word_box.offset_top = 78.0
 	_word_box.offset_bottom = 165.0
 	_word_box.alignment = BoxContainer.ALIGNMENT_CENTER
+	_word_box.add_theme_constant_override("separation", 8)
 	root_ctrl.add_child(_word_box)
 
-	# Coin display
+	# Coin display with icon
+	var coin_container := HBoxContainer.new()
+	coin_container.position = Vector2(16, 176)
+	coin_container.add_theme_constant_override("separation", 6)
+	root_ctrl.add_child(coin_container)
+
+	# Coin pill background
+	var coin_bg := PanelContainer.new()
+	var coin_style := StyleBoxFlat.new()
+	coin_style.bg_color = Color(0.1, 0.08, 0.02, 0.6)
+	coin_style.set_corner_radius_all(14)
+	coin_style.content_margin_left = 10
+	coin_style.content_margin_right = 14
+	coin_style.content_margin_top = 4
+	coin_style.content_margin_bottom = 4
+	coin_bg.add_theme_stylebox_override("panel", coin_style)
+	coin_container.add_child(coin_bg)
+
+	var coin_inner := HBoxContainer.new()
+	coin_inner.add_theme_constant_override("separation", 8)
+	coin_bg.add_child(coin_inner)
+
+	# Gold coin circle icon
 	_coin_label = Label.new()
-	_coin_label.text = "Coins: 0"
-	_coin_label.position = Vector2(20, 180)
-	_coin_label.add_theme_font_size_override("font_size", 36)
-	_coin_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
-	root_ctrl.add_child(_coin_label)
+	_coin_label.text = "0"
+	if _bold_font:
+		_coin_label.add_theme_font_override("font", _bold_font)
+	_coin_label.add_theme_font_size_override("font_size", 34)
+	_coin_label.add_theme_color_override("font_color", Color(1.0, 0.88, 0.3))
+	_coin_label.add_theme_color_override("font_outline_color", Color(0.3, 0.2, 0.0, 0.5))
+	_coin_label.add_theme_constant_override("outline_size", 2)
+
+	# Coin emoji as simple icon prefix
+	var coin_icon_label := Label.new()
+	coin_icon_label.text = "o"
+	if _bold_font:
+		coin_icon_label.add_theme_font_override("font", _bold_font)
+	coin_icon_label.add_theme_font_size_override("font_size", 28)
+	coin_icon_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
+	coin_inner.add_child(coin_icon_label)
+	coin_inner.add_child(_coin_label)
 
 	# Weapon indicator — bottom-left
 	_weapon_label = Label.new()
 	_weapon_label.text = ""
 	_weapon_label.position = Vector2(20, 720)
-	_weapon_label.add_theme_font_size_override("font_size", 32)
+	_weapon_label.add_theme_font_size_override("font_size", 30)
 	_weapon_label.add_theme_color_override("font_color", Color(0.8, 0.6, 0.3))
 	_weapon_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.6))
 	_weapon_label.add_theme_constant_override("outline_size", 3)
@@ -116,50 +169,93 @@ func _on_target_word_changed(word: String, hint_image: String) -> void:
 	bbcode += "[/center]"
 	_hint_label.text = bbcode
 
-	# Create letter slots
+	# Create styled letter slots with rounded backgrounds
+	_letter_panels.clear()
 	for i in word.length():
+		var panel := PanelContainer.new()
+		var slot_style := StyleBoxFlat.new()
+		slot_style.bg_color = Color(0.15, 0.15, 0.25, 0.6)
+		slot_style.set_corner_radius_all(8)
+		slot_style.border_color = Color(0.4, 0.4, 0.6, 0.3)
+		slot_style.set_border_width_all(1)
+		slot_style.content_margin_left = 6
+		slot_style.content_margin_right = 6
+		slot_style.content_margin_top = 2
+		slot_style.content_margin_bottom = 2
+		panel.add_theme_stylebox_override("panel", slot_style)
+		panel.custom_minimum_size = Vector2(54, 68)
+
 		var slot := Label.new()
-		slot.text = "_"
-		slot.add_theme_font_size_override("font_size", 64)
-		slot.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0, 0.8))
-		slot.custom_minimum_size = Vector2(60, 80)
+		slot.text = "·"  # Subtle dot indicator for empty slot
+		if _bold_font:
+			slot.add_theme_font_override("font", _bold_font)
+		slot.add_theme_font_size_override("font_size", 56)
+		slot.add_theme_color_override("font_color", Color(0.5, 0.5, 0.6, 0.4))
 		slot.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		_word_box.add_child(slot)
+		slot.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		panel.add_child(slot)
+
+		_word_box.add_child(panel)
 		_letter_labels.append(slot)
+		_letter_panels.append(panel)
 
 func _on_letter_collected(letter: String, position: int) -> void:
 	if position < _letter_labels.size():
 		_letter_labels[position].text = letter
 		_letter_labels[position].add_theme_color_override("font_color", Color(0.3, 1.0, 0.3))
+		_letter_labels[position].add_theme_font_size_override("font_size", 60)
+		if position < _letter_panels.size():
+			_apply_slot_style(_letter_panels[position],
+				Color(0.1, 0.25, 0.12, 0.7), Color(0.3, 0.8, 0.3, 0.5))
 		var tween := create_tween()
 		tween.tween_property(_letter_labels[position], "scale", Vector2(1.4, 1.4), 0.1)
 		tween.tween_property(_letter_labels[position], "scale", Vector2(1.0, 1.0), 0.1)
 
 func _on_letter_lost() -> void:
-	# A letter was lost — revert last filled slot to underscore with red flash
-	var lost_index := WordEngine.collected_letters.size()  # Already popped, so this is the slot
+	var lost_index := WordEngine.collected_letters.size()
 	if lost_index < _letter_labels.size():
-		_letter_labels[lost_index].text = "_"
+		_letter_labels[lost_index].text = "·"
+		_letter_labels[lost_index].add_theme_font_size_override("font_size", 56)
 		_letter_labels[lost_index].add_theme_color_override("font_color", Color(1.0, 0.3, 0.3))
+		if lost_index < _letter_panels.size():
+			_apply_slot_style(_letter_panels[lost_index],
+				Color(0.25, 0.1, 0.1, 0.6), Color(0.8, 0.3, 0.3, 0.5))
 		var tween := create_tween()
 		tween.tween_property(_letter_labels[lost_index], "scale", Vector2(1.5, 1.5), 0.1)
 		tween.tween_property(_letter_labels[lost_index], "scale", Vector2(1.0, 1.0), 0.1)
-		# Fade back to white
 		tween.tween_callback(func() -> void:
 			if lost_index < _letter_labels.size():
-				_letter_labels[lost_index].add_theme_color_override("font_color", Color(1.0, 1.0, 1.0, 0.8))
+				_letter_labels[lost_index].add_theme_color_override("font_color", Color(0.5, 0.5, 0.6, 0.4))
+			if lost_index < _letter_panels.size():
+				_apply_slot_style(_letter_panels[lost_index],
+					Color(0.15, 0.15, 0.25, 0.6), Color(0.4, 0.4, 0.6, 0.3))
 		)
 
 func _on_word_complete(_word: String) -> void:
-	for label in _letter_labels:
-		label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
+	for i in _letter_labels.size():
+		_letter_labels[i].add_theme_color_override("font_color", Color(1.0, 0.88, 0.2))
 		var tween := create_tween()
-		tween.tween_property(label, "scale", Vector2(1.6, 1.6), 0.2)
-		tween.tween_property(label, "scale", Vector2(1.0, 1.0), 0.2)
+		tween.tween_property(_letter_labels[i], "scale", Vector2(1.6, 1.6), 0.2)
+		tween.tween_property(_letter_labels[i], "scale", Vector2(1.0, 1.0), 0.2)
+		if i < _letter_panels.size():
+			_apply_slot_style(_letter_panels[i],
+				Color(0.3, 0.25, 0.05, 0.8), Color(1.0, 0.85, 0.2, 0.7))
+
+func _apply_slot_style(panel: PanelContainer, bg: Color, border: Color) -> void:
+	var style := StyleBoxFlat.new()
+	style.bg_color = bg
+	style.set_corner_radius_all(8)
+	style.border_color = border
+	style.set_border_width_all(1)
+	style.content_margin_left = 6
+	style.content_margin_right = 6
+	style.content_margin_top = 2
+	style.content_margin_bottom = 2
+	panel.add_theme_stylebox_override("panel", style)
 
 func _on_coins_changed(total: int) -> void:
 	if _coin_label:
-		_coin_label.text = "Coins: " + str(total)
+		_coin_label.text = str(total)
 
 func _on_weapon_changed(weapon_name: String) -> void:
 	if _weapon_label:
@@ -172,6 +268,7 @@ func _on_weapon_changed(weapon_name: String) -> void:
 
 func _clear_word_display() -> void:
 	_letter_labels.clear()
+	_letter_panels.clear()
 	if _word_box:
 		for child in _word_box.get_children():
 			child.queue_free()

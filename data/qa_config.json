@@ -1,0 +1,14 @@
+{
+  "qa_mode": true,
+  "description": "QA testing config. Only summons things with sprites or custom logic. Run with: godot --path . -- --qa",
+  "auto_summon_words": [
+    "dog",
+    "cat",
+    "sun",
+    "tree",
+    "house"
+  ],
+  "start_coins": 999,
+  "start_position": {"x": 400, "y": 700},
+  "unlock_all_levels": true
+}

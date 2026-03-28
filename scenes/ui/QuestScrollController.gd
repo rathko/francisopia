@@ -11,12 +11,35 @@ var _is_visible := false
 @onready var quest_list: VBoxContainer = $Panel/MarginContainer/VBoxContainer
 @onready var title_label: Label = $Panel/MarginContainer/VBoxContainer/Title
 
+var _bold_font: Font = null
+
 func _ready() -> void:
 	_is_visible = visible_by_default
+
+	# Load Andika-Bold for title
+	if ResourceLoader.exists("res://assets/fonts/Andika-Bold.ttf"):
+		_bold_font = load("res://assets/fonts/Andika-Bold.ttf") as Font
+
+	# Style the panel with parchment-toned background
+	if panel:
+		var parchment := StyleBoxFlat.new()
+		parchment.bg_color = Color(0.92, 0.87, 0.75, 0.92)
+		parchment.set_corner_radius_all(6)
+		parchment.border_color = Color(0.6, 0.5, 0.35, 0.6)
+		parchment.set_border_width_all(2)
+		parchment.content_margin_left = 16
+		parchment.content_margin_right = 16
+		parchment.content_margin_top = 12
+		parchment.content_margin_bottom = 12
+		panel.add_theme_stylebox_override("panel", parchment)
+
 	_update_visibility()
 	if title_label:
 		title_label.text = "Quest Scroll"
-		title_label.add_theme_font_size_override("font_size", 42)
+		title_label.add_theme_font_size_override("font_size", 40)
+		if _bold_font:
+			title_label.add_theme_font_override("font", _bold_font)
+		title_label.add_theme_color_override("font_color", Color(0.35, 0.25, 0.15))
 
 func _process(_delta: float) -> void:
 	if InputHelper.is_toggling_scroll():
@@ -36,7 +59,16 @@ func hide_scroll() -> void:
 
 func _update_visibility() -> void:
 	if panel:
-		panel.visible = _is_visible
+		if _is_visible:
+			panel.visible = true
+			# Slide in from right
+			var tween := create_tween()
+			panel.modulate.a = 0.0
+			tween.tween_property(panel, "modulate:a", 1.0, 0.2).set_trans(Tween.TRANS_QUAD)
+		else:
+			var tween := create_tween()
+			tween.tween_property(panel, "modulate:a", 0.0, 0.15)
+			tween.tween_callback(func() -> void: panel.visible = false)
 
 func add_quest(quest: Dictionary) -> void:
 	var label := Label.new()

@@ -36,10 +36,14 @@ All development MUST follow VSDD (Verified Spec-Driven Development) best practic
 - Terrain blocks are direct children of `chunk` Node2D (not nested under intermediate containers). This ensures physics registration works reliably in Godot 4.6.
 - The `terrain_container` Node2D still exists in chunks but is used only for organizational purposes, not as a parent for physics bodies.
 
-### Save System
+### Save System (Seed + Delta)
 - Atomic writes: always write to `.tmp` then rename. Never write directly to `save.json`.
 - GameManager handles all persistence. Other systems emit signals, GameManager saves.
-- Never store player world position in saves (procedural world makes it meaningless).
+- **Versioned saves**: `save_version` (format changes) + `generator_version` (terrain algorithm changes)
+- **Seed + delta model**: World regenerates from `world_seed`. Only player changes are stored (`block_changes`, `opened_chests`).
+- Player position IS saved (`player_pos_x/y`). Player spawns where they left off.
+- `block_changes` dict: key = "chunk,gx,gy", value = "air" (dug) or future block types.
+- v1 -> v2 migration: old `dug_blocks` array auto-converts to `block_changes` dict on load.
 
 ## Architecture Quick Reference
 
@@ -73,19 +77,56 @@ Cross-system communication goes through Events autoload or direct signals on sou
 
 ## Testing
 
-### Running unit tests
+### Unit tests
 ```bash
-./tests/run_unit_tests.sh        # Works from both Claude and Radek
+godot --headless --path ~/src/pai/francisopia --script tests/run_tests.gd
 ```
-Handles Xvfb/mesa setup automatically. Falls back to direct headless for Radek's session.
-5 test files, ~130 test cases. All must pass before declaring work done.
+7 test suites, 169 test cases. All must pass before declaring work done.
+
+### QA mode (visual testing)
+```bash
+godot --path ~/src/pai/francisopia -- --qa
+```
+Pre-summons all words with sprites/custom logic (dog, cat, sun, tree, house). Gives 999 coins. Does NOT modify save unless you manually save. Config: `data/qa_config.json`. **Update qa_config.json whenever adding new sprites or features.**
+
+### Sprite quality check
+```bash
+python3 tools/sprite_check.py assets/sprites/          # Audit all sprites
+python3 tools/sprite_check.py --fix assets/sprites/     # Auto-fix stray artifacts
+```
 
 ### Visual smoke test
 ```bash
 ./tests/smoke_test.sh            # Requires xdotool
 ```
-Launches game on virtual display (Xvfb + mesa llvmpipe), takes 3 screenshots (startup, after move, after jump), verifies the game doesn't crash. Screenshots saved to `$TMPDIR/screenshots/`.
-Requires: xdotool (`ans eos-install.yml`, Game Development section)
+
+## Sprite Workflow
+
+### Adding new sprites
+1. Generate via GPT-image-1 on lime green (#00FF00) bg for nature, magenta (#FF00FF) for characters
+2. Process with Python PIL: corner-sampled bg removal, trim, aspect-preserving resize, bottom-anchor on canvas
+3. Run `python3 tools/sprite_check.py --fix` on output
+4. Place in `assets/sprites/{category}/`
+5. **Radek must open Godot editor once** to import PNGs (generates .import + .ctex files)
+6. Wire into code via `SpriteLoader.try_load_sprite()` or `SpriteLoader.try_load_random_sprite()`
+7. Update `data/qa_config.json` if the word has a new sprite to test
+
+### Sprite sizes
+- Player/NPCs: 64x64
+- Small creatures (dog, cat): 48x48
+- Trees: 80x110
+- Flowers: 20x28
+- Crystals: 48x64
+- Mushrooms: 32x40
+- Castle (home): 256x200
+- Castle (travel): 96x80
+
+### Key files
+- `scripts/world/SpriteLoader.gd` -- try_load_sprite(), try_load_random_sprite()
+- `scripts/data/EntityVisual.gd` -- data-driven entity visual resource
+- `tools/sprite_check.py` -- artifact detection and auto-fix
+- `assets/sprites/` -- all sprite PNGs (player/, creatures/, world/)
+- `assets/fonts/Andika-Regular.ttf` -- primary literacy font (SIL, free)
 
 ## Common Pitfalls
 

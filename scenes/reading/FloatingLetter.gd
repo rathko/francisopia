@@ -81,6 +81,15 @@ func is_needed() -> bool:
 func collect() -> void:
 	_collected = true
 	AudioManager.play_letter_sound(_letter)
+	# Trail particles float upward toward HUD
+	var scene_root := get_tree().current_scene
+	var vfx := get_node_or_null("/root/MagicVFX")
+	var summon := get_node_or_null("/root/MagicSummon")
+	if scene_root and is_instance_valid(scene_root) and vfx and summon:
+		var summon_type: String = summon.get_summon_type_for_word(
+			WordEngine.current_target_word.to_lower())
+		var trail_color: Color = vfx.get_color_for_type(summon_type)
+		vfx.spawn_trail_particles(scene_root, global_position, trail_color, 5)
 	var tween := create_tween()
 	tween.set_parallel(true)
 	tween.tween_property(self, "scale", Vector2(1.5, 1.5), 0.3)

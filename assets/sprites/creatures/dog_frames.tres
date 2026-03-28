@@ -1,0 +1,32 @@
+[gd_resource type="SpriteFrames" load_steps=4 format=3]
+
+[ext_resource type="Texture2D" path="res://assets/sprites/creatures/dog_idle.png" id="idle"]
+[ext_resource type="Texture2D" path="res://assets/sprites/creatures/dog_walk.png" id="walk"]
+[ext_resource type="Texture2D" path="res://assets/sprites/creatures/dog_bark.png" id="bark"]
+
+[resource]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("idle")
+}],
+"loop": true,
+"name": &"idle",
+"speed": 6.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("walk")
+}],
+"loop": true,
+"name": &"walk",
+"speed": 8.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("bark")
+}],
+"loop": false,
+"name": &"bark",
+"speed": 6.0
+}]

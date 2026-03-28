@@ -43,15 +43,20 @@ var player_pos_y: float = 700.0
 var block_changes: Dictionary = {}
 var opened_chests: Dictionary = {}  # "chunk,index" -> true for looted chests
 
+var qa_mode := false  # Set by --qa command line flag
 var _auto_save_timer := 0.0
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	# Check for QA mode (launch with: godot --path . -- --qa)
+	qa_mode = "--qa" in OS.get_cmdline_args() or "--qa" in OS.get_cmdline_user_args()
 	# Load save early so other autoloads (WordEngine) can read restored state
 	if load_game():
 		print("Francis-opia: Save loaded! Welcome back to %s!" % planet_name)
 	else:
 		print("Francis-opia: New adventure begins!")
+	if qa_mode:
+		_apply_qa_config()
 
 func _process(delta: float) -> void:
 	_auto_save_timer += delta
@@ -266,3 +271,36 @@ func reset_progress() -> void:
 
 func get_total_words_completed() -> int:
 	return words_completed.size()
+
+func _apply_qa_config() -> void:
+	## Load QA config and pre-summon all words for testing.
+	print("Francis-opia: === QA MODE ACTIVE ===")
+	var qa_path := "res://data/qa_config.json"
+	if not FileAccess.file_exists(qa_path):
+		print("Francis-opia: QA config not found at %s" % qa_path)
+		return
+	var file := FileAccess.open(qa_path, FileAccess.READ)
+	if not file:
+		return
+	var json := JSON.new()
+	if json.parse(file.get_as_text()) != OK:
+		return
+	var config: Dictionary = json.data if json.data is Dictionary else {}
+
+	# Pre-summon all words
+	var qa_words: Array = config.get("auto_summon_words", [])
+	for word in qa_words:
+		var w: String = str(word)
+		if w not in words_summoned:
+			words_summoned.append(w)
+		if w not in words_completed:
+			words_completed.append(w)
+
+	# Give coins
+	var coins: int = config.get("start_coins", 0)
+	if coins > 0:
+		word_coins = coins
+
+	starter_complete = true
+	print("Francis-opia: QA loaded %d words, %d coins" % [qa_words.size(), word_coins])
+	print("Francis-opia: Launch with: godot --path . -- --qa")
