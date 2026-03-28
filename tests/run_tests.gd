@@ -61,6 +61,11 @@ func _process(_delta: float) -> bool:
 	root.add_child(magic_tests)
 	magic_tests.run_all_tests()
 
+	# Run terrain height tests
+	var terrain_tests = load("res://tests/test_terrain_height.gd").new()
+	root.add_child(terrain_tests)
+	terrain_tests.run_all_tests()
+
 	print("")
 	print("========================================")
 	print("  All tests complete!")

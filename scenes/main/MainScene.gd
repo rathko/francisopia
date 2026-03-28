@@ -15,6 +15,9 @@ const UNDERGROUND_ROWS := 16  # How deep the diggable terrain goes (player must 
 const TREASURE_CHANCE := 0.06 # 6% chance per underground block
 const STAIRWELL_WIDTH := 6    # Blocks wide (outer 2 are walls, inner 4 are traversable)
 const CAVE_TREASURE_CHANCE := 0.10 # Default, overridden per level config
+const TerrainHeight = preload("res://scripts/world/TerrainHeight.gd")
+# Fixed bedrock accommodates max hill amplitude so L2 anchoring is stable
+const BEDROCK_Y := GROUND_Y + (TerrainHeight.MAX_AMPLITUDE + UNDERGROUND_ROWS + 1) * BLOCK_SIZE + BLOCK_SIZE / 2.0 + 10
 # Stairwell spacing: guaranteed every N chunks (±jitter). Deeper levels = longer walks.
 # At 200px/s and 1280px/chunk: 12 chunks ≈ 77s walk, 20 chunks ≈ 128s walk.
 # At 200px/s and 1280px/chunk: 3 chunks ≈ 19s walk ≈ 20 seconds
@@ -83,6 +86,7 @@ var _pet_scene: PackedScene = null
 var _chunks: Dictionary = {}  # chunk_index -> Node2D
 var _last_chunk_index := -999
 var _rng := RandomNumberGenerator.new()
+var _world_seed: int = 0  # Captured once at startup for deterministic terrain height
 var _thief_scene: PackedScene = null
 var _active_thieves: Array[Node2D] = []
 const MAX_THIEVES := 3
@@ -92,7 +96,14 @@ var _midpoint_camera: Camera2D = null
 var _terrain_blocks: Dictionary = {}
 
 func _ready() -> void:
-	_rng.randomize()
+	# Use saved world seed or generate a new one for first play
+	if GameManager.world_seed != 0:
+		_world_seed = GameManager.world_seed
+		_rng.seed = _world_seed
+	else:
+		_rng.randomize()
+		_world_seed = _rng.seed
+		GameManager.world_seed = _world_seed
 	_thief_scene = load(THIEF_SCENE_PATH) as PackedScene
 	_player_scene = load(PLAYER_SCENE_PATH) as PackedScene
 	_pet_scene = load(PET_SCENE_PATH) as PackedScene
@@ -165,11 +176,27 @@ func _ready() -> void:
 	# Generate initial quests
 	QuestGenerator.generate_quests_for_area(GameManager.current_area, 3)
 
-	# Generate initial chunks around player
-	_update_chunks()
-	_last_chunk_index = _get_chunk_index(player.global_position.x)
+	# Restore player position from save or place on terrain surface
+	if player:
+		var has_saved_pos := GameManager.player_pos_x != 400.0 or GameManager.player_pos_y != 700.0
+		if has_saved_pos:
+			player.global_position = Vector2(GameManager.player_pos_x, GameManager.player_pos_y)
+		# Generate initial chunks around player (must happen after position restore)
+		_update_chunks()
+		_last_chunk_index = _get_chunk_index(player.global_position.x)
+		if not has_saved_pos:
+			# First play: place player on terrain surface
+			var spawn_chunk := _get_chunk_index(player.global_position.x)
+			var spawn_local_x := player.global_position.x - spawn_chunk * CHUNK_WIDTH
+			var spawn_centers := _get_stairwell_centers(spawn_chunk)
+			var ground_at_spawn := _get_ground_y_at_px(spawn_chunk, spawn_local_x, spawn_centers)
+			player.global_position.y = ground_at_spawn - 30
+		player._last_safe_position = player.global_position
+		if player2 and is_instance_valid(player2):
+			player2.global_position = player.global_position + Vector2(60, 0)
+			player2._last_safe_position = player2.global_position
 
-	print("Francis-opia: Ground at Y=%d, Player at Y=%d, Chunks generated: %d" % [GROUND_Y, player.global_position.y, _chunks.size()])
+	print("Francis-opia: Ground at Y=%d, Player at Y=%d, Chunks: %d, Seed: %d" % [GROUND_Y, player.global_position.y, _chunks.size(), _world_seed])
 	print("Francis-opia: WASD/arrows to move, Space to jump, Click/RT to shoot, Q/LB to dig, Tab for quests")
 
 # === PETS ===
@@ -262,6 +289,10 @@ func _process(_delta: float) -> void:
 			var zoom_level := clampf(800.0 / maxf(dist, 400.0), 0.6, 1.2)
 			_midpoint_camera.zoom = Vector2(zoom_level, zoom_level)
 
+		# Keep GameManager in sync for save
+		GameManager.player_pos_x = player.global_position.x
+		GameManager.player_pos_y = player.global_position.y
+
 		var current_chunk := _get_chunk_index(player.global_position.x)
 		if current_chunk != _last_chunk_index:
 			_last_chunk_index = current_chunk
@@ -269,6 +300,33 @@ func _process(_delta: float) -> void:
 
 func _get_chunk_index(x: float) -> int:
 	return int(floor(x / CHUNK_WIDTH))
+
+func _get_ground_y_at_px(chunk_index: int, local_pixel_x: float, centers: Array[int]) -> float:
+	## Returns the ground Y position for a given pixel X within a chunk.
+	var gx := int(floor(local_pixel_x / BLOCK_SIZE))
+	gx = clampi(gx, 0, BLOCKS_PER_CHUNK - 1)
+	var world_block_x := chunk_index * BLOCKS_PER_CHUNK + gx
+	var offset := TerrainHeight.get_height_with_stairwell(
+		world_block_x, _world_seed, centers)
+	return GROUND_Y + offset * BLOCK_SIZE
+
+func _get_stairwell_start_x(chunk_index: int) -> int:
+	## Returns deterministic local block X for stairwell placement in a chunk.
+	## Uses hash instead of RNG so position is consistent across calls.
+	var range_size := BLOCKS_PER_CHUNK - STAIRWELL_WIDTH - 8
+	if range_size <= 0:
+		return 4
+	var hash_val: int = abs((chunk_index * 2654435761 + 37) % 2147483647)
+	return (hash_val % range_size) + 4
+
+func _get_stairwell_centers(chunk_index: int) -> Array[int]:
+	## Returns world-space block X centers of stairwells in this chunk.
+	var centers: Array[int] = []
+	if _should_have_stairwell(chunk_index):
+		var start_x := _get_stairwell_start_x(chunk_index)
+		var center := chunk_index * BLOCKS_PER_CHUNK + start_x + STAIRWELL_WIDTH / 2
+		centers.append(center)
+	return centers
 
 func _update_chunks() -> void:
 	var center := _get_chunk_index(player.global_position.x)
@@ -333,22 +391,37 @@ func _generate_chunk(index: int) -> void:
 	# Determine if this chunk has a stairwell — guaranteed spacing, not random chance.
 	# Level 2 entrance every ~12 chunks (~1 min walk), Level 3 every ~20 chunks, etc.
 	var has_stairwell := _should_have_stairwell(index)
-	var stairwell_start_x := _rng.randi_range(4, BLOCKS_PER_CHUNK - STAIRWELL_WIDTH - 4) if has_stairwell else -1
+	var stairwell_start_x := _get_stairwell_start_x(index) if has_stairwell else -1
+	var stairwell_centers := _get_stairwell_centers(index)
 
 	for gx in BLOCKS_PER_CHUNK:
-		for gy in (UNDERGROUND_ROWS + 1):  # +1 for grass row
-			# Ground above stairwell looks IDENTICAL to everywhere else.
-			# Player digs through normal terrain and discovers the shaft at bedrock level.
-			# No blocks are skipped — the stairwell only exists below bedrock.
+		# Per-column height offset for rolling hills
+		var world_block_x := index * BLOCKS_PER_CHUNK + gx
+		var height_offset := TerrainHeight.get_height_with_stairwell(
+			world_block_x, _world_seed, stairwell_centers)
+		var column_ground_y := GROUND_Y + height_offset * BLOCK_SIZE
+		# Underground fills from surface down to fixed bedrock
+		var column_underground := int((BEDROCK_Y - column_ground_y) / BLOCK_SIZE) - 1
+		if column_underground < 1:
+			column_underground = 1
+
+		for gy in (column_underground + 1):  # +1 for grass row
+			var is_grass := (gy == 0)
+			# Always consume RNG to keep sequence deterministic regardless of dug state
+			var has_treasure := (not is_grass and _rng.randf() < TREASURE_CHANCE)
+
+			var key := "%d,%d,%d" % [index, gx, gy]
+			# Skip blocks that were previously dug out
+			if GameManager.dug_blocks.has(key):
+				continue
 
 			var block := StaticBody2D.new()
 			var block_x := gx * BLOCK_SIZE + BLOCK_SIZE / 2.0
-			var block_y := GROUND_Y + gy * BLOCK_SIZE + BLOCK_SIZE / 2.0
+			var block_y := column_ground_y + gy * BLOCK_SIZE + BLOCK_SIZE / 2.0
 			block.position = Vector2(block_x, block_y)
 			block.collision_layer = 1
 			block.collision_mask = 0
 
-			# Collision
 			var col := CollisionShape2D.new()
 			var shape := RectangleShape2D.new()
 			shape.size = Vector2(BLOCK_SIZE, BLOCK_SIZE)
@@ -357,19 +430,14 @@ func _generate_chunk(index: int) -> void:
 
 			chunk.add_child(block)
 
-			var is_grass := (gy == 0)
-			var has_treasure := (not is_grass and _rng.randf() < TREASURE_CHANCE)
-
 			if block_script:
 				block.set_script(block_script)
 				block.setup(gx, gy, is_grass, has_treasure)
 
-			# Track block
-			var key := "%d,%d,%d" % [index, gx, gy]
 			_terrain_blocks[key] = block
 
 	# Bedrock — solid floor below Level 1, with gap for stairwell
-	var bedrock_y := GROUND_Y + (UNDERGROUND_ROWS + 1) * BLOCK_SIZE + BLOCK_SIZE / 2.0 + 10
+	var bedrock_y := BEDROCK_Y
 	if has_stairwell:
 		# Bedrock gap matches inner opening (between stairwell walls)
 		var inner_left_x := (stairwell_start_x + 1) * BLOCK_SIZE
@@ -400,20 +468,27 @@ func _generate_chunk(index: int) -> void:
 	# Random platforms (1-3 per chunk) — above ground level
 	var platform_count := _rng.randi_range(1, 3)
 	for p in platform_count:
+		var plat_x := _rng.randf_range(100, CHUNK_WIDTH - 100)
+		var plat_ground := _get_ground_y_at_px(index, plat_x, stairwell_centers)
+		# Place platforms 75-275px above the local ground
 		_add_platform(chunk, Vector2(
-			_rng.randf_range(100, CHUNK_WIDTH - 100),
-			_rng.randf_range(450, 650)
+			plat_x,
+			plat_ground - _rng.randf_range(75, 275)
 		), _rng.randf_range(120, 220))
 
 	# Random trees (1-3)
 	var tree_count := _rng.randi_range(1, 3)
 	for t in tree_count:
-		_add_tree(chunk, Vector2(_rng.randf_range(50, CHUNK_WIDTH - 50), GROUND_Y))
+		var tree_x := _rng.randf_range(50, CHUNK_WIDTH - 50)
+		var tree_ground := _get_ground_y_at_px(index, tree_x, stairwell_centers)
+		_add_tree(chunk, Vector2(tree_x, tree_ground))
 
 	# Random flowers (2-5)
 	var flower_count := _rng.randi_range(2, 5)
 	for f in flower_count:
-		_add_flower(chunk, Vector2(_rng.randf_range(30, CHUNK_WIDTH - 30), GROUND_Y - _rng.randf_range(0, 5)))
+		var flower_x := _rng.randf_range(30, CHUNK_WIDTH - 30)
+		var flower_ground := _get_ground_y_at_px(index, flower_x, stairwell_centers)
+		_add_flower(chunk, Vector2(flower_x, flower_ground - _rng.randf_range(0, 5)))
 
 	# Clouds (1-2)
 	var cloud_count := _rng.randi_range(1, 2)
@@ -427,18 +502,16 @@ func _generate_chunk(index: int) -> void:
 
 	# Occasional archery target (20% chance)
 	if _rng.randf() < 0.2:
-		_add_archery_target(chunk, Vector2(
-			_rng.randf_range(200, CHUNK_WIDTH - 200),
-			GROUND_Y
-		))
+		var target_x := _rng.randf_range(200, CHUNK_WIDTH - 200)
+		var target_ground := _get_ground_y_at_px(index, target_x, stairwell_centers)
+		_add_archery_target(chunk, Vector2(target_x, target_ground))
 
 	# Surface treasure chests (1-2 per chunk, sitting on the ground)
 	var surface_chests := _rng.randi_range(1, 2)
 	for sc in surface_chests:
-		_spawn_surface_chest(chunk, Vector2(
-			_rng.randf_range(100, CHUNK_WIDTH - 100),
-			GROUND_Y - 9  # Sitting on grass
-		))
+		var chest_x := _rng.randf_range(100, CHUNK_WIDTH - 100)
+		var chest_ground := _get_ground_y_at_px(index, chest_x, stairwell_centers)
+		_spawn_surface_chest(chunk, Vector2(chest_x, chest_ground - 9))
 
 # === DIGGING (Terraria-style aim-based) ===
 
@@ -474,6 +547,8 @@ func _on_dig(dig_position: Vector2) -> void:
 		for key in _terrain_blocks:
 			if _terrain_blocks[key] == best_block:
 				_terrain_blocks.erase(key)
+				# Persist the dug block so it stays gone across sessions
+				GameManager.dug_blocks[key] = true
 				break
 
 # === STAIRWELL SPACING ===
@@ -783,6 +858,13 @@ func _generate_level(chunk: Node2D, block_script: GDScript, chunk_index: int, ab
 	# Terrain blocks — surface + underground
 	for gx in BLOCKS_PER_CHUNK:
 		for gy in (underground_rows + 1):
+			var is_surface := (gy == 0)
+			var has_treasure := (not is_surface and _rng.randf() < treasure_chance)
+
+			var key := "%s_%d,%d,%d" % [level_name, chunk_index, gx, gy]
+			if GameManager.dug_blocks.has(key):
+				continue
+
 			var block := StaticBody2D.new()
 			var block_x := gx * BLOCK_SIZE + BLOCK_SIZE / 2.0
 			var block_y := level_ground_y + gy * BLOCK_SIZE + BLOCK_SIZE / 2.0
@@ -798,9 +880,6 @@ func _generate_level(chunk: Node2D, block_script: GDScript, chunk_index: int, ab
 
 			chunk.add_child(block)
 
-			var is_surface := (gy == 0)
-			var has_treasure := (not is_surface and _rng.randf() < treasure_chance)
-
 			if block_script:
 				block.set_script(block_script)
 				block.setup(gx, gy, is_surface, has_treasure)
@@ -814,7 +893,6 @@ func _generate_level(chunk: Node2D, block_script: GDScript, chunk_index: int, ab
 							dirt_color.r + shade, dirt_color.g + shade,
 							dirt_color.b + shade, 1)
 
-			var key := "%s_%d,%d,%d" % [level_name, chunk_index, gx, gy]
 			_terrain_blocks[key] = block
 
 	# Bedrock floor

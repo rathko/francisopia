@@ -25,6 +25,10 @@ var starter_index := 0       # How far through the starter word sequence
 var starter_complete := false # Whether starter sequence is done
 var equipped_weapon := ""    # Currently equipped weapon name (empty = none)
 var current_level := 1       # Underground depth level (1 = surface, 2+ = deeper caves)
+var world_seed: int = 0      # Terrain generation seed (0 = generate new on first play)
+var player_pos_x: float = 400.0  # Last player position
+var player_pos_y: float = 700.0
+var dug_blocks: Dictionary = {}  # "chunk,gx,gy" -> true for destroyed blocks
 
 var _auto_save_timer := 0.0
 
@@ -96,6 +100,10 @@ func save_game() -> void:
 		"starter_complete": starter_complete,
 		"equipped_weapon": equipped_weapon,
 		"current_level": current_level,
+		"world_seed": world_seed,
+		"player_pos_x": player_pos_x,
+		"player_pos_y": player_pos_y,
+		"dug_blocks": dug_blocks.keys(),
 	}
 	# Atomic write: write to temp, then rename over real file
 	# Keep one backup of previous save
@@ -132,6 +140,14 @@ func load_game() -> bool:
 	starter_complete = data.get("starter_complete", false)
 	equipped_weapon = data.get("equipped_weapon", "")
 	current_level = data.get("current_level", 1)
+	world_seed = data.get("world_seed", 0)
+	player_pos_x = data.get("player_pos_x", 400.0)
+	player_pos_y = data.get("player_pos_y", 700.0)
+	# Restore dug blocks from saved array of keys
+	dug_blocks.clear()
+	var saved_dug: Array = data.get("dug_blocks", [])
+	for key in saved_dug:
+		dug_blocks[key] = true
 	coins_changed.emit(word_coins)
 	return true
 
@@ -166,6 +182,10 @@ func reset_progress() -> void:
 	starter_complete = false
 	equipped_weapon = ""
 	current_level = 1
+	world_seed = 0
+	player_pos_x = 400.0
+	player_pos_y = 700.0
+	dug_blocks.clear()
 	# Delete save files
 	if FileAccess.file_exists(SAVE_PATH):
 		DirAccess.remove_absolute(SAVE_PATH)
