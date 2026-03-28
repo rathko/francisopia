@@ -11,6 +11,7 @@ func run_all_tests() -> void:
 	test_required_actions_exist()
 	test_actions_have_joypad_bindings()
 	test_actions_have_keyboard_bindings()
+	test_joypad_button_indices_correct()
 	test_player_controller_input_helpers_callable()
 	test_joy_button_cache_no_double_consume()
 	print("=== Results: %d passed, %d failed ===" % [_pass_count, _fail_count])
@@ -47,6 +48,29 @@ func test_actions_have_keyboard_bindings() -> void:
 				has_key = true
 				break
 		assert_true(has_key, "Action '%s' must have keyboard binding" % action)
+
+func test_joypad_button_indices_correct() -> void:
+	_test_name = "joypad_button_indices"
+	# Verify critical joypad button mappings match the expected Xbox layout.
+	# Godot 4 JoyButton enum: A=0, B=1, X=2, Y=3, Back=4, Guide=5, Start=6,
+	# LeftStick=7, RightStick=8, LB=9, RB=10, DpadUp=11, DpadDown=12, DpadLeft=13, DpadRight=14
+	var expected_buttons: Dictionary = {
+		"jump": JOY_BUTTON_A,          # 0
+		"interact": JOY_BUTTON_X,      # 2
+		"toggle_scroll": JOY_BUTTON_Y, # 3
+		"pause": JOY_BUTTON_START,     # 6
+		"dig": JOY_BUTTON_LEFT_SHOULDER,  # 9
+		"next_weapon": JOY_BUTTON_RIGHT_SHOULDER, # 10
+	}
+	for action in expected_buttons:
+		var expected_btn: int = expected_buttons[action]
+		var events := InputMap.action_get_events(action)
+		var found := false
+		for event in events:
+			if event is InputEventJoypadButton and event.button_index == expected_btn:
+				found = true
+				break
+		assert_true(found, "Action '%s' must map to JoyButton %d (got wrong index)" % [action, expected_btn])
 
 func test_player_controller_input_helpers_callable() -> void:
 	_test_name = "player_controller_input_helpers"

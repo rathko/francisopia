@@ -479,6 +479,15 @@ func _generate_chunk(index: int) -> void:
 				l2_ground_y - BLOCK_SIZE / 2.0),
 				Vector2(stairwell_start_x * BLOCK_SIZE + BLOCK_SIZE * 3, GROUND_Y - 40),
 				"Level 1")
+		# House appears near every stairwell once the player has spelled "house"
+		if "house" in GameManager.words_summoned:
+			var stairwell_right_x := (stairwell_start_x + STAIRWELL_WIDTH + 2) * BLOCK_SIZE
+			var surface_ground := _get_ground_y_at_px(index, stairwell_right_x, stairwell_centers)
+			_add_stairwell_house(chunk, Vector2(stairwell_right_x, surface_ground))
+			# Also place on L2 near the stairwell exit
+			var l2_sky_h2: float = LEVEL_CONFIGS[1].get("sky_height", 450.0)
+			var l2_ground_y2 := bedrock_y + 20 + l2_sky_h2
+			_add_stairwell_house(chunk, Vector2(stairwell_right_x, l2_ground_y2))
 	else:
 		# Solid bedrock — no stairwell
 		_add_bedrock_segment(chunk, 0.0, CHUNK_WIDTH, bedrock_y)
@@ -1538,15 +1547,27 @@ func _restore_summons() -> void:
 	var magic_summon := get_node_or_null("/root/MagicSummon")
 	if not magic_summon:
 		return
+	# Clean up any temporary effects that leaked into old saves
+	var cleaned := false
+	for word in GameManager.words_summoned.duplicate():
+		var check_entry: Dictionary = magic_summon.summon_registry.get(word, {})
+		if check_entry.get("temporary", false):
+			GameManager.words_summoned.erase(word)
+			GameManager.items_owned.erase(word)
+			cleaned = true
+	if cleaned:
+		GameManager.save_game()
+		print("Francis-opia: Cleaned temporary effects from save.")
+
 	for word in GameManager.words_summoned:
 		# Dog is spawned separately via _spawn_dog_companion
 		if word == "dog":
 			continue
-		# Skip non-persistent effects (cosmetics applied once)
-		if word == "big":
-			continue
 		var entry: Dictionary = magic_summon.summon_registry.get(word, {})
 		if entry.is_empty():
+			continue
+		# Skip temporary effects (should already be filtered, but defense in depth)
+		if entry.get("temporary", false):
 			continue
 		var builder_name: String = entry.get("builder", "")
 		if builder_name != "" and magic_summon.has_method(builder_name):
@@ -1573,11 +1594,192 @@ func _apply_big_scale(magic_summon: Node) -> void:
 			print("Francis-opia: %s is still BIG!" % entity.name)
 
 # Words that change the world when spelled — triggers chunk regeneration
-const WORLD_CHANGING_WORDS := ["tree", "portal"]
+const WORLD_CHANGING_WORDS := ["tree", "portal", "house"]
 
 func _on_world_word_completed(word: String) -> void:
 	if word.to_lower() in WORLD_CHANGING_WORDS:
 		_regenerate_all_chunks()
+
+func _add_stairwell_house(chunk: Node2D, pos: Vector2) -> void:
+	## Places a smaller "travel house" near a stairwell. Same visual style as the
+	## magic house but non-interactive (no teleport room). Just a cozy landmark
+	## so Francis feels at home on every level.
+	var house := Node2D.new()
+	house.name = "TravelHouse"
+	house.position = pos
+
+	var W := 200.0
+	var H := 130.0
+	var WALL := 10.0
+	var DOOR_W := 40.0
+	var DOOR_H := 60.0
+	var ROOF := 14.0
+
+	# Foundation
+	var ground_pad := StaticBody2D.new()
+	ground_pad.position = Vector2(W / 2, 40)
+	ground_pad.collision_layer = 1
+	ground_pad.collision_mask = 0
+	chunk.add_child(ground_pad)
+	var gpad_col := CollisionShape2D.new()
+	var gpad_shape := RectangleShape2D.new()
+	gpad_shape.size = Vector2(W + 40, 80)
+	gpad_col.shape = gpad_shape
+	ground_pad.add_child(gpad_col)
+	var gpad_vis := ColorRect.new()
+	gpad_vis.position = Vector2(-(W + 40) / 2, -40)
+	gpad_vis.size = Vector2(W + 40, 6)
+	gpad_vis.color = Color(0.4, 0.55, 0.3, 1)
+	ground_pad.add_child(gpad_vis)
+	var fill := ColorRect.new()
+	fill.position = Vector2(-(W + 40) / 2, -34)
+	fill.size = Vector2(W + 40, 74)
+	fill.color = Color(0.45, 0.32, 0.18, 1)
+	ground_pad.add_child(fill)
+
+	# Interior background
+	var interior := ColorRect.new()
+	interior.z_index = -2
+	interior.position = Vector2(WALL, -H + WALL)
+	interior.size = Vector2(W - WALL * 2, H - WALL)
+	interior.color = Color(0.95, 0.87, 0.7, 1)
+	house.add_child(interior)
+
+	# Warm glow
+	var glow := ColorRect.new()
+	glow.z_index = -1
+	glow.position = Vector2(WALL + 5, -H + 10)
+	glow.size = Vector2(W - WALL * 2 - 10, H - 15)
+	glow.color = Color(1.0, 0.92, 0.7, 0.12)
+	house.add_child(glow)
+
+	# Floor
+	var wood_floor := ColorRect.new()
+	wood_floor.z_index = -1
+	wood_floor.position = Vector2(WALL, -4)
+	wood_floor.size = Vector2(W - WALL * 2, 4)
+	wood_floor.color = Color(0.6, 0.38, 0.2, 1)
+	house.add_child(wood_floor)
+
+	# Left wall (solid, above door)
+	var lw := StaticBody2D.new()
+	lw.position = Vector2(WALL / 2, -(DOOR_H + (H - DOOR_H) / 2))
+	lw.collision_layer = 1
+	lw.collision_mask = 0
+	house.add_child(lw)
+	var lw_col := CollisionShape2D.new()
+	var lw_shape := RectangleShape2D.new()
+	lw_shape.size = Vector2(WALL, H - DOOR_H)
+	lw_col.shape = lw_shape
+	lw.add_child(lw_col)
+	var lw_vis := ColorRect.new()
+	lw_vis.position = Vector2(-WALL / 2, -(H - DOOR_H) / 2)
+	lw_vis.size = Vector2(WALL, H - DOOR_H)
+	lw_vis.color = Color(0.78, 0.58, 0.32, 1)
+	lw.add_child(lw_vis)
+
+	# Right wall (solid, full height — door is on the left)
+	var rw := StaticBody2D.new()
+	rw.position = Vector2(W - WALL / 2, -H / 2)
+	rw.collision_layer = 1
+	rw.collision_mask = 0
+	house.add_child(rw)
+	var rw_col := CollisionShape2D.new()
+	var rw_shape := RectangleShape2D.new()
+	rw_shape.size = Vector2(WALL, H)
+	rw_col.shape = rw_shape
+	rw.add_child(rw_col)
+	var rw_vis := ColorRect.new()
+	rw_vis.position = Vector2(-WALL / 2, -H / 2)
+	rw_vis.size = Vector2(WALL, H)
+	rw_vis.color = Color(0.78, 0.58, 0.32, 1)
+	rw.add_child(rw_vis)
+
+	# Door frame
+	var df_l := ColorRect.new()
+	df_l.position = Vector2(-4, -DOOR_H)
+	df_l.size = Vector2(4, DOOR_H)
+	df_l.color = Color(0.5, 0.3, 0.15, 1)
+	house.add_child(df_l)
+	var df_r := ColorRect.new()
+	df_r.position = Vector2(WALL, -DOOR_H)
+	df_r.size = Vector2(4, DOOR_H)
+	df_r.color = Color(0.5, 0.3, 0.15, 1)
+	house.add_child(df_r)
+	var df_top := ColorRect.new()
+	df_top.position = Vector2(-4, -DOOR_H - 3)
+	df_top.size = Vector2(WALL + 8, 3)
+	df_top.color = Color(0.5, 0.3, 0.15, 1)
+	house.add_child(df_top)
+
+	# Welcome mat
+	var mat := ColorRect.new()
+	mat.position = Vector2(-30, -2)
+	mat.size = Vector2(30, 3)
+	mat.color = Color(0.7, 0.35, 0.3, 1)
+	house.add_child(mat)
+
+	# Roof
+	var roof_node := StaticBody2D.new()
+	roof_node.position = Vector2(W / 2, -H - ROOF / 2)
+	roof_node.collision_layer = 1
+	roof_node.collision_mask = 0
+	house.add_child(roof_node)
+	var roof_col := CollisionShape2D.new()
+	var roof_shape := RectangleShape2D.new()
+	roof_shape.size = Vector2(W + 16, ROOF)
+	roof_col.shape = roof_shape
+	roof_node.add_child(roof_col)
+	var roof_vis := ColorRect.new()
+	roof_vis.position = Vector2(-(W + 16) / 2, -ROOF / 2)
+	roof_vis.size = Vector2(W + 16, ROOF)
+	roof_vis.color = Color(0.7, 0.25, 0.15, 1)
+	roof_node.add_child(roof_vis)
+	var peak := ColorRect.new()
+	peak.position = Vector2(-(W - 16) / 2, -ROOF / 2 - 10)
+	peak.size = Vector2(W - 16, 10)
+	peak.color = Color(0.75, 0.28, 0.18, 1)
+	roof_node.add_child(peak)
+
+	# Chimney
+	var chimney := ColorRect.new()
+	chimney.position = Vector2(20, -H - ROOF - 14)
+	chimney.size = Vector2(10, 18)
+	chimney.color = Color(0.55, 0.4, 0.35, 1)
+	house.add_child(chimney)
+
+	# Window
+	var win := ColorRect.new()
+	win.position = Vector2(W / 2 - 15, -H + 30)
+	win.size = Vector2(30, 30)
+	win.color = Color(0.7, 0.85, 1.0, 0.5)
+	house.add_child(win)
+	# Window cross
+	var win_h := ColorRect.new()
+	win_h.position = Vector2(W / 2 - 15, -H + 44)
+	win_h.size = Vector2(30, 2)
+	win_h.color = Color(0.5, 0.3, 0.15, 0.8)
+	house.add_child(win_h)
+	var win_v := ColorRect.new()
+	win_v.position = Vector2(W / 2 - 1, -H + 30)
+	win_v.size = Vector2(2, 30)
+	win_v.color = Color(0.5, 0.3, 0.15, 0.8)
+	house.add_child(win_v)
+
+	# "HOME" label
+	var label := Label.new()
+	label.text = "HOME"
+	label.add_theme_font_size_override("font_size", 16)
+	label.add_theme_color_override("font_color", Color(1.0, 0.9, 0.5, 0.9))
+	label.add_theme_color_override("font_outline_color", Color(0.3, 0.15, 0, 0.7))
+	label.add_theme_constant_override("outline_size", 2)
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.position = Vector2(W / 2 - 30, -H - ROOF - 35)
+	label.size = Vector2(60, 20)
+	label.z_index = 5
+	house.add_child(label)
+
+	chunk.add_child(house)
 
 func _regenerate_all_chunks() -> void:
 	## Force-reload all visible chunks to reflect world state changes (e.g. trees appearing).

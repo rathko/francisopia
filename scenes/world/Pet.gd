@@ -17,6 +17,7 @@ var _idle_timer := 0.0
 var _wag_time := 0.0
 var _stuck_timer := 0.0
 var _last_dist_to_owner := 0.0
+var _teleport_cooldown := 0.0  # Prevents rapid-fire teleports that cause stutter
 
 func _ready() -> void:
 	# Pets don't collide with players — only with terrain
@@ -217,11 +218,18 @@ func _physics_process(delta: float) -> void:
 	var dist := global_position.distance_to(pet_owner.global_position)
 	var dist_to_target := global_position.distance_to(target_pos)
 
+	# Teleport cooldown prevents rapid-fire teleports (3 pets teleporting in quick
+	# succession causes physics recalc stutter, especially on Steam Deck)
+	if _teleport_cooldown > 0.0:
+		_teleport_cooldown -= delta
+
+	# Scale teleport distance with owner speed — fast-moving player needs larger leash
+	var owner_speed: float = pet_owner.velocity.length() if pet_owner else 0.0
+	var effective_teleport_dist: float = teleport_distance + owner_speed * 0.5
+
 	# Teleport if too far or fell below the world
-	if dist > teleport_distance or global_position.y > pet_owner.global_position.y + 400:
-		global_position = pet_owner.global_position + follow_offset + Vector2(0, -10)
-		velocity = Vector2.ZERO
-		_stuck_timer = 0.0
+	if (dist > effective_teleport_dist or global_position.y > pet_owner.global_position.y + 400) and _teleport_cooldown <= 0.0:
+		_do_teleport()
 		return
 
 	# Stuck detection: if not getting closer for 1.5s while far away, teleport
@@ -230,14 +238,16 @@ func _physics_process(delta: float) -> void:
 			_stuck_timer += delta
 		else:
 			_stuck_timer = 0.0
-		if _stuck_timer > 1.5:
-			global_position = pet_owner.global_position + follow_offset + Vector2(0, -10)
-			velocity = Vector2.ZERO
-			_stuck_timer = 0.0
+		if _stuck_timer > 1.5 and _teleport_cooldown <= 0.0:
+			_do_teleport()
 			return
 	else:
 		_stuck_timer = 0.0
 	_last_dist_to_owner = dist
+
+	# Increase follow speed proportionally when owner is fast (reduces teleport frequency)
+	var speed_mult: float = 1.0 + clampf(owner_speed - 200.0, 0.0, 400.0) / 400.0
+	var current_follow_speed: float = follow_speed * speed_mult
 
 	# Prevent sitting on player's head: if directly above player, push to the side
 	var dx := global_position.x - pet_owner.global_position.x
@@ -245,7 +255,7 @@ func _physics_process(delta: float) -> void:
 	if abs(dx) < 20 and dy < -10 and dy > -60:
 		# On player's head, push toward follow offset side
 		var push_dir: float = sign(follow_offset.x) if follow_offset.x != 0 else 1.0
-		velocity.x = push_dir * follow_speed * 1.5
+		velocity.x = push_dir * current_follow_speed * 1.5
 		move_and_slide()
 		return
 
@@ -256,7 +266,7 @@ func _physics_process(delta: float) -> void:
 		var thief_dist := global_position.distance_to(thief_node.global_position)
 		if thief_dist < 200.0:
 			var dir_to_thief := global_position.direction_to(thief_node.global_position)
-			velocity.x = dir_to_thief.x * follow_speed * 1.5  # Run faster toward thief
+			velocity.x = dir_to_thief.x * current_follow_speed * 1.5  # Run faster toward thief
 			chasing_thief = true
 			if is_on_floor() and (thief_node.global_position.y < global_position.y - 20 or is_on_wall()):
 				velocity.y = jump_velocity
@@ -266,11 +276,11 @@ func _physics_process(delta: float) -> void:
 		var dir_to_target := global_position.direction_to(target_pos)
 
 		if dist_to_target > follow_distance:
-			velocity.x = dir_to_target.x * follow_speed
+			velocity.x = dir_to_target.x * current_follow_speed
 			_idle_timer = 0.0
 		else:
 			# Slow down when close
-			velocity.x = move_toward(velocity.x, 0, follow_speed * 0.3)
+			velocity.x = move_toward(velocity.x, 0, current_follow_speed * 0.3)
 			_idle_timer += delta
 
 	# Jump if pet_owner is above and we're on the floor (or if blocked by terrain)
@@ -284,7 +294,7 @@ func _physics_process(delta: float) -> void:
 		scale.x = -abs(scale.x)
 
 	# Cute idle animation — slight bob
-	if _idle_timer > 1.0:
+	if _idle_timer > 1.0 and is_on_floor():
 		_wag_time += delta
 		if pet_type == PetType.DOG:
 			# Tail wag
@@ -298,3 +308,18 @@ func _physics_process(delta: float) -> void:
 				tail.rotation = sin(_wag_time * 3.0) * 0.3
 
 	move_and_slide()
+
+func _do_teleport() -> void:
+	## Teleport to owner with collision disabled to avoid physics recalc stutter.
+	## Staggers via cooldown so multiple pets don't all teleport in the same frame.
+	var col := get_node_or_null("CollisionShape2D") as CollisionShape2D
+	if col:
+		col.set_deferred("disabled", true)
+	global_position = pet_owner.global_position + follow_offset + Vector2(0, -10)
+	velocity = Vector2.ZERO
+	_stuck_timer = 0.0
+	# Stagger: 0.3-0.5s cooldown so 3 pets don't all teleport on the same frame
+	_teleport_cooldown = 0.3 + randf() * 0.2
+	# Re-enable collision next frame
+	if col:
+		col.set_deferred("disabled", false)

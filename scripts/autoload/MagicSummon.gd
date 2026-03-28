@@ -27,27 +27,27 @@ var summon_registry: Dictionary = {
 	"cap": {"type": "cosmetic", "builder": "_summon_cap", "label": "Cool cap!", "color": Color(0.2, 0.5, 0.9)},
 	"wig": {"type": "cosmetic", "builder": "_summon_wig", "label": "Funny wig!", "color": Color(1.0, 0.4, 0.8)},
 	"lip": {"type": "cosmetic", "builder": "_summon_lip", "label": "Silly lips!", "color": Color(1.0, 0.3, 0.4)},
-	"big": {"type": "cosmetic", "builder": "_summon_big", "label": "SUPER SIZE!", "color": Color(1.0, 0.5, 0.2)},
-	# Power-ups
-	"run": {"type": "cosmetic", "builder": "_summon_run", "label": "SUPER SPEED!", "color": Color(1.0, 0.9, 0.2)},
-	"hop": {"type": "cosmetic", "builder": "_summon_hop", "label": "SUPER JUMP!", "color": Color(0.5, 1.0, 0.5)},
-	"zip": {"type": "cosmetic", "builder": "_summon_zip", "label": "ZIP DASH!", "color": Color(0.3, 0.8, 1.0)},
-	"dig": {"type": "cosmetic", "builder": "_summon_dig", "label": "DIG POWER!", "color": Color(0.6, 0.4, 0.2)},
-	"fan": {"type": "cosmetic", "builder": "_summon_fan", "label": "Whoooosh!", "color": Color(0.7, 0.9, 1.0)},
-	"leg": {"type": "cosmetic", "builder": "_summon_leg", "label": "Fast legs!", "color": Color(0.9, 0.7, 0.5)},
-	"hug": {"type": "cosmetic", "builder": "_summon_hug", "label": "Big hug!", "color": Color(1.0, 0.5, 0.6)},
-	# Anti-thief
-	"net": {"type": "cosmetic", "builder": "_summon_net", "label": "Caught one!", "color": Color(0.6, 0.8, 0.4)},
-	"web": {"type": "cosmetic", "builder": "_summon_web", "label": "Sticky web!", "color": Color(0.9, 0.9, 0.95)},
-	"jam": {"type": "cosmetic", "builder": "_summon_jam", "label": "Sticky jam!", "color": Color(0.8, 0.2, 0.3)},
-	"fog": {"type": "cosmetic", "builder": "_summon_fog", "label": "Thick fog!", "color": Color(0.8, 0.8, 0.85)},
-	# Ground effects
-	"red": {"type": "cosmetic", "builder": "_summon_red", "label": "Everything is RED!", "color": Color(1.0, 0.2, 0.2)},
-	"mud": {"type": "cosmetic", "builder": "_summon_mud", "label": "So slippery!", "color": Color(0.5, 0.35, 0.2)},
-	"hot": {"type": "cosmetic", "builder": "_summon_hot", "label": "So hot!", "color": Color(1.0, 0.5, 0.1)},
-	"wet": {"type": "cosmetic", "builder": "_summon_wet", "label": "Rain!", "color": Color(0.5, 0.7, 1.0)},
-	"mix": {"type": "cosmetic", "builder": "_summon_mix", "label": "Color mix!", "color": Color(0.8, 0.4, 1.0)},
-	"mop": {"type": "cosmetic", "builder": "_summon_mop", "label": "All clean!", "color": Color(0.6, 0.85, 1.0)},
+	"big": {"type": "cosmetic", "builder": "_summon_big", "label": "SUPER SIZE!", "color": Color(1.0, 0.5, 0.2), "temporary": true},
+	# Power-ups (temporary — timed buffs, not saved across sessions)
+	"run": {"type": "cosmetic", "builder": "_summon_run", "label": "SUPER SPEED!", "color": Color(1.0, 0.9, 0.2), "temporary": true},
+	"hop": {"type": "cosmetic", "builder": "_summon_hop", "label": "SUPER JUMP!", "color": Color(0.5, 1.0, 0.5), "temporary": true},
+	"zip": {"type": "cosmetic", "builder": "_summon_zip", "label": "ZIP DASH!", "color": Color(0.3, 0.8, 1.0), "temporary": true},
+	"dig": {"type": "cosmetic", "builder": "_summon_dig", "label": "DIG POWER!", "color": Color(0.6, 0.4, 0.2), "temporary": true},
+	"fan": {"type": "cosmetic", "builder": "_summon_fan", "label": "Whoooosh!", "color": Color(0.7, 0.9, 1.0), "temporary": true},
+	"leg": {"type": "cosmetic", "builder": "_summon_leg", "label": "Fast legs!", "color": Color(0.9, 0.7, 0.5), "temporary": true},
+	"hug": {"type": "cosmetic", "builder": "_summon_hug", "label": "Big hug!", "color": Color(1.0, 0.5, 0.6), "temporary": true},
+	# Anti-thief (temporary — one-shot effects)
+	"net": {"type": "cosmetic", "builder": "_summon_net", "label": "Caught one!", "color": Color(0.6, 0.8, 0.4), "temporary": true},
+	"web": {"type": "cosmetic", "builder": "_summon_web", "label": "Sticky web!", "color": Color(0.9, 0.9, 0.95), "temporary": true},
+	"jam": {"type": "cosmetic", "builder": "_summon_jam", "label": "Sticky jam!", "color": Color(0.8, 0.2, 0.3), "temporary": true},
+	"fog": {"type": "cosmetic", "builder": "_summon_fog", "label": "Thick fog!", "color": Color(0.8, 0.8, 0.85), "temporary": true},
+	# Ground effects (temporary — timed visual/physics effects)
+	"red": {"type": "cosmetic", "builder": "_summon_red", "label": "Everything is RED!", "color": Color(1.0, 0.2, 0.2), "temporary": true},
+	"mud": {"type": "cosmetic", "builder": "_summon_mud", "label": "So slippery!", "color": Color(0.5, 0.35, 0.2), "temporary": true},
+	"hot": {"type": "cosmetic", "builder": "_summon_hot", "label": "So hot!", "color": Color(1.0, 0.5, 0.1), "temporary": true},
+	"wet": {"type": "cosmetic", "builder": "_summon_wet", "label": "Rain!", "color": Color(0.5, 0.7, 1.0), "temporary": true},
+	"mix": {"type": "cosmetic", "builder": "_summon_mix", "label": "Color mix!", "color": Color(0.8, 0.4, 1.0), "temporary": true},
+	"mop": {"type": "cosmetic", "builder": "_summon_mop", "label": "All clean!", "color": Color(0.6, 0.85, 1.0), "temporary": true},
 	# Coin rewards
 	"gem": {"type": "cosmetic", "builder": "_summon_gem", "label": "A shiny gem!", "color": Color(0.4, 0.8, 1.0)},
 	"pot": {"type": "cosmetic", "builder": "_summon_pot", "label": "Pot of gold!", "color": Color(1.0, 0.85, 0.2)},
@@ -126,6 +126,10 @@ func get_companion_count() -> int:
 
 func is_companion_word(word: String) -> bool:
 	return word in PET_WORDS
+
+func is_temporary_effect(word: String) -> bool:
+	var entry: Dictionary = summon_registry.get(word.to_lower(), {})
+	return entry.get("temporary", false)
 
 func register_companion(word: String, node: Node, player: Node2D, auto_activate: bool = true) -> void:
 	_companions[word] = node
@@ -308,12 +312,14 @@ func _play_summon_animation(word: String, entry: Dictionary) -> void:
 			if is_companion_word(word):
 				register_companion(word, summoned, player)
 			summon_completed.emit(word, summoned)
-			# Track in GameManager for persistence
-			if word not in GameManager.items_owned:
-				GameManager.items_owned.append(word)
-			if word not in GameManager.words_summoned:
-				GameManager.words_summoned.append(word)
-			GameManager.save_game()
+			# Track in GameManager for persistence (skip temporary effects)
+			var is_temporary: bool = entry.get("temporary", false)
+			if not is_temporary:
+				if word not in GameManager.items_owned:
+					GameManager.items_owned.append(word)
+				if word not in GameManager.words_summoned:
+					GameManager.words_summoned.append(word)
+				GameManager.save_game()
 
 	# === PHASE 5: Big friendly label ===
 	_show_summon_label(scene_root, summon_pos, entry)

@@ -27,4 +27,6 @@ echo "Launching Francis-opia..."
 echo "Log: $LOG_FILE"
 echo "---"
 
-godot --path "$GAME_DIR" "$@" 2>&1 | tee "$LOG_FILE"
+# Filter nvidia 595+ shutdown crash backtrace (Godot engine bug, harmless)
+# Full output still goes to log file, only console is filtered
+godot --path "$GAME_DIR" "$@" 2>&1 | tee "$LOG_FILE" | grep -v "^handle_crash:\|^Engine version:\|^Dumping the backtrace\|^\[[0-9]*\] \|^-- END OF\|^====\|IOT instruction"
