@@ -27,6 +27,8 @@ func _ready() -> void:
 func setup(p_owner: CharacterBody2D, p_type: PetType) -> void:
 	pet_owner = p_owner
 	pet_type = p_type
+	# Don't collide with the player body (prevents landing on their head)
+	add_collision_exception_with(p_owner)
 	_build_visuals()
 
 func _build_visuals() -> void:
@@ -222,6 +224,16 @@ func _physics_process(delta: float) -> void:
 	else:
 		_stuck_timer = 0.0
 	_last_dist_to_owner = dist
+
+	# Prevent sitting on player's head: if directly above player, push to the side
+	var dx := global_position.x - pet_owner.global_position.x
+	var dy := global_position.y - pet_owner.global_position.y
+	if abs(dx) < 20 and dy < -10 and dy > -60:
+		# On player's head, push toward follow offset side
+		var push_dir := sign(follow_offset.x) if follow_offset.x != 0 else 1.0
+		velocity.x = push_dir * follow_speed * 1.5
+		move_and_slide()
+		return
 
 	# Follow toward offset target position
 	var dir_to_target := global_position.direction_to(target_pos)

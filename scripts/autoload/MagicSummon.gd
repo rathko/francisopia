@@ -19,6 +19,10 @@ var summon_registry: Dictionary = {
 	"bed": {"type": "world", "builder": "_summon_bed", "label": "A cozy bed!", "color": Color(0.6, 0.5, 0.8)},
 	"cup": {"type": "world", "builder": "_summon_cup", "label": "A golden cup!", "color": Color(1.0, 0.85, 0.2)},
 	"bug": {"type": "pet", "builder": "_summon_bug", "label": "A friendly bug!", "color": Color(0.4, 0.8, 0.3)},
+	"hen": {"type": "pet", "builder": "_summon_hen", "label": "A clucky hen!", "color": Color(0.85, 0.6, 0.35)},
+	"run": {"type": "cosmetic", "builder": "_summon_run", "label": "SUPER SPEED!", "color": Color(1.0, 0.9, 0.2)},
+	"red": {"type": "cosmetic", "builder": "_summon_red", "label": "Everything is RED!", "color": Color(1.0, 0.2, 0.2)},
+	"mud": {"type": "cosmetic", "builder": "_summon_mud", "label": "So slippery!", "color": Color(0.5, 0.35, 0.2)},
 	"box": {"type": "world", "builder": "_summon_box", "label": "A mystery box!", "color": Color(0.7, 0.5, 0.2)},
 
 	# Blends / harder (Level 2)
@@ -43,7 +47,7 @@ var summon_registry: Dictionary = {
 }
 
 const MAX_COMPANIONS := 5
-const PET_WORDS := ["dog", "cat", "frog", "pig", "bug", "fish", "bird"]
+const PET_WORDS := ["dog", "cat", "frog", "pig", "bug", "fish", "bird", "hen"]
 
 var _pet_scene: PackedScene = null
 var _summoned_entities: Array[Node] = []
@@ -89,6 +93,27 @@ func activate_companion(new_word: String, player: Node2D) -> void:
 	if new_word in _companions and is_instance_valid(_companions[new_word]):
 		_set_companion_owner(_companions[new_word], player)
 	GameManager.save_game()
+
+func _evict_oldest_companion() -> void:
+	# Remove the oldest companion (first one not in active list, or first overall)
+	# Prefer evicting idle ones first
+	for word in _companions:
+		if word not in GameManager.active_companions and is_instance_valid(_companions[word]):
+			_companions[word].queue_free()
+			_companions.erase(word)
+			if word in GameManager.words_summoned:
+				GameManager.words_summoned.erase(word)
+			print("Francis-opia: %s went back to the wild to make room!" % word.capitalize())
+			return
+	# All are active, evict the oldest active one
+	if not GameManager.active_companions.is_empty():
+		var evicted: String = GameManager.active_companions.pop_front()
+		if evicted in _companions and is_instance_valid(_companions[evicted]):
+			_companions[evicted].queue_free()
+		_companions.erase(evicted)
+		if evicted in GameManager.words_summoned:
+			GameManager.words_summoned.erase(evicted)
+		print("Francis-opia: %s went back to the wild to make room!" % evicted.capitalize())
 
 func _set_companion_owner(node: Node, player: Node2D) -> void:
 	if node.has_method("setup"):
@@ -208,10 +233,9 @@ func _play_summon_animation(word: String, entry: Dictionary) -> void:
 
 	# === PHASE 4: Summon the thing! ===
 	await get_tree().create_timer(0.3).timeout
-	# Enforce companion limit
+	# Auto-evict oldest companion if at limit (queue behavior)
 	if is_companion_word(word) and get_companion_count() >= MAX_COMPANIONS:
-		_show_summon_label(scene_root, summon_pos, {"label": "Too many pets! (max 5)", "color": Color(1, 0.5, 0.3)})
-		return
+		_evict_oldest_companion()
 	var builder_name: String = entry.get("builder", "")
 	if builder_name != "" and has_method(builder_name):
 		var summoned: Variant = call(builder_name, scene_root, player, summon_pos)
@@ -384,6 +408,15 @@ func _physics_process(delta):
 	var target = _owner.global_position + _follow_offset
 	var dist = global_position.distance_to(_owner.global_position)
 
+	# Prevent sitting on player head
+	var dx = global_position.x - _owner.global_position.x
+	var dy = global_position.y - _owner.global_position.y
+	if abs(dx) < 20 and dy < -10 and dy > -60:
+		var push = 1.0 if _follow_offset.x >= 0 else -1.0
+		velocity.x = push * 160
+		move_and_slide()
+		return
+
 	# Teleport if too far
 	if dist > 250 or global_position.y > _owner.global_position.y + 400:
 		global_position = _owner.global_position + _follow_offset
@@ -434,6 +467,7 @@ func _physics_process(delta):
 	script.reload()
 	frog.set_script(script)
 	frog._owner = player
+	frog.add_collision_exception_with(player)
 	scene_root.add_child(frog)
 
 	print("Francis-opia: ✨ A bouncy frog appeared! Ribbit!")
@@ -1109,6 +1143,173 @@ func _summon_hammer(scene_root: Node, _player: Node2D, pos: Vector2) -> Node:
 		print("Francis-opia: ✨ Hammer! Hold Q/LB to dig faster and further!")
 	return null
 
+func _summon_run(scene_root: Node, player: Node2D, _pos: Vector2) -> Node:
+	# Super speed for 60 seconds
+	var original_speed: float = player.move_speed
+	player.move_speed = original_speed * 2.0
+
+	# Speed lines visual attached to player
+	var lines := Node2D.new()
+	lines.name = "SpeedLines"
+	# Remove old if re-cast
+	var old := player.get_node_or_null("SpeedLines")
+	if old:
+		old.queue_free()
+	for i in 4:
+		var line := ColorRect.new()
+		line.position = Vector2(-24, -20 + i * 12)
+		line.size = Vector2(8, 2)
+		line.color = Color(1.0, 0.9, 0.2, 0.5)
+		lines.add_child(line)
+	player.add_child(lines)
+
+	# Timer to revert after 60 seconds
+	var timer := get_tree().create_timer(60.0)
+	timer.timeout.connect(func() -> void:
+		if is_instance_valid(player):
+			player.move_speed = original_speed
+			var sl := player.get_node_or_null("SpeedLines")
+			if sl:
+				var fade := sl.create_tween()
+				fade.tween_property(sl, "modulate:a", 0.0, 0.5)
+				fade.tween_callback(sl.queue_free)
+			print("Francis-opia: Speed boost wore off!")
+	)
+
+	print("Francis-opia: SUPER SPEED! Go go go!")
+	return null
+
+func _summon_red(scene_root: Node, player: Node2D, _pos: Vector2) -> Node:
+	# Turn nearby terrain blocks red for 60 seconds
+	var affected: Array[Node] = []
+	var radius := 600.0
+	for key in scene_root.get("_terrain_blocks") if "_terrain_blocks" in scene_root else {}:
+		var block: Node = scene_root._terrain_blocks[key]
+		if not is_instance_valid(block):
+			continue
+		if block.global_position.distance_to(player.global_position) < radius:
+			var visual := block.get_node_or_null("Visual") as ColorRect
+			if visual:
+				affected.append(visual)
+				var orig_color: Color = visual.color
+				# Tint red but keep some variation
+				visual.color = Color(0.9, 0.15 + randf() * 0.1, 0.1, 1)
+				# Store original for restore
+				visual.set_meta("orig_color", orig_color)
+
+	# Also tint grass on platforms in visible chunks
+	print("Francis-opia: The ground turned RED! (%d blocks)" % affected.size())
+
+	# Revert after 60 seconds
+	get_tree().create_timer(60.0).timeout.connect(func() -> void:
+		for visual in affected:
+			if is_instance_valid(visual) and visual.has_meta("orig_color"):
+				var tween := visual.create_tween()
+				tween.tween_property(visual, "color", visual.get_meta("orig_color"), 1.0)
+		print("Francis-opia: The red faded away!")
+	)
+	return null
+
+func _summon_mud(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
+	# Create a slippery mud zone on the ground around the player
+	var ground_y := 725.0
+	var mud_zone := Area2D.new()
+	mud_zone.name = "MudZone"
+	mud_zone.global_position = Vector2(player.global_position.x, ground_y)
+	mud_zone.collision_layer = 0
+	mud_zone.collision_mask = 0
+
+	# Detection area covers the full mud zone height (player walks through it)
+	var col := CollisionShape2D.new()
+	var shape := RectangleShape2D.new()
+	shape.size = Vector2(800, 80)
+	col.shape = shape
+	col.position = Vector2(0, -40)  # Center above ground line
+	mud_zone.add_child(col)
+
+	# Visual: thick brown mud layer on the ground surface
+	var mud_base := ColorRect.new()
+	mud_base.position = Vector2(-400, -12)
+	mud_base.size = Vector2(800, 16)
+	mud_base.color = Color(0.4, 0.28, 0.12, 0.85)
+	mud_base.z_index = 1
+	mud_zone.add_child(mud_base)
+
+	# Wet shiny layer on top
+	var mud_sheen := ColorRect.new()
+	mud_sheen.position = Vector2(-400, -14)
+	mud_sheen.size = Vector2(800, 6)
+	mud_sheen.color = Color(0.5, 0.35, 0.18, 0.4)
+	mud_sheen.z_index = 2
+	mud_zone.add_child(mud_sheen)
+
+	# Mud puddle spots scattered on ground
+	for i in 12:
+		var puddle := ColorRect.new()
+		var px := -380 + i * 65 + randf() * 30
+		puddle.position = Vector2(px, -16 - randf() * 4)
+		puddle.size = Vector2(30 + randf() * 40, 6 + randf() * 4)
+		puddle.color = Color(0.35, 0.22, 0.1, 0.6)
+		puddle.z_index = 1
+		mud_zone.add_child(puddle)
+
+	# Splash drops above ground
+	for i in 6:
+		var drop := ColorRect.new()
+		drop.position = Vector2(-300 + randf() * 600, -20 - randf() * 30)
+		drop.size = Vector2(4, 4)
+		drop.color = Color(0.45, 0.3, 0.15, 0.4)
+		drop.z_index = 2
+		mud_zone.add_child(drop)
+
+	scene_root.add_child(mud_zone)
+
+	# Script: when player is inside the zone, reduce friction
+	var script := GDScript.new()
+	script.source_code = """extends Area2D
+
+var _players_inside: Array = []
+
+func _ready():
+	body_entered.connect(_on_enter)
+	body_exited.connect(_on_exit)
+	# Need to monitor bodies
+	monitoring = true
+	monitorable = false
+	collision_layer = 0
+	collision_mask = 1  # Detect player (layer 1)
+
+func _on_enter(body: Node2D):
+	if body is CharacterBody2D and body.name.begins_with("Player"):
+		if "friction" in body:
+			body.friction = 0.15
+			_players_inside.append(body)
+
+func _on_exit(body: Node2D):
+	if body in _players_inside:
+		_players_inside.erase(body)
+		if "friction" in body:
+			body.friction = 1.0
+"""
+	script.reload()
+	mud_zone.set_script(script)
+
+	# Remove mud after 60 seconds
+	get_tree().create_timer(60.0).timeout.connect(func() -> void:
+		if is_instance_valid(mud_zone):
+			# Restore friction for anyone still inside
+			for body in mud_zone._players_inside:
+				if is_instance_valid(body) and "friction" in body:
+					body.friction = 1.0
+			var fade := mud_zone.create_tween()
+			fade.tween_property(mud_zone, "modulate:a", 0.0, 1.0)
+			fade.tween_callback(mud_zone.queue_free)
+			print("Francis-opia: The mud dried up!")
+	)
+
+	print("Francis-opia: Splat! Slippery mud everywhere!")
+	return mud_zone
+
 func _summon_big(scene_root: Node, player: Node2D, _pos: Vector2) -> Node:
 	# Make a companion bigger! Picks the smallest companion so BIG rotates through all of them.
 	var grown_pet: Node = null
@@ -1263,6 +1464,16 @@ func _physics_process(delta):
 	var target = _owner.global_position + _follow_offset
 	var dist = global_position.distance_to(_owner.global_position)
 	var dist_to_target = global_position.distance_to(target)
+
+	# Prevent sitting on player head
+	var dx = global_position.x - _owner.global_position.x
+	var dy = global_position.y - _owner.global_position.y
+	if abs(dx) < 20 and dy < -10 and dy > -60:
+		var push = 1.0 if _follow_offset.x >= 0 else -1.0
+		velocity.x = push * 150
+		move_and_slide()
+		return
+
 	if dist > 250 or global_position.y > _owner.global_position.y + 400:
 		global_position = _owner.global_position + _follow_offset
 		velocity = Vector2.ZERO
@@ -1308,10 +1519,182 @@ func _physics_process(delta):
 	script.reload()
 	pig.set_script(script)
 	pig._owner = player
+	pig.add_collision_exception_with(player)
 	scene_root.add_child(pig)
 
 	print("Francis-opia: A cute pink pig appeared! Oink oink!")
 	return pig
+
+func _summon_hen(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
+	var hen := CharacterBody2D.new()
+	hen.global_position = pos + Vector2(-50, -10)
+	hen.collision_layer = 0
+	hen.collision_mask = 1
+	hen.z_index = 5
+
+	# Round body
+	var body := ColorRect.new()
+	body.name = "Body"
+	body.position = Vector2(-12, -10)
+	body.size = Vector2(24, 16)
+	body.color = Color(0.85, 0.6, 0.35, 1)
+	hen.add_child(body)
+
+	# Head
+	var head := ColorRect.new()
+	head.name = "Head"
+	head.position = Vector2(-8, -20)
+	head.size = Vector2(14, 12)
+	head.color = Color(0.9, 0.65, 0.4, 1)
+	hen.add_child(head)
+
+	# Comb (red on top)
+	var comb := ColorRect.new()
+	comb.position = Vector2(-4, -25)
+	comb.size = Vector2(8, 6)
+	comb.color = Color(0.9, 0.2, 0.2, 1)
+	hen.add_child(comb)
+
+	# Beak
+	var beak := ColorRect.new()
+	beak.position = Vector2(-1, -16)
+	beak.size = Vector2(6, 4)
+	beak.color = Color(1.0, 0.8, 0.2, 1)
+	hen.add_child(beak)
+
+	# Wattle (red under beak)
+	var wattle := ColorRect.new()
+	wattle.position = Vector2(0, -12)
+	wattle.size = Vector2(4, 4)
+	wattle.color = Color(0.9, 0.25, 0.2, 1)
+	hen.add_child(wattle)
+
+	# Eyes
+	var eye := ColorRect.new()
+	eye.position = Vector2(-5, -19)
+	eye.size = Vector2(3, 3)
+	eye.color = Color(0.1, 0.1, 0.1, 1)
+	hen.add_child(eye)
+
+	# Tail feathers
+	var tail := ColorRect.new()
+	tail.name = "Tail"
+	tail.position = Vector2(10, -16)
+	tail.size = Vector2(6, 12)
+	tail.color = Color(0.75, 0.5, 0.3, 1)
+	hen.add_child(tail)
+
+	# Legs
+	for lx in [-4, 4]:
+		var leg := ColorRect.new()
+		leg.position = Vector2(lx, 4)
+		leg.size = Vector2(3, 6)
+		leg.color = Color(1.0, 0.75, 0.2, 1)
+		hen.add_child(leg)
+
+	# Collision
+	var col := CollisionShape2D.new()
+	var shape := RectangleShape2D.new()
+	shape.size = Vector2(22, 14)
+	col.position = Vector2(0, -3)
+	col.shape = shape
+	hen.add_child(col)
+
+	# Hen behavior script
+	var script := GDScript.new()
+	script.source_code = """extends CharacterBody2D
+
+var _owner: Node2D = null
+var _gravity := 980.0
+var _time := 0.0
+var _follow_offset := Vector2(-90, 0)
+var _stuck_timer := 0.0
+var _last_dist := 0.0
+var _peck_timer := 0.0
+
+func _physics_process(delta):
+	if not _owner or not is_instance_valid(_owner):
+		return
+	_time += delta
+
+	if not is_on_floor():
+		velocity.y += _gravity * delta
+		velocity.y = min(velocity.y, 400.0)
+	else:
+		velocity.y = 0
+
+	var target = _owner.global_position + _follow_offset
+	var dist = global_position.distance_to(_owner.global_position)
+	var dist_to_target = global_position.distance_to(target)
+
+	# Prevent sitting on player head
+	var dx = global_position.x - _owner.global_position.x
+	var dy = global_position.y - _owner.global_position.y
+	if abs(dx) < 20 and dy < -10 and dy > -60:
+		var push = 1.0 if _follow_offset.x >= 0 else -1.0
+		velocity.x = push * 150
+		move_and_slide()
+		return
+
+	if dist > 250 or global_position.y > _owner.global_position.y + 400:
+		global_position = _owner.global_position + _follow_offset
+		velocity = Vector2.ZERO
+		_stuck_timer = 0.0
+		return
+
+	# Stuck detection
+	if dist > 50:
+		if dist >= _last_dist - 2.0:
+			_stuck_timer += delta
+		else:
+			_stuck_timer = 0.0
+		if _stuck_timer > 1.5:
+			global_position = _owner.global_position + _follow_offset
+			velocity = Vector2.ZERO
+			_stuck_timer = 0.0
+			return
+	else:
+		_stuck_timer = 0.0
+	_last_dist = dist
+
+	if dist_to_target > 50:
+		var dir = global_position.direction_to(target)
+		velocity.x = dir.x * 130
+	else:
+		velocity.x = move_toward(velocity.x, 0, 80 * delta)
+		# Idle pecking animation
+		_peck_timer += delta
+		if _peck_timer > 2.0:
+			_peck_timer = 0.0
+			var head = get_node_or_null(\"Head\")
+			if head:
+				var t = create_tween()
+				t.tween_property(head, \"position:y\", head.position.y + 6, 0.1)
+				t.tween_property(head, \"position:y\", head.position.y, 0.1)
+
+	if is_on_floor() and (_owner.global_position.y < global_position.y - 20 or (dist > 50 and is_on_wall())):
+		velocity.y = -300
+
+	if velocity.x > 1:
+		scale.x = abs(scale.x)
+	elif velocity.x < -1:
+		scale.x = -abs(scale.x)
+
+	# Tail bob
+	var tail = get_node_or_null(\"Tail\")
+	if tail:
+		tail.rotation = sin(_time * 4.0) * 0.15
+
+	move_and_slide()
+"""
+	script.reload()
+	hen.set_script(script)
+	hen._owner = player
+	hen.add_collision_exception_with(player)
+	scene_root.add_child(hen)
+
+	print("Francis-opia: A clucky hen appeared! Bawk bawk!")
+	return hen
 
 func _summon_house(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
 	# Enterable house! Player walks through the open door on the right side.

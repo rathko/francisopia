@@ -171,8 +171,10 @@ func _ready() -> void:
 	if letter_spawner and player:
 		letter_spawner.set_player(player)
 
-	# Wire monster spawning to wrong letter
+	# Wire monster spawning to wrong letter, new words, and stun thieves on word completion
 	WordEngine.wrong_letter_rejected.connect(_on_wrong_letter)
+	WordEngine.word_spelled_correctly.connect(_on_word_stun_thieves)
+	WordEngine.target_word_changed.connect(_on_new_word_thief_chance)
 
 	# Regenerate chunks when world-changing words are spelled (e.g. "tree")
 	GameManager.word_completed.connect(_on_world_word_completed)
@@ -1391,7 +1393,7 @@ func hit_by_arrow() -> void:
 
 # === LETTER THIEF ===
 
-func _on_wrong_letter(_letter: String) -> void:
+func _spawn_thief() -> void:
 	_active_thieves = _active_thieves.filter(func(t: Node2D) -> bool: return is_instance_valid(t))
 	if _active_thieves.size() >= MAX_THIEVES:
 		return
@@ -1400,12 +1402,28 @@ func _on_wrong_letter(_letter: String) -> void:
 	var thief := _thief_scene.instantiate() as Node2D
 	var spawn_side := 1.0 if _rng.randf() > 0.5 else -1.0
 	thief.global_position = Vector2(
-		player.global_position.x + spawn_side * 700,
+		player.global_position.x + spawn_side * 600,
 		GROUND_Y - 30
 	)
 	add_child(thief)
 	_active_thieves.append(thief)
-	print("Francis-opia: Oh no! A silly letter thief appeared!")
+	print("Francis-opia: Oh no! A letter thief is coming!")
+
+func _on_wrong_letter(_letter: String) -> void:
+	_spawn_thief()
+
+func _on_new_word_thief_chance(_word: String, _hint: String) -> void:
+	# 40% chance a thief appears when a new word starts
+	if _rng.randf() < 0.4:
+		# Small delay so it doesn't feel instant
+		get_tree().create_timer(2.0).timeout.connect(_spawn_thief)
+
+func _on_word_stun_thieves(_word: String) -> void:
+	_active_thieves = _active_thieves.filter(func(t: Node2D) -> bool: return is_instance_valid(t))
+	for thief in _active_thieves:
+		if thief.has_method("stunned_by_magic"):
+			thief.stunned_by_magic()
+	_active_thieves.clear()
 
 func _spawn_dog_companion() -> void:
 	## Always spawn the dog as a companion if the player has earned it.

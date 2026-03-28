@@ -17,6 +17,7 @@ signal teleport_beacon_requested(position: Vector2)
 @export var dig_range := 96.0  # 3 blocks (32px each)
 @export var dig_cooldown := 0.25  # Seconds between digs (hold to mine)
 @export var wall_slide_speed := 60.0  # Max fall speed when sliding on wall
+var friction := 1.0  # 1.0 = normal, lower = slippery (set by MUD spell)
 
 var _coyote_timer := 0.0
 var _jump_buffer_timer := 0.0
@@ -336,10 +337,14 @@ func _handle_jump_buffer(delta: float) -> void:
 func _handle_movement() -> void:
 	var direction := _get_movement_axis()
 	if abs(direction) > 0.1:
-		velocity.x = direction * move_speed
+		if friction < 1.0:
+			# Slippery: lerp toward target speed instead of snapping
+			velocity.x = lerp(velocity.x, direction * move_speed, friction * 0.3)
+		else:
+			velocity.x = direction * move_speed
 		_facing_right = direction > 0
 	else:
-		velocity.x = move_toward(velocity.x, 0, move_speed * 0.2)
+		velocity.x = move_toward(velocity.x, 0, move_speed * 0.2 * friction)
 
 func _handle_jump() -> void:
 	var can_jump := is_on_floor() or _coyote_timer > 0.0
