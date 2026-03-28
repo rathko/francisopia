@@ -1,6 +1,5 @@
 extends Node
-## Unit tests for WordEngine. Run with GUT framework or standalone.
-## Tests word selection, validation, difficulty progression, and scoring.
+## Unit tests for WordEngine. Tests word selection, validation, difficulty, and repeatable logic.
 
 var _pass_count := 0
 var _fail_count := 0
@@ -9,6 +8,7 @@ var _test_name := ""
 func run_all_tests() -> void:
 	print("=== WordEngine Tests ===")
 	test_builtin_word_bank_loads()
+	test_word_bank_has_levels()
 	test_word_selection_returns_uppercase()
 	test_correct_letter_collection()
 	test_wrong_letter_rejection()
@@ -16,12 +16,25 @@ func run_all_tests() -> void:
 	test_difficulty_progression()
 	test_coin_reward_scaling()
 	test_letters_needed()
+	test_force_house_at_3_companions()
+	test_starter_sequence_words_valid()
 	print("=== Results: %d passed, %d failed ===" % [_pass_count, _fail_count])
 
 func test_builtin_word_bank_loads() -> void:
 	_test_name = "builtin_word_bank_loads"
-	# WordEngine should have words after _ready
 	assert_true(WordEngine.word_bank.size() > 0, "Word bank should not be empty")
+	assert_true(WordEngine.word_bank.size() >= 50, "Word bank should have at least 50 words (got %d)" % WordEngine.word_bank.size())
+
+func test_word_bank_has_levels() -> void:
+	_test_name = "word_bank_has_levels"
+	var levels_found: Dictionary = {}
+	for entry in WordEngine.word_bank:
+		var lvl: int = entry.get("level", 0)
+		levels_found[lvl] = levels_found.get(lvl, 0) + 1
+	assert_true(levels_found.has(1), "Should have level 1 words")
+	assert_true(levels_found.has(2), "Should have level 2 words")
+	assert_true(levels_found.has(3), "Should have level 3 words")
+	assert_true(levels_found.get(1, 0) >= 15, "Level 1 should have 15+ words (got %d)" % levels_found.get(1, 0))
 
 func test_word_selection_returns_uppercase() -> void:
 	_test_name = "word_selection_returns_uppercase"
@@ -56,18 +69,18 @@ func test_word_completion() -> void:
 
 func test_difficulty_progression() -> void:
 	_test_name = "difficulty_progression"
-	# Simulate word completions
+	var orig_completed := GameManager.words_completed.duplicate()
+	var orig_diff := WordEngine.current_difficulty
+
 	GameManager.words_completed.clear()
 	WordEngine._check_difficulty_progression()
 	assert_eq(WordEngine.current_difficulty, 1, "Should start at difficulty 1")
 
-	# Add 10 words to trigger level 2
 	for i in 10:
 		GameManager.words_completed.append("word_%d" % i)
 	WordEngine._check_difficulty_progression()
 	assert_eq(WordEngine.current_difficulty, 2, "Should be difficulty 2 after 10 words")
 
-	# Add more to reach level 3
 	for i in 15:
 		GameManager.words_completed.append("extra_%d" % i)
 	WordEngine._check_difficulty_progression()
@@ -75,7 +88,9 @@ func test_difficulty_progression() -> void:
 
 	# Cleanup
 	GameManager.words_completed.clear()
-	WordEngine.current_difficulty = 1
+	for w in orig_completed:
+		GameManager.words_completed.append(w)
+	WordEngine.current_difficulty = orig_diff
 
 func test_coin_reward_scaling() -> void:
 	_test_name = "coin_reward_scaling"
@@ -95,15 +110,56 @@ func test_letters_needed() -> void:
 	WordEngine.try_collect_letter("D")
 	assert_eq(WordEngine.get_next_needed_letter(), "O", "After D, next should be O")
 
+func test_force_house_at_3_companions() -> void:
+	_test_name = "force_house_at_3_companions"
+	# Save state
+	var orig_summoned := GameManager.words_summoned.duplicate()
+	var orig_target := WordEngine.current_target_word
+	var orig_hint := WordEngine.current_hint_image
+	var orig_starter_idx := WordEngine._starter_index
+	var orig_starter_done := WordEngine._starter_complete
+
+	# Simulate 3 companions, no house
+	GameManager.words_summoned.clear()
+	GameManager.words_summoned.append("dog")
+	GameManager.words_summoned.append("cat")
+	GameManager.words_summoned.append("pig")
+	WordEngine._starter_complete = true
+
+	var word := WordEngine.select_word_for_area("meadow")
+	assert_eq(word, "HOUSE", "Should force HOUSE when 3 companions and no house")
+
+	# Cleanup
+	GameManager.words_summoned.clear()
+	for w in orig_summoned:
+		GameManager.words_summoned.append(w)
+	WordEngine.current_target_word = orig_target
+	WordEngine.current_hint_image = orig_hint
+	WordEngine._starter_index = orig_starter_idx
+	WordEngine._starter_complete = orig_starter_done
+
+func test_starter_sequence_words_valid() -> void:
+	_test_name = "starter_sequence_words_valid"
+	for word in WordEngine._starter_sequence:
+		var found := false
+		for entry in WordEngine.word_bank:
+			if entry.get("word", "") == word:
+				found = true
+				break
+		if not found:
+			# Check summon registry too
+			found = word in MagicSummon.summon_registry
+		assert_true(found, "Starter word '%s' should be in word bank or registry" % word)
+
 # --- Test helpers ---
 
 func assert_true(condition: bool, message: String) -> void:
 	if condition:
 		_pass_count += 1
-		print("  PASS: %s — %s" % [_test_name, message])
+		print("  PASS: %s -- %s" % [_test_name, message])
 	else:
 		_fail_count += 1
-		print("  FAIL: %s — %s" % [_test_name, message])
+		print("  FAIL: %s -- %s" % [_test_name, message])
 
 func assert_false(condition: bool, message: String) -> void:
 	assert_true(not condition, message)
@@ -111,7 +167,7 @@ func assert_false(condition: bool, message: String) -> void:
 func assert_eq(actual: Variant, expected: Variant, message: String) -> void:
 	if actual == expected:
 		_pass_count += 1
-		print("  PASS: %s — %s" % [_test_name, message])
+		print("  PASS: %s -- %s" % [_test_name, message])
 	else:
 		_fail_count += 1
-		print("  FAIL: %s — %s (got %s, expected %s)" % [_test_name, message, str(actual), str(expected)])
+		print("  FAIL: %s -- %s (got %s, expected %s)" % [_test_name, message, str(actual), str(expected)])

@@ -24,6 +24,20 @@ func _ready() -> void:
 	collision_mask = 1  # Only collide with ground/blocks
 	z_index = 5  # Render above terrain blocks
 
+func _find_nearest_thief() -> Node2D:
+	var scene := get_tree().current_scene
+	if not scene or not "_active_thieves" in scene:
+		return null
+	var nearest: Node2D = null
+	var nearest_dist := 200.0
+	for thief in scene._active_thieves:
+		if is_instance_valid(thief):
+			var d := global_position.distance_to(thief.global_position)
+			if d < nearest_dist:
+				nearest_dist = d
+				nearest = thief
+	return nearest
+
 func setup(p_owner: CharacterBody2D, p_type: PetType) -> void:
 	pet_owner = p_owner
 	pet_type = p_type
@@ -235,19 +249,32 @@ func _physics_process(delta: float) -> void:
 		move_and_slide()
 		return
 
-	# Follow toward offset target position
-	var dir_to_target := global_position.direction_to(target_pos)
+	# Chase nearby thieves aggressively (prioritize over following player)
+	var chasing_thief := false
+	var thief_node: Node2D = _find_nearest_thief()
+	if thief_node:
+		var thief_dist := global_position.distance_to(thief_node.global_position)
+		if thief_dist < 200.0:
+			var dir_to_thief := global_position.direction_to(thief_node.global_position)
+			velocity.x = dir_to_thief.x * follow_speed * 1.5  # Run faster toward thief
+			chasing_thief = true
+			if is_on_floor() and (thief_node.global_position.y < global_position.y - 20 or is_on_wall()):
+				velocity.y = jump_velocity
 
-	if dist_to_target > follow_distance:
-		velocity.x = dir_to_target.x * follow_speed
-		_idle_timer = 0.0
-	else:
-		# Slow down when close
-		velocity.x = move_toward(velocity.x, 0, follow_speed * 0.3)
-		_idle_timer += delta
+	# Follow toward offset target position (when not chasing thief)
+	if not chasing_thief:
+		var dir_to_target := global_position.direction_to(target_pos)
+
+		if dist_to_target > follow_distance:
+			velocity.x = dir_to_target.x * follow_speed
+			_idle_timer = 0.0
+		else:
+			# Slow down when close
+			velocity.x = move_toward(velocity.x, 0, follow_speed * 0.3)
+			_idle_timer += delta
 
 	# Jump if pet_owner is above and we're on the floor (or if blocked by terrain)
-	if is_on_floor() and (pet_owner.global_position.y < global_position.y - 20 or (dist_to_target > follow_distance and is_on_wall())):
+	if not chasing_thief and is_on_floor() and (pet_owner.global_position.y < global_position.y - 20 or (dist_to_target > follow_distance and is_on_wall())):
 		velocity.y = jump_velocity
 
 	# Flip to face direction of movement (preserve scale magnitude for BIG)

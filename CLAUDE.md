@@ -4,6 +4,15 @@
 
 Godot 4.6 educational platformer game. GDScript only, no external dependencies. Target: Steam Deck (Linux x86_64, 1280x800, GL Compatibility renderer).
 
+## Engineering Process (VSDD)
+
+All development MUST follow VSDD (Verified Spec-Driven Development) best practices:
+1. **Spec before code.** Define what the feature does before implementing it. For non-trivial changes, write the test first.
+2. **Tests before implementation.** New features and bug fixes must have corresponding unit tests. Update existing tests when behavior changes. No excuses.
+3. **Run the game.** After any change, run `godot --path ~/src/pai/francisopia` and confirm no SCRIPT ERROR lines in output. Parse errors = broken game = not done.
+4. **Run the tests.** After any change, run `godot --headless --path . --script tests/run_tests.gd` and confirm all pass. Failing tests = not done.
+5. **Verify before declaring done.** Never claim a feature works without evidence. Launch the game, test the feature, check for errors.
+
 ## Critical Rules
 
 ### GDScript Type Safety (Godot 4.6)
@@ -64,11 +73,34 @@ Cross-system communication goes through Events autoload or direct signals on sou
 
 ## Testing
 
+### Running tests (from Claude user)
 ```bash
-godot --headless --path . --script tests/run_tests.gd
+XDG_DATA_HOME="/tmp/claude-1001/godot_xdg" xvfb-run --auto-servernum --server-args="-screen 0 1280x800x24" godot --rendering-driver opengl3 --headless --path /home/claude/src/pai/francisopia --script tests/run_tests.gd
+```
+Godot crashes with signal 11 without `xvfb-run` and `XDG_DATA_HOME` in the Claude sandbox. This command works reliably.
+
+### Running tests (from Radek)
+```bash
+godot --headless --path ~/src/pai/francisopia --script tests/run_tests.gd
 ```
 
-4 test files: test_game_manager.gd, test_word_engine.gd, test_magic_summon.gd, test_quest_generator.gd. No external test framework needed.
+5 test files: test_game_manager.gd, test_word_engine.gd, test_magic_summon.gd, test_quest_generator.gd, test_terrain_height.gd. No external test framework needed. ~130 test cases total.
+
+### Visual smoke test (from Claude user, requires xdotool)
+```bash
+# Start game on virtual display, take screenshot, send inputs, verify
+export DISPLAY=:99
+Xvfb :99 -screen 0 1280x800x24 &
+XDG_DATA_HOME="/tmp/claude-1001/godot_xdg" godot --rendering-driver opengl3 --path /home/claude/src/pai/francisopia &
+sleep 4
+import -window root /tmp/claude-1001/game_screenshot.png  # Take screenshot
+xdotool key d d d space  # Move right + jump
+sleep 2
+import -window root /tmp/claude-1001/game_after_input.png
+kill %2  # Stop game
+kill %1  # Stop Xvfb
+```
+Requires: xdotool (install via `ans eos-install.yml`; listed under Game Development packages)
 
 ## Common Pitfalls
 

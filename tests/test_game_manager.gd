@@ -1,5 +1,5 @@
 extends Node
-## Unit tests for GameManager. Tests save/load, coins, and progression tracking.
+## Unit tests for GameManager. Tests save/load, coins, companions, and progression tracking.
 
 var _pass_count := 0
 var _fail_count := 0
@@ -13,6 +13,9 @@ func run_all_tests() -> void:
 	test_complete_word()
 	test_complete_word_duplicate()
 	test_area_change()
+	test_active_companions_is_array()
+	test_big_scale_default()
+	test_teleport_fields_default()
 	test_save_load_roundtrip()
 	print("=== Results: %d passed, %d failed ===" % [_pass_count, _fail_count])
 
@@ -29,7 +32,7 @@ func test_coin_reward_scaling() -> void:
 		assert_eq(GameManager._coin_reward_for_word("flower"), 3, "6-letter = 3 coins")
 		assert_eq(GameManager._coin_reward_for_word("a"), 1, "1-letter = 1 coin minimum")
 	else:
-		print("  SKIP: %s — _coin_reward_for_word not found" % _test_name)
+		print("  SKIP: %s -- _coin_reward_for_word not found" % _test_name)
 
 func test_add_coins() -> void:
 	_test_name = "add_coins"
@@ -54,7 +57,6 @@ func test_complete_word_duplicate() -> void:
 	var count_after_first := GameManager.words_completed.size()
 	GameManager.complete_word("duptest")
 	var count_after_second := GameManager.words_completed.size()
-	# Whether duplicates are allowed is implementation detail — just verify no crash
 	assert_true(count_after_second >= count_after_first, "Should not crash on duplicate word")
 	# Cleanup
 	while "duptest" in GameManager.words_completed:
@@ -68,10 +70,29 @@ func test_area_change() -> void:
 	# Restore
 	GameManager.current_area = original_area
 
+func test_active_companions_is_array() -> void:
+	_test_name = "active_companions_is_array"
+	assert_true(GameManager.active_companions is Array, "active_companions should be an Array")
+	assert_true(GameManager.active_companions.size() <= 3, "active_companions should have at most 3 entries (got %d)" % GameManager.active_companions.size())
+
+func test_big_scale_default() -> void:
+	_test_name = "big_scale_default"
+	assert_true(GameManager.big_scale >= 1.0, "big_scale should be >= 1.0")
+	assert_true(GameManager.big_scale <= 2.0, "big_scale should be <= 2.0 (got %f)" % GameManager.big_scale)
+
+func test_teleport_fields_default() -> void:
+	_test_name = "teleport_fields_default"
+	# These may be non-zero if game has been played; just verify they exist
+	assert_true("teleport_beacon_x" in GameManager, "Should have teleport_beacon_x field")
+	assert_true("teleport_beacon_y" in GameManager, "Should have teleport_beacon_y field")
+	assert_true("home_pos_x" in GameManager, "Should have home_pos_x field")
+	assert_true("home_pos_y" in GameManager, "Should have home_pos_y field")
+
 func test_save_load_roundtrip() -> void:
 	_test_name = "save_load_roundtrip"
 	var original_coins := GameManager.word_coins
 	var original_name := GameManager.planet_name
+	var original_companions := GameManager.active_companions.duplicate()
 	# Modify state
 	GameManager.word_coins = 999
 	GameManager.planet_name = "TestPlanet"
@@ -83,9 +104,11 @@ func test_save_load_roundtrip() -> void:
 	GameManager.load_game()
 	assert_eq(GameManager.word_coins, 999, "Coins should survive save/load")
 	assert_eq(GameManager.planet_name, "TestPlanet", "Planet name should survive save/load")
+	assert_true(GameManager.active_companions is Array, "active_companions should survive save/load as Array")
 	# Restore original
 	GameManager.word_coins = original_coins
 	GameManager.planet_name = original_name
+	GameManager.active_companions = original_companions
 	GameManager.save_game()
 
 # --- Test helpers ---
@@ -93,10 +116,10 @@ func test_save_load_roundtrip() -> void:
 func assert_true(condition: bool, message: String) -> void:
 	if condition:
 		_pass_count += 1
-		print("  PASS: %s — %s" % [_test_name, message])
+		print("  PASS: %s -- %s" % [_test_name, message])
 	else:
 		_fail_count += 1
-		print("  FAIL: %s — %s" % [_test_name, message])
+		print("  FAIL: %s -- %s" % [_test_name, message])
 
 func assert_false(condition: bool, message: String) -> void:
 	assert_true(not condition, message)
@@ -104,7 +127,7 @@ func assert_false(condition: bool, message: String) -> void:
 func assert_eq(actual: Variant, expected: Variant, message: String) -> void:
 	if actual == expected:
 		_pass_count += 1
-		print("  PASS: %s — %s" % [_test_name, message])
+		print("  PASS: %s -- %s" % [_test_name, message])
 	else:
 		_fail_count += 1
-		print("  FAIL: %s — %s (got %s, expected %s)" % [_test_name, message, str(actual), str(expected)])
+		print("  FAIL: %s -- %s (got %s, expected %s)" % [_test_name, message, str(actual), str(expected)])
