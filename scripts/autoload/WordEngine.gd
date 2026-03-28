@@ -78,6 +78,8 @@ func _use_builtin_words() -> void:
 		{"word": "bed", "level": 1, "area": "meadow", "image": "bed"},
 		{"word": "cup", "level": 1, "area": "meadow", "image": "cup"},
 		{"word": "bug", "level": 1, "area": "meadow", "image": "bug"},
+		{"word": "pig", "level": 1, "area": "meadow", "image": "pig"},
+		{"word": "big", "level": 1, "area": "meadow", "image": "big"},
 		{"word": "box", "level": 1, "area": "meadow", "image": "box"},
 		{"word": "bow", "level": 1, "area": "meadow", "image": "bow"},
 		# Level 2 — Blends and longer CVC

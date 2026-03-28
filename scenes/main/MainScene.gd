@@ -109,7 +109,9 @@ func _ready() -> void:
 	_check_and_spawn_player2()
 	Input.joy_connection_changed.connect(_on_joy_connection_changed)
 
-	# Pets spawn via magic summoning (spell "cat" or "dog"), not auto-spawned
+	# Dog companion always spawns (it's the first word in the game)
+	if "dog" in GameManager.words_summoned:
+		_spawn_dog_companion.call_deferred()
 
 	# Restore hammer upgrade if player already has it
 	if "hammer" in GameManager.items_owned and player:
@@ -447,9 +449,9 @@ func _on_dig(dig_position: Vector2) -> void:
 	var best_dist := 999.0
 
 	for key in _terrain_blocks:
-		var block: Node2D = _terrain_blocks[key]
-		if not is_instance_valid(block):
+		if not is_instance_valid(_terrain_blocks[key]):
 			continue
+		var block: Node2D = _terrain_blocks[key]
 		var dist := dig_position.distance_to(block.global_position)
 		# Match within 20px (generous for grid-snapped positions)
 		if dist < 20.0 and dist < best_dist:
@@ -459,9 +461,9 @@ func _on_dig(dig_position: Vector2) -> void:
 	# Fallback: wider search if grid snap didn't perfectly align
 	if best_block == null:
 		for key in _terrain_blocks:
-			var block: Node2D = _terrain_blocks[key]
-			if not is_instance_valid(block):
+			if not is_instance_valid(_terrain_blocks[key]):
 				continue
+			var block: Node2D = _terrain_blocks[key]
 			var dist := dig_position.distance_to(block.global_position)
 			if dist < 40.0 and dist < best_dist:
 				best_dist = dist
@@ -1144,12 +1146,29 @@ func _on_wrong_letter(_letter: String) -> void:
 	_active_thieves.append(thief)
 	print("Francis-opia: Oh no! A silly letter thief appeared!")
 
+func _spawn_dog_companion() -> void:
+	## Always spawn the dog as a companion if the player has earned it.
+	if not player:
+		return
+	var magic_summon := get_node_or_null("/root/MagicSummon")
+	if magic_summon and magic_summon.has_method("_summon_dog"):
+		var dog: Variant = magic_summon.call("_summon_dog", self, player, player.global_position)
+		if dog is Node:
+			magic_summon._summoned_entities.append(dog)
+			print("Francis-opia: Your dog is here! Woof!")
+
 func _restore_summons() -> void:
 	## Re-create persistent summons from previous session (sun, pets, etc.)
 	var magic_summon := get_node_or_null("/root/MagicSummon")
 	if not magic_summon:
 		return
 	for word in GameManager.words_summoned:
+		# Dog is spawned separately via _spawn_dog_companion
+		if word == "dog":
+			continue
+		# Skip non-persistent effects (cosmetics applied once)
+		if word == "big":
+			continue
 		var entry: Dictionary = magic_summon.summon_registry.get(word, {})
 		if entry.is_empty():
 			continue

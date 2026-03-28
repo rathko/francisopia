@@ -19,6 +19,7 @@ func _ready() -> void:
 	# Pets don't collide with players — only with terrain
 	collision_layer = 0
 	collision_mask = 1  # Only collide with ground/blocks
+	z_index = 5  # Render above terrain blocks
 
 func setup(p_owner: CharacterBody2D, p_type: PetType) -> void:
 	pet_owner = p_owner

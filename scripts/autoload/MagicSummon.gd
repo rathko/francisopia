@@ -33,6 +33,8 @@ var summon_registry: Dictionary = {
 	"bow":  {"type": "item", "builder": "_summon_bow_upgrade", "label": "Bow upgraded!", "color": Color(0.8, 0.4, 0.2)},
 	"hammer": {"type": "item", "builder": "_summon_hammer", "label": "Dig faster now!", "color": Color(0.6, 0.6, 0.65)},
 	"house": {"type": "world", "builder": "_summon_house", "label": "A cozy house!", "color": Color(0.85, 0.55, 0.25)},
+	"pig": {"type": "pet", "builder": "_summon_pig", "label": "A cute pig!", "color": Color(1.0, 0.65, 0.7)},
+	"big": {"type": "cosmetic", "builder": "_summon_big", "label": "SUPER SIZE!", "color": Color(1.0, 0.5, 0.2)},
 
 	# Long vowel / complex (Level 3+)
 	"flower": {"type": "world", "builder": "_summon_flower_garden", "label": "A flower garden!", "color": Color(1.0, 0.5, 0.7)},
@@ -185,10 +187,16 @@ func _show_summon_label(parent: Node, pos: Vector2, entry: Dictionary) -> void:
 
 func _summon_cat(scene_root: Node, player: Node2D, _pos: Vector2) -> Node:
 	if not _pet_scene:
+		push_warning("Francis-opia: Pet scene failed to load!")
 		return null
+	# Don't double-spawn if a cat already exists
+	for entity in _summoned_entities:
+		if is_instance_valid(entity) and entity.name == "CatPet":
+			return entity
 	var pet := _pet_scene.instantiate() as CharacterBody2D
-	# Spawn beside the player, not on their head
-	pet.global_position = player.global_position + Vector2(-60, 0)
+	pet.name = "CatPet"
+	# Spawn beside the player, slightly above ground to avoid collision issues
+	pet.global_position = player.global_position + Vector2(-60, -20)
 	scene_root.add_child(pet)
 	if pet.has_method("setup"):
 		pet.setup(player, 1)  # CAT type
@@ -197,10 +205,16 @@ func _summon_cat(scene_root: Node, player: Node2D, _pos: Vector2) -> Node:
 
 func _summon_dog(scene_root: Node, player: Node2D, _pos: Vector2) -> Node:
 	if not _pet_scene:
+		push_warning("Francis-opia: Pet scene failed to load!")
 		return null
+	# Don't double-spawn if a dog already exists
+	for entity in _summoned_entities:
+		if is_instance_valid(entity) and entity.name == "DogPet":
+			return entity
 	var pet := _pet_scene.instantiate() as CharacterBody2D
-	# Spawn beside the player, not on their head
-	pet.global_position = player.global_position + Vector2(60, 0)
+	pet.name = "DogPet"
+	# Spawn beside the player, slightly above ground to avoid collision issues
+	pet.global_position = player.global_position + Vector2(60, -20)
 	scene_root.add_child(pet)
 	if pet.has_method("setup"):
 		pet.setup(player, 0)  # DOG type
@@ -972,128 +986,488 @@ func _summon_hammer(scene_root: Node, _player: Node2D, pos: Vector2) -> Node:
 		print("Francis-opia: ✨ Hammer! Hold Q/LB to dig faster and further!")
 	return null
 
+func _summon_big(scene_root: Node, player: Node2D, _pos: Vector2) -> Node:
+	# Make a random pet bigger! Finds the first active pet and scales it up.
+	var grown_pet: Node = null
+	for entity in _summoned_entities:
+		if not is_instance_valid(entity):
+			continue
+		# Look for pets (dog, cat, pig, frog, bird, bug, fish)
+		if entity is CharacterBody2D and entity.name in ["DogPet", "CatPet"]:
+			grown_pet = entity
+			break
+	# Try any CharacterBody2D pet
+	if not grown_pet:
+		for entity in _summoned_entities:
+			if is_instance_valid(entity) and entity is CharacterBody2D:
+				grown_pet = entity
+				break
+	# Try any Node2D pet-like thing
+	if not grown_pet:
+		for entity in _summoned_entities:
+			if is_instance_valid(entity) and entity is Node2D:
+				grown_pet = entity
+				break
+	if grown_pet:
+		var current_scale: Vector2 = grown_pet.scale
+		var target_scale := Vector2(abs(current_scale.x) * 1.5, abs(current_scale.y) * 1.5)
+		# Cap at 3x original size
+		target_scale.x = min(target_scale.x, 3.0)
+		target_scale.y = min(target_scale.y, 3.0)
+		var tween := grown_pet.create_tween()
+		tween.tween_property(grown_pet, "scale", Vector2(sign(current_scale.x) * target_scale.x, target_scale.y), 0.5).set_trans(Tween.TRANS_BACK)
+		print("Francis-opia: %s got BIGGER!" % grown_pet.name)
+		return grown_pet
+	else:
+		# No pets yet, make the player a bit bigger temporarily
+		var tween := player.create_tween()
+		tween.tween_property(player, "scale", Vector2(1.3, 1.3), 0.3).set_trans(Tween.TRANS_BACK)
+		tween.tween_interval(3.0)
+		tween.tween_property(player, "scale", Vector2(1.0, 1.0), 0.3)
+		print("Francis-opia: YOU got bigger! (for a moment)")
+		return null
+
+func _summon_pig(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
+	var pig := CharacterBody2D.new()
+	pig.global_position = pos + Vector2(40, -10)
+	pig.collision_layer = 0
+	pig.collision_mask = 1
+	pig.z_index = 5
+
+	# Round pink body
+	var body := ColorRect.new()
+	body.name = "Body"
+	body.position = Vector2(-14, -10)
+	body.size = Vector2(28, 16)
+	body.color = Color(1.0, 0.7, 0.75, 1)
+	pig.add_child(body)
+
+	# Head
+	var head := ColorRect.new()
+	head.name = "Head"
+	head.position = Vector2(-10, -20)
+	head.size = Vector2(16, 12)
+	head.color = Color(1.0, 0.72, 0.78, 1)
+	pig.add_child(head)
+
+	# Snout — big pink circle
+	var snout := ColorRect.new()
+	snout.name = "Snout"
+	snout.position = Vector2(-4, -16)
+	snout.size = Vector2(10, 7)
+	snout.color = Color(1.0, 0.6, 0.65, 1)
+	pig.add_child(snout)
+
+	# Nostrils
+	var nostril_l := ColorRect.new()
+	nostril_l.position = Vector2(-2, -14)
+	nostril_l.size = Vector2(3, 3)
+	nostril_l.color = Color(0.8, 0.45, 0.5, 1)
+	pig.add_child(nostril_l)
+	var nostril_r := ColorRect.new()
+	nostril_r.position = Vector2(3, -14)
+	nostril_r.size = Vector2(3, 3)
+	nostril_r.color = Color(0.8, 0.45, 0.5, 1)
+	pig.add_child(nostril_r)
+
+	# Ears — pointy
+	var ear_l := ColorRect.new()
+	ear_l.position = Vector2(-10, -25)
+	ear_l.size = Vector2(6, 7)
+	ear_l.color = Color(1.0, 0.6, 0.68, 1)
+	pig.add_child(ear_l)
+	var ear_r := ColorRect.new()
+	ear_r.position = Vector2(3, -25)
+	ear_r.size = Vector2(6, 7)
+	ear_r.color = Color(1.0, 0.6, 0.68, 1)
+	pig.add_child(ear_r)
+
+	# Eyes — happy dots
+	var eye_l := ColorRect.new()
+	eye_l.position = Vector2(-7, -19)
+	eye_l.size = Vector2(3, 3)
+	eye_l.color = Color(0.15, 0.15, 0.15, 1)
+	pig.add_child(eye_l)
+	var eye_r := ColorRect.new()
+	eye_r.position = Vector2(3, -19)
+	eye_r.size = Vector2(3, 3)
+	eye_r.color = Color(0.15, 0.15, 0.15, 1)
+	pig.add_child(eye_r)
+
+	# Curly tail
+	var tail := ColorRect.new()
+	tail.name = "Tail"
+	tail.position = Vector2(12, -12)
+	tail.size = Vector2(6, 4)
+	tail.color = Color(1.0, 0.6, 0.68, 1)
+	pig.add_child(tail)
+
+	# Little legs
+	for lx in [-8, -2, 6, 12]:
+		var leg := ColorRect.new()
+		leg.position = Vector2(lx, 4)
+		leg.size = Vector2(4, 6)
+		leg.color = Color(1.0, 0.6, 0.65, 1)
+		pig.add_child(leg)
+
+	# Collision
+	var col := CollisionShape2D.new()
+	var shape := RectangleShape2D.new()
+	shape.size = Vector2(24, 14)
+	col.position = Vector2(0, -3)
+	col.shape = shape
+	pig.add_child(col)
+
+	scene_root.add_child(pig)
+
+	# Follow + oink behavior
+	var script := GDScript.new()
+	script.source_code = """extends CharacterBody2D
+
+var _owner: Node2D = null
+var _gravity := 980.0
+var _time := 0.0
+
+func _physics_process(delta):
+	if not _owner or not is_instance_valid(_owner):
+		return
+	_time += delta
+
+	if not is_on_floor():
+		velocity.y += _gravity * delta
+		velocity.y = min(velocity.y, 400.0)
+	else:
+		velocity.y = 0
+
+	var dist = global_position.distance_to(_owner.global_position)
+	if dist > 500 or global_position.y > _owner.global_position.y + 400:
+		global_position = _owner.global_position + Vector2(40, 0)
+		velocity = Vector2.ZERO
+		return
+
+	if dist > 50:
+		var dir = global_position.direction_to(_owner.global_position)
+		velocity.x = dir.x * 100
+	else:
+		velocity.x = move_toward(velocity.x, 0, 80 * delta)
+
+	if is_on_floor() and _owner.global_position.y < global_position.y - 40:
+		velocity.y = -280
+
+	scale.x = -1.0 if velocity.x < -1 else 1.0 if velocity.x > 1 else scale.x
+
+	# Tail wiggle
+	var tail = get_node_or_null(\"Tail\")
+	if tail:
+		tail.rotation = sin(_time * 6.0) * 0.3
+
+	move_and_slide()
+"""
+	script.reload()
+	pig.set_script(script)
+	pig._owner = player
+
+	print("Francis-opia: A cute pink pig appeared! Oink oink!")
+	return pig
+
 func _summon_house(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
+	# Enterable house! Player walks through the open door on the right side.
 	var house := Node2D.new()
-	house.global_position = Vector2(pos.x, 725)  # Place on ground
+	house.name = "MagicHouse"
+	var ground_y := 725.0
+	house.global_position = Vector2(pos.x + 80, ground_y)
 
-	# Foundation
-	var foundation := ColorRect.new()
-	foundation.position = Vector2(-55, -8)
-	foundation.size = Vector2(110, 8)
-	foundation.color = Color(0.5, 0.45, 0.4, 1)
-	house.add_child(foundation)
+	var W := 200.0   # House width
+	var H := 130.0   # Wall height
+	var WALL := 10.0  # Wall thickness
+	var DOOR_W := 48.0
+	var DOOR_H := 56.0
+	var ROOF := 14.0
 
-	# Main walls
-	var walls := ColorRect.new()
-	walls.position = Vector2(-50, -75)
-	walls.size = Vector2(100, 75)
-	walls.color = Color(0.9, 0.75, 0.5, 1)  # Warm wood color
-	house.add_child(walls)
+	# --- Interior background (warm beige, behind everything) ---
+	var interior := ColorRect.new()
+	interior.z_index = -2
+	interior.position = Vector2(WALL, -H + WALL)
+	interior.size = Vector2(W - WALL * 2, H - WALL)
+	interior.color = Color(0.95, 0.87, 0.7, 1)
+	house.add_child(interior)
 
-	# Roof (two angled pieces approximated as rects)
-	var roof_left := ColorRect.new()
-	roof_left.position = Vector2(-58, -100)
-	roof_left.size = Vector2(62, 28)
-	roof_left.color = Color(0.7, 0.25, 0.15, 1)  # Red-brown roof
-	house.add_child(roof_left)
-
-	var roof_right := ColorRect.new()
-	roof_right.position = Vector2(-2, -100)
-	roof_right.size = Vector2(62, 28)
-	roof_right.color = Color(0.65, 0.22, 0.12, 1)
-	house.add_child(roof_right)
-
-	# Roof peak
-	var peak := ColorRect.new()
-	peak.position = Vector2(-10, -110)
-	peak.size = Vector2(20, 12)
-	peak.color = Color(0.75, 0.28, 0.15, 1)
-	house.add_child(peak)
-
-	# Chimney
-	var chimney := ColorRect.new()
-	chimney.position = Vector2(25, -120)
-	chimney.size = Vector2(14, 25)
-	chimney.color = Color(0.55, 0.4, 0.35, 1)
-	house.add_child(chimney)
-
-	# Smoke puffs from chimney
-	for i in 3:
-		var smoke := ColorRect.new()
-		smoke.position = Vector2(28, -125 - i * 12)
-		smoke.size = Vector2(8 + i * 3, 8 + i * 2)
-		smoke.color = Color(0.85, 0.85, 0.85, 0.3 - i * 0.08)
-		house.add_child(smoke)
-
-	# Door
-	var door := ColorRect.new()
-	door.position = Vector2(-12, -40)
-	door.size = Vector2(24, 40)
-	door.color = Color(0.45, 0.28, 0.12, 1)
-	house.add_child(door)
-
-	# Doorknob
-	var knob := ColorRect.new()
-	knob.position = Vector2(7, -22)
-	knob.size = Vector2(4, 4)
-	knob.color = Color(1.0, 0.85, 0.2, 1)
-	house.add_child(knob)
-
-	# Windows (2, with warm light)
-	for wx in [-1, 1]:
-		var win_x := wx * 28 - 9
-		# Window frame
-		var frame := ColorRect.new()
-		frame.position = Vector2(win_x - 2, -62)
-		frame.size = Vector2(22, 22)
-		frame.color = Color(0.4, 0.25, 0.12, 1)
-		house.add_child(frame)
-		# Window glass (warm glow)
-		var glass := ColorRect.new()
-		glass.position = Vector2(win_x, -60)
-		glass.size = Vector2(18, 18)
-		glass.color = Color(1.0, 0.9, 0.5, 0.8)
-		house.add_child(glass)
-		# Window cross
-		var cross_h := ColorRect.new()
-		cross_h.position = Vector2(win_x, -51.5)
-		cross_h.size = Vector2(18, 2)
-		cross_h.color = Color(0.4, 0.25, 0.12, 1)
-		house.add_child(cross_h)
-		var cross_v := ColorRect.new()
-		cross_v.position = Vector2(win_x + 8, -60)
-		cross_v.size = Vector2(2, 18)
-		cross_v.color = Color(0.4, 0.25, 0.12, 1)
-		house.add_child(cross_v)
-
-	# Flower box under left window
-	var flower_box := ColorRect.new()
-	flower_box.position = Vector2(-39, -40)
-	flower_box.size = Vector2(22, 6)
-	flower_box.color = Color(0.45, 0.3, 0.15, 1)
-	house.add_child(flower_box)
-	# Tiny flowers
-	for f in 3:
-		var fl := ColorRect.new()
-		fl.position = Vector2(-36 + f * 7, -46)
-		fl.size = Vector2(5, 6)
-		fl.color = [Color(1, 0.4, 0.5), Color(1, 0.85, 0.2), Color(0.7, 0.4, 1)][f]
-		house.add_child(fl)
-
-	# Welcome mat
-	var mat := ColorRect.new()
-	mat.position = Vector2(-16, -2)
-	mat.size = Vector2(32, 4)
-	mat.color = Color(0.6, 0.3, 0.3, 1)
-	house.add_child(mat)
-
-	# Warm ground glow
+	# Warm ambient glow inside
 	var glow := ColorRect.new()
 	glow.z_index = -1
-	glow.position = Vector2(-60, -8)
-	glow.size = Vector2(120, 16)
-	glow.color = Color(1.0, 0.9, 0.5, 0.08)
+	glow.position = Vector2(WALL + 10, -H + 20)
+	glow.size = Vector2(W - WALL * 2 - 20, H - 30)
+	glow.color = Color(1.0, 0.92, 0.7, 0.12)
 	house.add_child(glow)
+
+	# --- Wooden floor ---
+	var wood_floor := ColorRect.new()
+	wood_floor.z_index = -1
+	wood_floor.position = Vector2(WALL, -6)
+	wood_floor.size = Vector2(W - WALL * 2, 6)
+	wood_floor.color = Color(0.6, 0.38, 0.2, 1)
+	house.add_child(wood_floor)
+
+	# Floor planks (visual detail)
+	for i in 6:
+		var plank := ColorRect.new()
+		plank.z_index = -1
+		plank.position = Vector2(WALL + i * 30, -6)
+		plank.size = Vector2(1, 6)
+		plank.color = Color(0.5, 0.3, 0.15, 0.3)
+		house.add_child(plank)
+
+	# --- LEFT WALL (solid) ---
+	var lw := StaticBody2D.new()
+	lw.position = Vector2(WALL / 2, -H / 2)
+	lw.collision_layer = 1
+	lw.collision_mask = 0
+	house.add_child(lw)
+	var lw_col := CollisionShape2D.new()
+	var lw_shape := RectangleShape2D.new()
+	lw_shape.size = Vector2(WALL, H)
+	lw_col.shape = lw_shape
+	lw.add_child(lw_col)
+	var lw_vis := ColorRect.new()
+	lw_vis.position = Vector2(-WALL / 2, -H / 2)
+	lw_vis.size = Vector2(WALL, H)
+	lw_vis.color = Color(0.78, 0.58, 0.32, 1)
+	lw.add_child(lw_vis)
+
+	# --- RIGHT WALL top segment (above door) ---
+	var rw_top_h := H - DOOR_H
+	var rw := StaticBody2D.new()
+	rw.position = Vector2(W - WALL / 2, -(DOOR_H + rw_top_h / 2))
+	rw.collision_layer = 1
+	rw.collision_mask = 0
+	house.add_child(rw)
+	var rw_col := CollisionShape2D.new()
+	var rw_shape := RectangleShape2D.new()
+	rw_shape.size = Vector2(WALL, rw_top_h)
+	rw_col.shape = rw_shape
+	rw.add_child(rw_col)
+	var rw_vis := ColorRect.new()
+	rw_vis.position = Vector2(-WALL / 2, -rw_top_h / 2)
+	rw_vis.size = Vector2(WALL, rw_top_h)
+	rw_vis.color = Color(0.78, 0.58, 0.32, 1)
+	rw.add_child(rw_vis)
+
+	# Door frame (decorative arch around opening)
+	var door_frame_l := ColorRect.new()
+	door_frame_l.position = Vector2(W - WALL - 6, -DOOR_H)
+	door_frame_l.size = Vector2(6, DOOR_H)
+	door_frame_l.color = Color(0.5, 0.3, 0.15, 1)
+	house.add_child(door_frame_l)
+	var door_frame_r := ColorRect.new()
+	door_frame_r.position = Vector2(W, -DOOR_H)
+	door_frame_r.size = Vector2(6, DOOR_H)
+	door_frame_r.color = Color(0.5, 0.3, 0.15, 1)
+	house.add_child(door_frame_r)
+	var door_frame_top := ColorRect.new()
+	door_frame_top.position = Vector2(W - WALL - 6, -DOOR_H - 4)
+	door_frame_top.size = Vector2(WALL + 12, 4)
+	door_frame_top.color = Color(0.5, 0.3, 0.15, 1)
+	house.add_child(door_frame_top)
+
+	# Welcome mat outside
+	var mat := ColorRect.new()
+	mat.position = Vector2(W - 4, -3)
+	mat.size = Vector2(36, 4)
+	mat.color = Color(0.7, 0.35, 0.3, 1)
+	house.add_child(mat)
+
+	# "WELCOME" text on mat
+	var welcome := Label.new()
+	welcome.text = "WELCOME"
+	welcome.add_theme_font_size_override("font_size", 8)
+	welcome.add_theme_color_override("font_color", Color(1, 0.9, 0.7, 0.7))
+	welcome.position = Vector2(W, -4)
+	house.add_child(welcome)
+
+	# --- ROOF (solid, can stand on) ---
+	var roof_node := StaticBody2D.new()
+	roof_node.position = Vector2(W / 2, -H - ROOF / 2)
+	roof_node.collision_layer = 1
+	roof_node.collision_mask = 0
+	house.add_child(roof_node)
+	var roof_col := CollisionShape2D.new()
+	var roof_shape := RectangleShape2D.new()
+	roof_shape.size = Vector2(W + 24, ROOF)
+	roof_col.shape = roof_shape
+	roof_node.add_child(roof_col)
+	# Main roof
+	var roof_vis := ColorRect.new()
+	roof_vis.position = Vector2(-(W + 24) / 2, -ROOF / 2)
+	roof_vis.size = Vector2(W + 24, ROOF)
+	roof_vis.color = Color(0.7, 0.25, 0.15, 1)
+	roof_node.add_child(roof_vis)
+	# Roof peak (triangular feel)
+	var peak := ColorRect.new()
+	peak.position = Vector2(-(W - 20) / 2, -ROOF / 2 - 18)
+	peak.size = Vector2(W - 20, 18)
+	peak.color = Color(0.75, 0.28, 0.18, 1)
+	roof_node.add_child(peak)
+	# Roof tip
+	var tip := ColorRect.new()
+	tip.position = Vector2(-(W - 80) / 2, -ROOF / 2 - 28)
+	tip.size = Vector2(W - 80, 12)
+	tip.color = Color(0.78, 0.3, 0.2, 1)
+	roof_node.add_child(tip)
+
+	# --- CHIMNEY ---
+	var chimney := ColorRect.new()
+	chimney.position = Vector2(30, -H - ROOF - 20)
+	chimney.size = Vector2(16, 28)
+	chimney.color = Color(0.55, 0.4, 0.35, 1)
+	house.add_child(chimney)
+	# Chimney cap
+	var chimney_cap := ColorRect.new()
+	chimney_cap.position = Vector2(28, -H - ROOF - 24)
+	chimney_cap.size = Vector2(20, 4)
+	chimney_cap.color = Color(0.5, 0.35, 0.3, 1)
+	house.add_child(chimney_cap)
+	# Smoke puffs
+	for i in 3:
+		var smoke := ColorRect.new()
+		smoke.position = Vector2(34, -H - ROOF - 30 - i * 14)
+		smoke.size = Vector2(8 + i * 4, 8 + i * 3)
+		smoke.color = Color(0.85, 0.85, 0.85, 0.25 - i * 0.07)
+		house.add_child(smoke)
+
+	# --- INTERIOR DECORATIONS ---
+
+	# Back wall window with warm light
+	var win_frame := ColorRect.new()
+	win_frame.z_index = -1
+	win_frame.position = Vector2(W * 0.35, -H + 30)
+	win_frame.size = Vector2(30, 26)
+	win_frame.color = Color(0.5, 0.32, 0.15, 1)
+	house.add_child(win_frame)
+	var win_glass := ColorRect.new()
+	win_glass.z_index = -1
+	win_glass.position = Vector2(W * 0.35 + 3, -H + 33)
+	win_glass.size = Vector2(24, 20)
+	win_glass.color = Color(0.7, 0.85, 1.0, 0.8)
+	house.add_child(win_glass)
+	var win_cross_h := ColorRect.new()
+	win_cross_h.z_index = -1
+	win_cross_h.position = Vector2(W * 0.35 + 3, -H + 42)
+	win_cross_h.size = Vector2(24, 2)
+	win_cross_h.color = Color(0.5, 0.32, 0.15, 1)
+	house.add_child(win_cross_h)
+	var win_cross_v := ColorRect.new()
+	win_cross_v.z_index = -1
+	win_cross_v.position = Vector2(W * 0.35 + 14, -H + 33)
+	win_cross_v.size = Vector2(2, 20)
+	win_cross_v.color = Color(0.5, 0.32, 0.15, 1)
+	house.add_child(win_cross_v)
+
+	# Fireplace on left wall
+	var fireplace := ColorRect.new()
+	fireplace.z_index = -1
+	fireplace.position = Vector2(WALL + 8, -44)
+	fireplace.size = Vector2(30, 44)
+	fireplace.color = Color(0.45, 0.35, 0.3, 1)
+	house.add_child(fireplace)
+	var mantel := ColorRect.new()
+	mantel.z_index = -1
+	mantel.position = Vector2(WALL + 4, -48)
+	mantel.size = Vector2(38, 6)
+	mantel.color = Color(0.55, 0.38, 0.22, 1)
+	house.add_child(mantel)
+	# Fire glow
+	var fire1 := ColorRect.new()
+	fire1.z_index = -1
+	fire1.position = Vector2(WALL + 14, -22)
+	fire1.size = Vector2(12, 16)
+	fire1.color = Color(1.0, 0.6, 0.1, 0.8)
+	house.add_child(fire1)
+	var fire2 := ColorRect.new()
+	fire2.z_index = -1
+	fire2.position = Vector2(WALL + 18, -28)
+	fire2.size = Vector2(6, 10)
+	fire2.color = Color(1.0, 0.85, 0.2, 0.9)
+	house.add_child(fire2)
+	# Warm fire glow on floor
+	var fire_glow := ColorRect.new()
+	fire_glow.z_index = -1
+	fire_glow.position = Vector2(WALL + 6, -10)
+	fire_glow.size = Vector2(50, 10)
+	fire_glow.color = Color(1.0, 0.7, 0.3, 0.1)
+	house.add_child(fire_glow)
+
+	# Cozy bed on right side
+	var bed_frame := ColorRect.new()
+	bed_frame.z_index = -1
+	bed_frame.position = Vector2(W - WALL - 60, -18)
+	bed_frame.size = Vector2(48, 18)
+	bed_frame.color = Color(0.5, 0.32, 0.18, 1)
+	house.add_child(bed_frame)
+	var mattress := ColorRect.new()
+	mattress.z_index = -1
+	mattress.position = Vector2(W - WALL - 58, -26)
+	mattress.size = Vector2(44, 10)
+	mattress.color = Color(0.55, 0.4, 0.75, 1)
+	house.add_child(mattress)
+	var pillow := ColorRect.new()
+	pillow.z_index = -1
+	pillow.position = Vector2(W - WALL - 58, -30)
+	pillow.size = Vector2(14, 6)
+	pillow.color = Color(1, 1, 1, 0.85)
+	house.add_child(pillow)
+	var blanket := ColorRect.new()
+	blanket.z_index = -1
+	blanket.position = Vector2(W - WALL - 40, -28)
+	blanket.size = Vector2(26, 12)
+	blanket.color = Color(0.7, 0.3, 0.35, 0.8)
+	house.add_child(blanket)
+
+	# Small rug in center
+	var rug := ColorRect.new()
+	rug.z_index = -1
+	rug.position = Vector2(W * 0.35, -5)
+	rug.size = Vector2(40, 5)
+	rug.color = Color(0.65, 0.25, 0.25, 0.6)
+	house.add_child(rug)
+
+	# Flower box under exterior left wall window
+	var ext_win_frame := ColorRect.new()
+	ext_win_frame.position = Vector2(-2, -H + 30)
+	ext_win_frame.size = Vector2(14, 20)
+	ext_win_frame.color = Color(0.5, 0.32, 0.15, 1)
+	house.add_child(ext_win_frame)
+	var ext_win_glass := ColorRect.new()
+	ext_win_glass.position = Vector2(0, -H + 33)
+	ext_win_glass.size = Vector2(10, 14)
+	ext_win_glass.color = Color(1.0, 0.9, 0.5, 0.7)
+	house.add_child(ext_win_glass)
+
+	# Flower box under exterior window
+	var fbox := ColorRect.new()
+	fbox.position = Vector2(-4, -H + 52)
+	fbox.size = Vector2(18, 5)
+	fbox.color = Color(0.45, 0.3, 0.15, 1)
+	house.add_child(fbox)
+	var flower_colors := [Color(1, 0.4, 0.5), Color(1, 0.85, 0.2), Color(0.7, 0.4, 1)]
+	for f in 3:
+		var fl := ColorRect.new()
+		fl.position = Vector2(-2 + f * 6, -H + 47)
+		fl.size = Vector2(4, 5)
+		fl.color = flower_colors[f]
+		house.add_child(fl)
+
+	# "HOME" sign above door
+	var sign_board := ColorRect.new()
+	sign_board.position = Vector2(W - WALL - 4, -DOOR_H - 18)
+	sign_board.size = Vector2(WALL + 14, 12)
+	sign_board.color = Color(0.5, 0.32, 0.18, 1)
+	house.add_child(sign_board)
+	var home_label := Label.new()
+	home_label.text = "HOME"
+	home_label.add_theme_font_size_override("font_size", 10)
+	home_label.add_theme_color_override("font_color", Color(1, 0.9, 0.6))
+	home_label.position = Vector2(W - WALL - 1, -DOOR_H - 17)
+	house.add_child(home_label)
 
 	scene_root.add_child(house)
 
@@ -1103,7 +1477,7 @@ func _summon_house(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
 	tween.tween_property(house, "scale", Vector2(1.1, 1.1), 0.5).set_trans(Tween.TRANS_BACK)
 	tween.tween_property(house, "scale", Vector2(1.0, 1.0), 0.2)
 
-	print("Francis-opia: ✨ A cozy house appeared! Home sweet home!")
+	print("Francis-opia: A cozy house appeared! Walk through the door to go inside!")
 	return house
 
 # --- HELPER: Get hint shape for HUD ---

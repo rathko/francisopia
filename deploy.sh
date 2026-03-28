@@ -106,12 +106,83 @@ if [ "$DO_DEPLOY" = true ]; then
         err "No export found at ${EXPORT_DIR}/${BINARY_NAME}\n  Run ./deploy.sh --export first"
     fi
 
-    # Test SSH connection
-    if ! ssh -o ConnectTimeout=5 -o BatchMode=yes "${DECK_USER}@${DECK_HOST}" "echo ok" &>/dev/null; then
-        err "Cannot connect to ${DECK_USER}@${DECK_HOST}\n  Check: SSH enabled? IP correct? SSH key set up?"
+    # Show what we're about to transfer
+    TOTAL_SIZE=0
+    log "Files to transfer:"
+    for f in "${EXPORT_DIR}/${BINARY_NAME}" "${GAME_DIR}/icon.png" "${GAME_DIR}/francisopia.desktop"; do
+        if [ -f "$f" ]; then
+            FSIZE=$(du -sh "$f" | cut -f1)
+            echo -e "  ${BLUE}-${NC} $(basename "$f") (${FSIZE})"
+        fi
+    done
+
+    # Test SSH connection — stream output to detect Tailscale auth prompts in real-time.
+    # Tailscale SSH prints the auth URL and then BLOCKS waiting for browser approval,
+    # so we can't use $(ssh ...) — it would hang without showing anything.
+    log "Testing SSH connection to ${DECK_HOST}..."
+    SSH_START=$(date +%s)
+    SSH_LOG=$(mktemp /tmp/deploy-ssh-XXXXXX)
+
+    # Run ssh in background, tee output to both file and a live filter
+    ssh -o ConnectTimeout=10 "${DECK_USER}@${DECK_HOST}" "echo __DEPLOY_OK__" \
+        >"${SSH_LOG}" 2>&1 &
+    SSH_PID=$!
+
+    # Monitor the output file for auth URLs or success, with a 120s timeout
+    WAITED=0
+    AUTH_SHOWN=false
+    while kill -0 "$SSH_PID" 2>/dev/null; do
+        # Check for Tailscale auth URL
+        if [ "$AUTH_SHOWN" = false ] && grep -qi "login.tailscale.com" "${SSH_LOG}" 2>/dev/null; then
+            AUTH_URL=$(grep -oE 'https://login\.tailscale\.com/[^ ]+' "${SSH_LOG}" | head -1)
+            echo ""
+            echo -e "  ${YELLOW}━━━ Tailscale SSH auth required ━━━${NC}"
+            echo -e "  ${YELLOW}Open this URL in your browser:${NC}"
+            echo ""
+            echo -e "    ${GREEN}${AUTH_URL}${NC}"
+            echo ""
+            echo -e "  ${YELLOW}Waiting for you to approve...${NC}"
+            AUTH_SHOWN=true
+        fi
+
+        sleep 1
+        WAITED=$((WAITED + 1))
+
+        # Progress dots while waiting for auth
+        if [ "$AUTH_SHOWN" = true ] && [ $((WAITED % 5)) -eq 0 ]; then
+            echo -ne "  ${BLUE}.${NC}"
+        fi
+
+        if [ "$WAITED" -ge 120 ]; then
+            kill "$SSH_PID" 2>/dev/null || true
+            echo ""
+            err "SSH timed out after 120s.\n  $(cat "${SSH_LOG}")"
+        fi
+    done
+
+    wait "$SSH_PID" 2>/dev/null || true
+    SSH_END=$(date +%s)
+    SSH_ELAPSED=$((SSH_END - SSH_START))
+
+    if [ "$AUTH_SHOWN" = true ]; then
+        echo ""
     fi
 
+    if grep -q "__DEPLOY_OK__" "${SSH_LOG}" 2>/dev/null; then
+        ok "SSH connection OK (${SSH_ELAPSED}s)"
+    else
+        SSH_CONTENT=$(cat "${SSH_LOG}")
+        rm -f "${SSH_LOG}"
+        if echo "$SSH_CONTENT" | grep -qi "Connection timed out\|No route\|Could not resolve"; then
+            err "Cannot reach ${DECK_HOST} (${SSH_ELAPSED}s)\n  Is Steam Deck on? Is Tailscale running?\n  Check: tailscale status"
+        else
+            err "SSH failed (${SSH_ELAPSED}s)\n  Output: ${SSH_CONTENT}"
+        fi
+    fi
+    rm -f "${SSH_LOG}"
+
     # Create destination and sync
+    log "Creating ${DECK_PATH} on deck..."
     ssh "${DECK_USER}@${DECK_HOST}" "mkdir -p '${DECK_PATH}'"
 
     # Build file list: binary + icon + desktop entry
@@ -121,9 +192,14 @@ if [ "$DO_DEPLOY" = true ]; then
     fi
     SYNC_FILES+=("${GAME_DIR}/francisopia.desktop")
 
-    rsync -avz --progress \
+    log "Starting rsync transfer..."
+    RSYNC_START=$(date +%s)
+    rsync -avz --progress --stats --human-readable \
         "${SYNC_FILES[@]}" \
         "${DECK_USER}@${DECK_HOST}:${DECK_PATH}/"
+    RSYNC_END=$(date +%s)
+    RSYNC_ELAPSED=$((RSYNC_END - RSYNC_START))
+    ok "Transfer complete (${RSYNC_ELAPSED}s)"
 
     # Make executable on deck
     ssh "${DECK_USER}@${DECK_HOST}" "chmod +x '${DECK_PATH}/${BINARY_NAME}'"
