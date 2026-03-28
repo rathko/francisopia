@@ -28,27 +28,27 @@ func setup(letter_char: String, is_needed: bool) -> void:
 	if label:
 		label.text = _letter
 		if is_needed:
-			# BIG bright GREEN letter — unmistakable for a 5-year-old!
-			label.add_theme_font_size_override("font_size", 72)
-			label.modulate = Color(0.2, 1.0, 0.3, 1.0)  # Bright green = correct!
-			label.add_theme_color_override("font_outline_color", Color(0.0, 0.4, 0.1))
-			label.add_theme_constant_override("outline_size", 4)
+			# BIG golden letter — inspired by mockup 08-word-ui-mockup-dog.png
+			label.add_theme_font_size_override("font_size", 96)
+			label.modulate = Color(1.0, 0.9, 0.3, 1.0)  # Warm golden = magical
+			label.add_theme_color_override("font_outline_color", Color(0.6, 0.4, 0.0))
+			label.add_theme_constant_override("outline_size", 6)
 		else:
-			# Smaller, gray, obviously not the right one
-			label.add_theme_font_size_override("font_size", 36)
-			label.modulate = Color(0.5, 0.5, 0.55, 0.45)
+			# Smaller, dim, clearly not the right one
+			label.add_theme_font_size_override("font_size", 48)
+			label.modulate = Color(0.5, 0.5, 0.55, 0.3)
 
-	# Glow background — bright for needed, dim for distractors
+	# Glow background — bright warm glow for needed, dim for distractors
 	var bg := get_node_or_null("Background")
 	if bg:
 		if is_needed:
-			bg.color = Color(0.2, 1.0, 0.3, 0.35)  # Green glow
-			bg.offset_left = -32
-			bg.offset_top = -32
-			bg.offset_right = 32
-			bg.offset_bottom = 32
+			bg.color = Color(1.0, 0.85, 0.2, 0.25)  # Golden glow
+			bg.offset_left = -40
+			bg.offset_top = -40
+			bg.offset_right = 40
+			bg.offset_bottom = 40
 		else:
-			bg.color = Color(0.4, 0.4, 0.5, 0.15)
+			bg.color = Color(0.4, 0.4, 0.5, 0.1)
 			bg.offset_left = -16
 			bg.offset_top = -16
 			bg.offset_right = 16
@@ -64,13 +64,13 @@ func _process(delta: float) -> void:
 	global_position.y = _base_position.y + offset
 	global_position.x = _base_position.x + sin(_time * 0.3 + _phase_offset) * 10.0
 
-	# Needed letters PULSE big and bright to attract attention
+	# Needed letters PULSE big and bright — warm golden glow
 	if _is_needed and label:
-		var pulse := 0.9 + sin(_time * 2.5) * 0.3  # Pulse between 0.6 and 1.2 scale
+		var pulse := 0.95 + sin(_time * 2.0) * 0.15  # Gentle pulse
 		label.scale = Vector2(pulse, pulse)
-		# Slight color shimmer between green and gold
-		var shimmer := (sin(_time * 4.0) + 1.0) * 0.5  # 0.0 to 1.0
-		label.modulate = Color(0.2 + shimmer * 0.8, 1.0, 0.3, 1.0)
+		# Warm golden shimmer
+		var shimmer := (sin(_time * 3.0) + 1.0) * 0.5
+		label.modulate = Color(1.0, 0.85 + shimmer * 0.15, 0.2 + shimmer * 0.2, 1.0)
 
 func get_letter() -> String:
 	return _letter
@@ -80,7 +80,13 @@ func is_needed() -> bool:
 
 func collect() -> void:
 	_collected = true
-	AudioManager.play_letter_sound(_letter)
+	# Play correct phoneme for this letter position in the word
+	# Approach C: first letter of a digraph triggers the sound, rest are silent
+	# e.g., "S" in "SHIP" plays /sh/, "H" plays nothing
+	var phoneme := get_node_or_null("/root/PhonemePlayer")
+	if phoneme:
+		var pos := WordEngine.collected_letters.size() - 1
+		phoneme.play_phoneme_for_position(WordEngine.current_target_word, pos)
 	# Ascending pentatonic chime based on position in word
 	var sfx := get_node_or_null("/root/SoundFX")
 	if sfx:

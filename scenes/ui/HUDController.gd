@@ -3,6 +3,7 @@ extends CanvasLayer
 ## Phase 7: Andika font, styled letter slots, coin icon, polished layout.
 
 var _hint_label: RichTextLabel = null
+var _phonetic_label: Label = null
 var _word_box: HBoxContainer = null
 var _coin_label: Label = null
 var _weapon_label: Label = null
@@ -66,6 +67,18 @@ func _ready() -> void:
 	_word_box.alignment = BoxContainer.ALIGNMENT_CENTER
 	_word_box.add_theme_constant_override("separation", 8)
 	root_ctrl.add_child(_word_box)
+
+	# Phonetic spelling hint below letter slots
+	_phonetic_label = Label.new()
+	_phonetic_label.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	_phonetic_label.offset_top = 155.0
+	_phonetic_label.offset_bottom = 180.0
+	_phonetic_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_phonetic_label.add_theme_font_size_override("font_size", 22)
+	_phonetic_label.add_theme_color_override("font_color", Color(0.7, 0.7, 0.8, 0.5))
+	if _bold_font:
+		_phonetic_label.add_theme_font_override("font", _bold_font)
+	root_ctrl.add_child(_phonetic_label)
 
 	# Coin display with icon
 	var coin_container := HBoxContainer.new()
@@ -169,6 +182,14 @@ func _on_target_word_changed(word: String, hint_image: String) -> void:
 	bbcode += "[/center]"
 	_hint_label.text = bbcode
 
+	# Phonetic spelling hint — shows sound segments (e.g., "f - i - sh")
+	if _phonetic_label:
+		var phoneme_player := get_node_or_null("/root/PhonemePlayer")
+		if phoneme_player:
+			_phonetic_label.text = phoneme_player.get_phonetic_spelling(word)
+		else:
+			_phonetic_label.text = ""
+
 	# Create styled letter slots with rounded backgrounds
 	_letter_panels.clear()
 	for i in word.length():
@@ -200,16 +221,35 @@ func _on_target_word_changed(word: String, hint_image: String) -> void:
 		_letter_panels.append(panel)
 
 func _on_letter_collected(letter: String, position: int) -> void:
-	if position < _letter_labels.size():
-		_letter_labels[position].text = letter
-		_letter_labels[position].add_theme_color_override("font_color", Color(0.3, 1.0, 0.3))
-		_letter_labels[position].add_theme_font_size_override("font_size", 60)
-		if position < _letter_panels.size():
-			_apply_slot_style(_letter_panels[position],
-				Color(0.1, 0.25, 0.12, 0.7), Color(0.3, 0.8, 0.3, 0.5))
-		var tween := create_tween()
-		tween.tween_property(_letter_labels[position], "scale", Vector2(1.4, 1.4), 0.1)
-		tween.tween_property(_letter_labels[position], "scale", Vector2(1.0, 1.0), 0.1)
+	if position >= _letter_labels.size():
+		return
+	_letter_labels[position].text = letter
+	_letter_labels[position].add_theme_color_override("font_color", Color(0.3, 1.0, 0.3))
+	_letter_labels[position].add_theme_font_size_override("font_size", 60)
+	if position < _letter_panels.size():
+		_apply_slot_style(_letter_panels[position],
+			Color(0.1, 0.25, 0.12, 0.7), Color(0.3, 0.8, 0.3, 0.5))
+	var tween := create_tween()
+	tween.tween_property(_letter_labels[position], "scale", Vector2(1.4, 1.4), 0.1)
+	tween.tween_property(_letter_labels[position], "scale", Vector2(1.0, 1.0), 0.1)
+
+	# Digraph grouping: if this letter is the first of a digraph (e.g., S in "sh"),
+	# also light up the partner slot(s) to show they're one sound unit
+	var phoneme_player := get_node_or_null("/root/PhonemePlayer")
+	if phoneme_player:
+		var partners: Dictionary = phoneme_player.get_digraph_partner_positions(
+			WordEngine.current_target_word)
+		if position in partners:
+			for partner_pos: int in partners[position]:
+				if partner_pos < _letter_labels.size() and partner_pos < _letter_panels.size():
+					# Show the partner letter and style it as "grouped"
+					var partner_letter := WordEngine.current_target_word[partner_pos]
+					_letter_labels[partner_pos].text = partner_letter
+					_letter_labels[partner_pos].add_theme_color_override(
+						"font_color", Color(0.3, 0.85, 0.5, 0.7))  # Slightly dimmer green
+					_letter_labels[partner_pos].add_theme_font_size_override("font_size", 56)
+					_apply_slot_style(_letter_panels[partner_pos],
+						Color(0.1, 0.22, 0.12, 0.5), Color(0.3, 0.7, 0.3, 0.3))  # Subtler
 
 func _on_letter_lost() -> void:
 	var lost_index := WordEngine.collected_letters.size()

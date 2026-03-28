@@ -64,12 +64,17 @@
 - 8-player AudioStreamPlayer pool with round-robin recycling
 - All parameters exposed as top-of-file constants for easy tweaking
 
-### Phase 8b: Phoneme Sounds
-- [ ] Record or source CC0 phoneme audio for A-Z (letter sounds, not names)
-- [ ] Play phoneme on letter collection (before/alongside chime)
-- [ ] Voice bus at 0 dB (loudest — phoneme clarity is paramount)
-- [ ] Music auto-ducks via sidechain when phoneme plays
-- **Impact:** Letter-sound knowledge is the #1 predictor of reading success. This is THE learning feature.
+### Phase 8b: Phoneme Sounds -- COMPLETE (2026-03-29)
+- 48 phoneme audio files generated with ElevenLabs Alice voice (not just 26 letters)
+- Full 44-phoneme coverage: single letters + digraphs (sh, ch, th, ng, ck) + vowel teams (ee, oo, ai, oa, ow, ou) + r-controlled (ar, or, er, ir) + split digraphs (a_e, i_e, o_e, u_e)
+- phoneme_map.json with correct phoneme segmentation for all 161 words (e.g., "fish" -> ["f","i","sh"])
+- PhonemePlayer autoload loads phonemes + word pronunciations from swappable voice directory
+- Plays correct phoneme-in-context on letter collection (not just the letter sound)
+- 28 starter word full pronunciations generated
+- Phonetic spelling displayed in HUD below letter slots (e.g., "f - i - sh")
+- Voice bus at 0 dB (loudest), volume slider in pause menu
+- Voice generation guide at docs/voice-generation.md for adding new personas
+- Licensing note: free tier = dev only; Starter tier ($5/mo) needed for commercial release
 
 ### Phase 9: Terrain Edge Darkening (Terraria)
 - [ ] Exposed block faces get 2-4px darker border on air-facing edges

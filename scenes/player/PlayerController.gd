@@ -501,7 +501,7 @@ func _try_companion_swap() -> bool:
 	return false
 
 func _handle_teleport() -> void:
-	if _is_teleport_just_pressed() and "portal" in GameManager.words_summoned:
+	if _is_teleport_just_pressed() and ("zap" in GameManager.words_summoned or "portal" in GameManager.words_summoned):
 		teleport_beacon_requested.emit(global_position)
 
 func _check_respawn() -> void:

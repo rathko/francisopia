@@ -97,6 +97,7 @@ var summon_registry: Dictionary = {
 	"hammer": {"type": "item", "builder": "_summon_hammer", "label": "Dig faster now!", "color": Color(0.6, 0.6, 0.65)},
 	"house": {"type": "world", "builder": "_summon_house", "label": "A cozy house!", "color": Color(0.85, 0.55, 0.25)},
 	"portal": {"type": "world", "builder": "_summon_portal_unlock", "label": "Portals unlocked!", "color": Color(0.6, 0.2, 0.9)},
+	"zap": {"type": "world", "builder": "_summon_portal_unlock", "label": "Zap! Teleport!", "color": Color(0.6, 0.2, 0.9)},
 
 	# === LEVEL 3+: Long vowels / complex ===
 	"flower": {"type": "world", "builder": "_summon_flower_garden", "label": "A flower garden!", "color": Color(1.0, 0.5, 0.7)},
@@ -302,6 +303,7 @@ func _play_summon_animation(word: String, entry: Dictionary) -> void:
 	# Word completion chord + summon type accent
 	SoundFX.play_word_complete()
 	SoundFX.play_summon_accent(entry.get("type", "world"))
+	# Word pronunciation handled by PhonemePlayer via WordEngine.word_spelled_correctly signal
 	# Camera zoom + gentle shake
 	var active_camera := get_viewport().get_camera_2d()
 	MagicVFX.camera_word_complete(active_camera)

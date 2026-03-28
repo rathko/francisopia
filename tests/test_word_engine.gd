@@ -119,7 +119,7 @@ func test_force_house_at_3_companions() -> void:
 	var orig_starter_idx := WordEngine._starter_index
 	var orig_starter_done := WordEngine._starter_complete
 
-	# Simulate 3 companions, no house
+	# Simulate 3 companions, no hut
 	GameManager.words_summoned.clear()
 	GameManager.words_summoned.append("dog")
 	GameManager.words_summoned.append("cat")
@@ -127,7 +127,7 @@ func test_force_house_at_3_companions() -> void:
 	WordEngine._starter_complete = true
 
 	var word := WordEngine.select_word_for_area("meadow")
-	assert_eq(word, "HOUSE", "Should force HOUSE when 3 companions and no house")
+	assert_eq(word, "HUT", "Should force HUT when 3 companions and no hut")
 
 	# Cleanup
 	GameManager.words_summoned.clear()

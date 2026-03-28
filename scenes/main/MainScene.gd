@@ -372,11 +372,11 @@ func _get_flat_zones(chunk_index: int) -> Array[Dictionary]:
 		var center := chunk_index * BLOCKS_PER_CHUNK + start_x + STAIRWELL_WIDTH / 2
 		zones.append({"center": center, "flat_radius": 4, "blend_radius": 6})
 		# House flat zone next to stairwell (if houses are unlocked)
-		if "house" in GameManager.words_summoned:
+		if "hut" in GameManager.words_summoned or "house" in GameManager.words_summoned:
 			var house_center := center + 10  # House is placed to the right of stairwell
 			zones.append({"center": house_center, "flat_radius": 8, "blend_radius": 12})
 	# Home castle (chunk 0, near spawn)
-	if "house" in GameManager.words_summoned and chunk_index == 0:
+	if "hut" in GameManager.words_summoned or "house" in GameManager.words_summoned and chunk_index == 0:
 		var home_center := 12 + 8  # Player starts at x=400, ~block 12. House at +8 blocks right
 		zones.append({"center": home_center, "flat_radius": 10, "blend_radius": 14})
 	return zones
@@ -609,7 +609,7 @@ func _generate_chunk(index: int) -> void:
 		# Surface marker
 		_add_stairwell_marker(chunk, stairwell_start_x)
 		# Teleport pad next to stairwell exit in L2 (only if player has spelled "portal")
-		if "portal" in GameManager.words_summoned:
+		if "zap" in GameManager.words_summoned or "portal" in GameManager.words_summoned:
 			var l2_sky_h: float = LEVEL_CONFIGS[1].get("sky_height", 450.0)
 			var l2_ground_y := bedrock_y + 20 + l2_sky_h
 			_add_teleport_pad(chunk, Vector2(
@@ -618,7 +618,7 @@ func _generate_chunk(index: int) -> void:
 				Vector2(stairwell_start_x * BLOCK_SIZE + BLOCK_SIZE * 3, GROUND_Y - 40),
 				"Level 1")
 		# House appears near every stairwell once the player has spelled "house"
-		if "house" in GameManager.words_summoned:
+		if "hut" in GameManager.words_summoned or "house" in GameManager.words_summoned:
 			var stairwell_right_x := (stairwell_start_x + STAIRWELL_WIDTH + 2) * BLOCK_SIZE
 			var surface_ground := _get_ground_y_at_px(index, stairwell_right_x, stairwell_centers)
 			_add_stairwell_house(chunk, Vector2(stairwell_right_x, surface_ground))
@@ -1814,7 +1814,7 @@ func _apply_big_scale(magic_summon: Node) -> void:
 			print("Francis-opia: %s is still BIG!" % entity.name)
 
 # Words that change the world when spelled — triggers chunk regeneration
-const WORLD_CHANGING_WORDS := ["tree", "portal", "house"]
+const WORLD_CHANGING_WORDS := ["tree", "portal", "house", "hut", "zap"]
 
 func _on_world_word_completed(word: String) -> void:
 	if word.to_lower() in WORLD_CHANGING_WORDS:

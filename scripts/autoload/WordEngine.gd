@@ -22,7 +22,8 @@ var _recent_words: Array[String] = []  # Last N words to avoid repetition
 const RECENT_WORD_MEMORY := 5  # How many recent words to avoid repeating
 
 # Fixed starter sequence — these words always come first in order
-var _starter_sequence: Array[String] = ["dog", "sun", "cat", "hat"]
+# Phonics-informed: CVC words the child already knows, pets early for engagement
+var _starter_sequence: Array[String] = ["cat", "dog", "sun", "hut"]
 var _starter_index := 0
 var _starter_complete := false
 
@@ -155,136 +156,142 @@ func _use_builtin_words() -> void:
 		{"word": "bun", "level": 1, "area": "meadow", "image": "bun"},
 		{"word": "bow", "level": 1, "area": "meadow", "image": "bow"},
 
+		# Level 1 additions — building + teleport
+		{"word": "hut", "level": 1, "area": "meadow", "image": "hut"},
+		{"word": "zap", "level": 1, "area": "meadow", "image": "zap"},
+
 		# ============================================================
-		# LEVEL 2 — CCVC/CVCC blends, digraphs, 4-letter words
-		# Consonant blends (bl, st, fr, etc.) and digraphs (sh, ch, th)
+		# LEVEL 2 — CCVC/CVCC consonant blends
+		# Two consonants together (fr, cr, dr, st, mp, nd, etc.)
 		# ============================================================
-		{"word": "fish", "level": 2, "area": "meadow", "image": "fish"},
-		{"word": "bird", "level": 2, "area": "meadow", "image": "bird"},
-		{"word": "frog", "level": 2, "area": "meadow", "image": "frog"},
-		{"word": "star", "level": 2, "area": "meadow", "image": "star"},
-		{"word": "tree", "level": 2, "area": "meadow", "image": "tree"},
-		{"word": "jump", "level": 2, "area": "meadow", "image": "jump"},
-		{"word": "hand", "level": 2, "area": "meadow", "image": "hand"},
-		{"word": "leaf", "level": 2, "area": "meadow", "image": "leaf"},
-		{"word": "ship", "level": 2, "area": "meadow", "image": "ship"},
-		{"word": "drum", "level": 2, "area": "meadow", "image": "drum"},
-		{"word": "flag", "level": 2, "area": "meadow", "image": "flag"},
 		{"word": "frog", "level": 2, "area": "meadow", "image": "frog"},
 		{"word": "crab", "level": 2, "area": "meadow", "image": "crab"},
+		{"word": "drum", "level": 2, "area": "meadow", "image": "drum"},
+		{"word": "flag", "level": 2, "area": "meadow", "image": "flag"},
+		{"word": "jump", "level": 2, "area": "meadow", "image": "jump"},
+		{"word": "hand", "level": 2, "area": "meadow", "image": "hand"},
+		{"word": "lamp", "level": 2, "area": "meadow", "image": "lamp"},
+		{"word": "pond", "level": 2, "area": "meadow", "image": "pond"},
+		{"word": "nest", "level": 2, "area": "meadow", "image": "nest"},
+		{"word": "tent", "level": 2, "area": "meadow", "image": "tent"},
+		{"word": "sand", "level": 2, "area": "meadow", "image": "sand"},
+		{"word": "milk", "level": 2, "area": "meadow", "image": "milk"},
+		{"word": "gold", "level": 2, "area": "meadow", "image": "gold"},
 		{"word": "swim", "level": 2, "area": "meadow", "image": "swim"},
 		{"word": "clap", "level": 2, "area": "meadow", "image": "clap"},
 		{"word": "snap", "level": 2, "area": "meadow", "image": "snap"},
 		{"word": "drop", "level": 2, "area": "meadow", "image": "drop"},
 		{"word": "step", "level": 2, "area": "meadow", "image": "step"},
-		{"word": "pond", "level": 2, "area": "meadow", "image": "pond"},
-		{"word": "lamp", "level": 2, "area": "meadow", "image": "lamp"},
-		{"word": "sand", "level": 2, "area": "meadow", "image": "sand"},
-		{"word": "nest", "level": 2, "area": "meadow", "image": "nest"},
-		{"word": "tent", "level": 2, "area": "meadow", "image": "tent"},
 		{"word": "wind", "level": 2, "area": "meadow", "image": "wind"},
-		{"word": "ring", "level": 2, "area": "meadow", "image": "ring"},
-		{"word": "king", "level": 2, "area": "meadow", "image": "king"},
-		{"word": "sing", "level": 2, "area": "meadow", "image": "sing"},
+		{"word": "worm", "level": 2, "area": "meadow", "image": "worm"},
 		{"word": "bell", "level": 2, "area": "meadow", "image": "bell"},
 		{"word": "hill", "level": 2, "area": "meadow", "image": "hill"},
 		{"word": "well", "level": 2, "area": "meadow", "image": "well"},
-		{"word": "duck", "level": 2, "area": "meadow", "image": "duck"},
-		{"word": "rock", "level": 2, "area": "meadow", "image": "rock"},
-		{"word": "lock", "level": 2, "area": "meadow", "image": "lock"},
-		{"word": "sock", "level": 2, "area": "meadow", "image": "sock"},
-		{"word": "milk", "level": 2, "area": "meadow", "image": "milk"},
-		{"word": "gold", "level": 2, "area": "meadow", "image": "gold"},
-		{"word": "path", "level": 2, "area": "meadow", "image": "path"},
-		{"word": "bath", "level": 2, "area": "meadow", "image": "bath"},
-		{"word": "moon", "level": 2, "area": "meadow", "image": "moon"},
-		{"word": "boot", "level": 2, "area": "meadow", "image": "boot"},
-		{"word": "rain", "level": 2, "area": "meadow", "image": "rain"},
-		{"word": "snow", "level": 2, "area": "meadow", "image": "snow"},
-		{"word": "seed", "level": 2, "area": "meadow", "image": "seed"},
-		{"word": "worm", "level": 2, "area": "meadow", "image": "worm"},
-		{"word": "hammer", "level": 2, "area": "meadow", "image": "hammer"},
-		{"word": "house", "level": 2, "area": "meadow", "image": "house"},
-
-		{"word": "portal", "level": 2, "area": "meadow", "image": "portal"},
 
 		# ============================================================
-		# LEVEL 3 — Long vowels, CVCe (magic E), vowel teams, multi-syllable
+		# LEVEL 3 — Digraphs (sh, ch, th, ck, ng) + vowel teams (ee, oo, ai, oa)
+		# Two letters making ONE sound
 		# ============================================================
-		{"word": "cake", "level": 3, "area": "meadow", "image": "cake"},
-		{"word": "lake", "level": 3, "area": "meadow", "image": "lake"},
-		{"word": "cave", "level": 3, "area": "meadow", "image": "cave"},
-		{"word": "wave", "level": 3, "area": "meadow", "image": "wave"},
-		{"word": "bone", "level": 3, "area": "meadow", "image": "bone"},
-		{"word": "home", "level": 3, "area": "meadow", "image": "home"},
-		{"word": "rope", "level": 3, "area": "meadow", "image": "rope"},
-		{"word": "kite", "level": 3, "area": "meadow", "image": "kite"},
-		{"word": "bike", "level": 3, "area": "meadow", "image": "bike"},
-		{"word": "fire", "level": 3, "area": "meadow", "image": "fire"},
-		{"word": "cube", "level": 3, "area": "meadow", "image": "cube"},
-		{"word": "tube", "level": 3, "area": "meadow", "image": "tube"},
-		{"word": "rose", "level": 3, "area": "meadow", "image": "rose"},
-		{"word": "nose", "level": 3, "area": "meadow", "image": "nose"},
-		{"word": "gate", "level": 3, "area": "meadow", "image": "gate"},
-		{"word": "vine", "level": 3, "area": "meadow", "image": "vine"},
-		{"word": "boat", "level": 3, "area": "meadow", "image": "boat"},
-		{"word": "goat", "level": 3, "area": "meadow", "image": "goat"},
-		{"word": "toad", "level": 3, "area": "meadow", "image": "toad"},
-		{"word": "snail", "level": 3, "area": "meadow", "image": "snail"},
-		{"word": "train", "level": 3, "area": "meadow", "image": "train"},
-		{"word": "sheep", "level": 3, "area": "meadow", "image": "sheep"},
-		{"word": "queen", "level": 3, "area": "meadow", "image": "queen"},
-		{"word": "mouse", "level": 3, "area": "meadow", "image": "mouse"},
-		{"word": "cloud", "level": 3, "area": "meadow", "image": "cloud"},
-		{"word": "crown", "level": 3, "area": "meadow", "image": "crown"},
-		{"word": "flower", "level": 3, "area": "meadow", "image": "flower"},
-		{"word": "castle", "level": 3, "area": "meadow", "image": "castle"},
-		{"word": "bridge", "level": 3, "area": "meadow", "image": "bridge"},
-		{"word": "garden", "level": 3, "area": "meadow", "image": "garden"},
-		{"word": "planet", "level": 3, "area": "meadow", "image": "planet"},
-		{"word": "rabbit", "level": 3, "area": "meadow", "image": "rabbit"},
-		{"word": "kitten", "level": 3, "area": "meadow", "image": "kitten"},
-		{"word": "puppy", "level": 3, "area": "meadow", "image": "puppy"},
+		{"word": "fish", "level": 3, "area": "meadow", "image": "fish"},
+		{"word": "ship", "level": 3, "area": "meadow", "image": "ship"},
+		{"word": "duck", "level": 3, "area": "meadow", "image": "duck"},
+		{"word": "rock", "level": 3, "area": "meadow", "image": "rock"},
+		{"word": "lock", "level": 3, "area": "meadow", "image": "lock"},
+		{"word": "sock", "level": 3, "area": "meadow", "image": "sock"},
+		{"word": "ring", "level": 3, "area": "meadow", "image": "ring"},
+		{"word": "king", "level": 3, "area": "meadow", "image": "king"},
+		{"word": "sing", "level": 3, "area": "meadow", "image": "sing"},
+		{"word": "path", "level": 3, "area": "meadow", "image": "path"},
+		{"word": "bath", "level": 3, "area": "meadow", "image": "bath"},
+		{"word": "tree", "level": 3, "area": "meadow", "image": "tree"},
+		{"word": "moon", "level": 3, "area": "meadow", "image": "moon"},
+		{"word": "boot", "level": 3, "area": "meadow", "image": "boot"},
+		{"word": "rain", "level": 3, "area": "meadow", "image": "rain"},
+		{"word": "seed", "level": 3, "area": "meadow", "image": "seed"},
+		{"word": "leaf", "level": 3, "area": "meadow", "image": "leaf"},
+		{"word": "star", "level": 3, "area": "meadow", "image": "star"},
+		{"word": "bird", "level": 3, "area": "meadow", "image": "bird"},
+		{"word": "snow", "level": 3, "area": "meadow", "image": "snow"},
+		{"word": "hammer", "level": 3, "area": "meadow", "image": "hammer"},
 
 		# ============================================================
-		# LEVEL 4 — Complex words, r-controlled vowels, multi-syllable
+		# LEVEL 4 — Magic E (split digraphs) + long vowels
+		# Silent e makes the vowel "say its name"
 		# ============================================================
-		{"word": "rainbow", "level": 4, "area": "meadow", "image": "rainbow"},
-		{"word": "dragon", "level": 4, "area": "meadow", "image": "dragon"},
-		{"word": "forest", "level": 4, "area": "meadow", "image": "forest"},
-		{"word": "river", "level": 4, "area": "meadow", "image": "river"},
-		{"word": "island", "level": 4, "area": "meadow", "image": "island"},
-		{"word": "mountain", "level": 4, "area": "meadow", "image": "mountain"},
-		{"word": "butterfly", "level": 4, "area": "meadow", "image": "butterfly"},
-		{"word": "treasure", "level": 4, "area": "meadow", "image": "treasure"},
-		{"word": "dolphin", "level": 4, "area": "meadow", "image": "dolphin"},
-		{"word": "penguin", "level": 4, "area": "meadow", "image": "penguin"},
-		{"word": "monster", "level": 4, "area": "meadow", "image": "monster"},
-		{"word": "wizard", "level": 4, "area": "meadow", "image": "wizard"},
+		{"word": "cake", "level": 4, "area": "meadow", "image": "cake"},
+		{"word": "lake", "level": 4, "area": "meadow", "image": "lake"},
+		{"word": "cave", "level": 4, "area": "meadow", "image": "cave"},
+		{"word": "wave", "level": 4, "area": "meadow", "image": "wave"},
+		{"word": "bone", "level": 4, "area": "meadow", "image": "bone"},
+		{"word": "home", "level": 4, "area": "meadow", "image": "home"},
+		{"word": "rope", "level": 4, "area": "meadow", "image": "rope"},
+		{"word": "kite", "level": 4, "area": "meadow", "image": "kite"},
+		{"word": "bike", "level": 4, "area": "meadow", "image": "bike"},
+		{"word": "fire", "level": 4, "area": "meadow", "image": "fire"},
+		{"word": "cube", "level": 4, "area": "meadow", "image": "cube"},
+		{"word": "tube", "level": 4, "area": "meadow", "image": "tube"},
+		{"word": "rose", "level": 4, "area": "meadow", "image": "rose"},
+		{"word": "nose", "level": 4, "area": "meadow", "image": "nose"},
+		{"word": "gate", "level": 4, "area": "meadow", "image": "gate"},
+		{"word": "vine", "level": 4, "area": "meadow", "image": "vine"},
+		{"word": "boat", "level": 4, "area": "meadow", "image": "boat"},
+		{"word": "goat", "level": 4, "area": "meadow", "image": "goat"},
+		{"word": "toad", "level": 4, "area": "meadow", "image": "toad"},
+		{"word": "snail", "level": 4, "area": "meadow", "image": "snail"},
+		{"word": "train", "level": 4, "area": "meadow", "image": "train"},
+		{"word": "sheep", "level": 4, "area": "meadow", "image": "sheep"},
+		{"word": "queen", "level": 4, "area": "meadow", "image": "queen"},
+		{"word": "mouse", "level": 4, "area": "meadow", "image": "mouse"},
+		{"word": "cloud", "level": 4, "area": "meadow", "image": "cloud"},
+		{"word": "crown", "level": 4, "area": "meadow", "image": "crown"},
+		{"word": "flower", "level": 4, "area": "meadow", "image": "flower"},
+		{"word": "castle", "level": 4, "area": "meadow", "image": "castle"},
+		{"word": "bridge", "level": 4, "area": "meadow", "image": "bridge"},
+		{"word": "garden", "level": 4, "area": "meadow", "image": "garden"},
+		{"word": "planet", "level": 4, "area": "meadow", "image": "planet"},
+		{"word": "rabbit", "level": 4, "area": "meadow", "image": "rabbit"},
+		{"word": "kitten", "level": 4, "area": "meadow", "image": "kitten"},
+		{"word": "puppy", "level": 4, "area": "meadow", "image": "puppy"},
+
+		# ============================================================
+		# LEVEL 5 — R-controlled vowels, multi-syllable, complex
+		# ============================================================
+		{"word": "rainbow", "level": 5, "area": "meadow", "image": "rainbow"},
+		{"word": "dragon", "level": 5, "area": "meadow", "image": "dragon"},
+		{"word": "forest", "level": 5, "area": "meadow", "image": "forest"},
+		{"word": "river", "level": 5, "area": "meadow", "image": "river"},
+		{"word": "island", "level": 5, "area": "meadow", "image": "island"},
+		{"word": "mountain", "level": 5, "area": "meadow", "image": "mountain"},
+		{"word": "butterfly", "level": 5, "area": "meadow", "image": "butterfly"},
+		{"word": "treasure", "level": 5, "area": "meadow", "image": "treasure"},
+		{"word": "dolphin", "level": 5, "area": "meadow", "image": "dolphin"},
+		{"word": "penguin", "level": 5, "area": "meadow", "image": "penguin"},
+		{"word": "monster", "level": 5, "area": "meadow", "image": "monster"},
+		{"word": "wizard", "level": 5, "area": "meadow", "image": "wizard"},
 		{"word": "lantern", "level": 4, "area": "meadow", "image": "lantern"},
 		{"word": "thunder", "level": 4, "area": "meadow", "image": "thunder"},
 		{"word": "mushroom", "level": 4, "area": "meadow", "image": "mushroom"},
 	]
 
 func select_word_for_area(area: String) -> String:
-	# Force PORTAL as the first word on Level 2
-	if GameManager.current_level >= 2 and "portal" not in GameManager.words_summoned:
-		current_target_word = "PORTAL"
-		current_hint_image = "portal"
+	# Force ZAP as the first word on Level 2 (teleport unlock)
+	if GameManager.current_level >= 2 and "zap" not in GameManager.words_summoned:
+		current_target_word = "ZAP"
+		current_hint_image = "zap"
 		collected_letters.clear()
 		target_word_changed.emit(current_target_word, current_hint_image)
 		return current_target_word
 
-	# Force HOME if player has 3+ companions but no house yet
-	if "house" not in GameManager.words_summoned:
+	# Force HUT if player has 3+ companions but no hut yet
+	if "hut" not in GameManager.words_summoned:
 		var pet_words := ["dog", "cat", "frog", "pig", "bug", "fish", "bird", "hen", "bat", "rat", "fox", "pup"]
 		var companion_count := 0
 		for w in GameManager.words_summoned:
 			if w in pet_words:
 				companion_count += 1
 		if companion_count >= 3:
-			current_target_word = "HOUSE"
-			current_hint_image = "house"
+			current_target_word = "HUT"
+			current_hint_image = "hut"
 			collected_letters.clear()
 			target_word_changed.emit(current_target_word, current_hint_image)
 			return current_target_word

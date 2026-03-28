@@ -4,11 +4,11 @@ extends Node2D
 ## Spawns both the letters needed for the current target word and some distractors.
 
 @export var letter_scene: PackedScene
-@export var spawn_radius_x := 500.0  # How far left/right from player to spawn
-@export var spawn_height_min := 30.0   # Minimum height above ground (close to player!)
-@export var spawn_height_max := 200.0  # Maximum height above ground
-@export var max_letters := 12
-@export var distractor_count := 4
+@export var spawn_radius_x := 400.0  # How far left/right from player to spawn
+@export var spawn_height_min := 100.0  # Letters float high — visible and clear
+@export var spawn_height_max := 300.0  # High up in the sky, inspired by mockup
+@export var max_letters := 8           # Fewer letters = less visual clutter
+@export var distractor_count := 2      # Only 2 distractors — focus on the right letters
 @export var ground_y := 725.0  # Ground level Y position
 
 var _spawned_letters: Array[Node2D] = []

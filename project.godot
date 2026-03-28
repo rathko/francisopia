@@ -31,6 +31,7 @@ QuestGenerator="*res://scripts/autoload/QuestGenerator.gd"
 MagicSummon="*res://scripts/autoload/MagicSummon.gd"
 MagicVFX="*res://scripts/autoload/MagicVFX.gd"
 SoundFX="*res://scripts/autoload/SoundFX.gd"
+PhonemePlayer="*res://scripts/autoload/PhonemePlayer.gd"
 
 [display]
 

@@ -149,7 +149,7 @@ func _show_controls() -> void:
 		["Aim", "Move direction"],
 		["Shoot Arrow", "Left Click"],
 		["Interact", "E"],
-		["Portal", "T  (spell PORTAL first)"],
+		["Teleport", "T  (spell ZAP first)"],
 		["Quest Scroll", "Tab"],
 		["Pause", "Escape"],
 	]
@@ -174,7 +174,7 @@ func _show_controls() -> void:
 		["Aim Cursor", "Right Stick"],
 		["Shoot Arrow", "RT (Right Trigger)"],
 		["Interact", "X Button"],
-		["Portal", "LT + RT  (spell PORTAL)"],
+		["Teleport", "LT + RT  (spell ZAP)"],
 		["Quest Scroll", "Y Button"],
 		["Pause", "Start / Menu"],
 	]
@@ -223,6 +223,13 @@ func _show_settings() -> void:
 	# SFX volume
 	_add_volume_slider("Sound Effects", SoundFX.get_sfx_volume(), func(val: float) -> void:
 		SoundFX.set_sfx_volume(val)
+	)
+
+	_content.add_child(_make_spacer(8))
+
+	# Voice volume (phoneme sounds)
+	_add_volume_slider("Voice", PhonemePlayer.get_voice_volume(), func(val: float) -> void:
+		PhonemePlayer.set_voice_volume(val)
 	)
 
 	_content.add_child(_make_spacer(20))
