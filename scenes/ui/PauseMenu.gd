@@ -2,7 +2,7 @@ extends CanvasLayer
 ## Pause menu — Escape / Start button to toggle.
 ## Shows game options and controls reference.
 
-enum MenuPage { MAIN, CONTROLS, RESTART_CONFIRM }
+enum MenuPage { MAIN, CONTROLS, SETTINGS, RESTART_CONFIRM }
 
 var _active := false
 var _current_page := MenuPage.MAIN
@@ -104,6 +104,7 @@ func _show_main_menu() -> void:
 
 	# Menu buttons
 	_add_menu_button("Controls", _show_controls, true)
+	_add_menu_button("Sound", _show_settings)
 	_add_menu_button("Restart Progress", _show_restart_confirm)
 	_add_menu_button("Resume", _close)
 
@@ -201,6 +202,71 @@ func _show_controls() -> void:
 
 	# Back button
 	_add_menu_button("Back", _show_main_menu, true)
+
+func _show_settings() -> void:
+	_current_page = MenuPage.SETTINGS
+	_clear_content()
+
+	var title := _make_label("Sound", 42, Color(1, 0.9, 0.3), true)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_content.add_child(title)
+
+	_content.add_child(_make_spacer(12))
+
+	# Master volume
+	_add_volume_slider("Master Volume", SoundFX.get_master_volume(), func(val: float) -> void:
+		SoundFX.set_master_volume(val)
+	)
+
+	_content.add_child(_make_spacer(8))
+
+	# SFX volume
+	_add_volume_slider("Sound Effects", SoundFX.get_sfx_volume(), func(val: float) -> void:
+		SoundFX.set_sfx_volume(val)
+	)
+
+	_content.add_child(_make_spacer(20))
+
+	_add_menu_button("Back", _show_main_menu, true)
+
+
+func _add_volume_slider(label_text: String, initial: float, callback: Callable) -> void:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 16)
+
+	var label := _make_label(label_text, 26, Color(0.85, 0.85, 0.9))
+	label.custom_minimum_size = Vector2(200, 0)
+	row.add_child(label)
+
+	var slider := HSlider.new()
+	slider.min_value = 0.0
+	slider.max_value = 1.0
+	slider.step = 0.05
+	slider.value = initial
+	slider.custom_minimum_size = Vector2(300, 30)
+	slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+	# Style the slider
+	var grabber_style := StyleBoxFlat.new()
+	grabber_style.bg_color = Color(1, 0.9, 0.3, 0.9)
+	grabber_style.set_corner_radius_all(6)
+	grabber_style.set_content_margin_all(6)
+	slider.add_theme_stylebox_override("grabber_area", grabber_style)
+	slider.add_theme_stylebox_override("grabber_area_highlight", grabber_style)
+
+	slider.value_changed.connect(func(val: float) -> void:
+		callback.call(val)
+	)
+	row.add_child(slider)
+
+	var pct_label := _make_label("%d%%" % int(initial * 100), 24, Color(0.7, 0.7, 0.8))
+	slider.value_changed.connect(func(val: float) -> void:
+		pct_label.text = "%d%%" % int(val * 100)
+	)
+	row.add_child(pct_label)
+
+	_content.add_child(row)
+
 
 func _show_restart_confirm() -> void:
 	_current_page = MenuPage.RESTART_CONFIRM

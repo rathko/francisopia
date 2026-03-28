@@ -294,11 +294,14 @@ func _play_summon_animation(word: String, entry: Dictionary) -> void:
 		swirl_tween.tween_property(letter_label, "modulate:a", 0.0, 0.3)
 	swirl_tween.chain().tween_callback(letters_container.queue_free)
 
-	# === PHASE 3: GPUParticles2D sparkle burst + camera + atmosphere ===
+	# === PHASE 3: GPUParticles2D sparkle burst + camera + atmosphere + sound ===
 	await get_tree().create_timer(0.6).timeout
 	var vfx_color := MagicVFX.get_color_for_type(entry.get("type", "world"))
 	MagicVFX.spawn_sparkle_burst(scene_root, summon_pos, vfx_color, 24)
 	MagicVFX.flash_warm_atmosphere(scene_root)
+	# Word completion chord + summon type accent
+	SoundFX.play_word_complete()
+	SoundFX.play_summon_accent(entry.get("type", "world"))
 	# Camera zoom + gentle shake
 	var active_camera := get_viewport().get_camera_2d()
 	MagicVFX.camera_word_complete(active_camera)
@@ -1287,60 +1290,72 @@ func _summon_red(scene_root: Node, player: Node2D, _pos: Vector2) -> Node:
 	return null
 
 func _summon_mud(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
-	# Create a slippery mud zone on the ground around the player
-	var ground_y := 725.0
+	# Mud that hugs the terrain surface and makes the player slide uncontrollably.
+	# Samples terrain height at each column for natural contour.
+	const TH = preload("res://scripts/world/TerrainHeight.gd")
+	var BLOCK_SIZE := 32.0
+	var BLOCKS_PER_CHUNK := 40
+	var CHUNK_WIDTH := 1280.0
+	var GROUND_Y := 725.0
+	var MUD_WIDTH := 400.0  # Total width in pixels (centered on player)
+	var MUD_COLUMNS := 13   # Number of terrain-following segments
+	var COL_WIDTH := MUD_WIDTH / float(MUD_COLUMNS)
+
 	var mud_zone := Area2D.new()
 	mud_zone.name = "MudZone"
-	mud_zone.global_position = Vector2(player.global_position.x, ground_y)
+	mud_zone.global_position = Vector2(player.global_position.x, 0)
 	mud_zone.collision_layer = 0
 	mud_zone.collision_mask = 0
 
-	# Detection area covers the full mud zone height (player walks through it)
+	var world_seed: int = GameManager.world_seed
+
+	# Sample terrain height at each column and build terrain-hugging visuals
+	var start_x := -MUD_WIDTH / 2.0
+	for i in MUD_COLUMNS:
+		var local_x := start_x + i * COL_WIDTH
+		var world_x := player.global_position.x + local_x
+		# Get terrain height at this world X position
+		var chunk_idx := int(floor(world_x / CHUNK_WIDTH))
+		var world_block_x := int(floor(world_x / BLOCK_SIZE))
+		var height_offset := TH.get_height(world_block_x, world_seed)
+		var surface_y := GROUND_Y + height_offset * BLOCK_SIZE
+
+		# Mud segment sits on the terrain surface
+		var seg := ColorRect.new()
+		seg.position = Vector2(local_x, surface_y - 6)
+		seg.size = Vector2(COL_WIDTH + 1, 10)  # +1 overlap to avoid gaps
+		seg.color = Color(0.38 + randf() * 0.04, 0.26 + randf() * 0.04, 0.10 + randf() * 0.03, 0.85)
+		seg.z_index = 1
+		mud_zone.add_child(seg)
+
+		# Shiny wet layer on top
+		var sheen := ColorRect.new()
+		sheen.position = Vector2(local_x + 2, surface_y - 8)
+		sheen.size = Vector2(COL_WIDTH - 4, 4)
+		sheen.color = Color(0.5, 0.35, 0.18, 0.35)
+		sheen.z_index = 2
+		mud_zone.add_child(sheen)
+
+		# Occasional puddle spots
+		if randf() < 0.5:
+			var puddle := ColorRect.new()
+			puddle.position = Vector2(local_x + randf() * COL_WIDTH * 0.5, surface_y - 10 - randf() * 3)
+			puddle.size = Vector2(12 + randf() * 16, 4 + randf() * 3)
+			puddle.color = Color(0.33, 0.20, 0.08, 0.5)
+			puddle.z_index = 1
+			mud_zone.add_child(puddle)
+
+	# Detection collision — wide box centered on player position, tall enough for hills
 	var col := CollisionShape2D.new()
 	var shape := RectangleShape2D.new()
-	shape.size = Vector2(800, 80)
+	shape.size = Vector2(MUD_WIDTH, 120)
 	col.shape = shape
-	col.position = Vector2(0, -40)  # Center above ground line
+	col.position = Vector2(0, GROUND_Y - 20)
 	mud_zone.add_child(col)
-
-	# Visual: thick brown mud layer on the ground surface
-	var mud_base := ColorRect.new()
-	mud_base.position = Vector2(-400, -12)
-	mud_base.size = Vector2(800, 16)
-	mud_base.color = Color(0.4, 0.28, 0.12, 0.85)
-	mud_base.z_index = 1
-	mud_zone.add_child(mud_base)
-
-	# Wet shiny layer on top
-	var mud_sheen := ColorRect.new()
-	mud_sheen.position = Vector2(-400, -14)
-	mud_sheen.size = Vector2(800, 6)
-	mud_sheen.color = Color(0.5, 0.35, 0.18, 0.4)
-	mud_sheen.z_index = 2
-	mud_zone.add_child(mud_sheen)
-
-	# Mud puddle spots scattered on ground
-	for i in 12:
-		var puddle := ColorRect.new()
-		var px := -380 + i * 65 + randf() * 30
-		puddle.position = Vector2(px, -16 - randf() * 4)
-		puddle.size = Vector2(30 + randf() * 40, 6 + randf() * 4)
-		puddle.color = Color(0.35, 0.22, 0.1, 0.6)
-		puddle.z_index = 1
-		mud_zone.add_child(puddle)
-
-	# Splash drops above ground
-	for i in 6:
-		var drop := ColorRect.new()
-		drop.position = Vector2(-300 + randf() * 600, -20 - randf() * 30)
-		drop.size = Vector2(4, 4)
-		drop.color = Color(0.45, 0.3, 0.15, 0.4)
-		drop.z_index = 2
-		mud_zone.add_child(drop)
 
 	scene_root.add_child(mud_zone)
 
-	# Script: when player is inside the zone, reduce friction
+	# Script: player slides with no steering while on mud
 	var script := GDScript.new()
 	script.source_code = """extends Area2D
 
@@ -1349,23 +1364,22 @@ var _players_inside: Array = []
 func _ready():
 	body_entered.connect(_on_enter)
 	body_exited.connect(_on_exit)
-	# Need to monitor bodies
 	monitoring = true
 	monitorable = false
 	collision_layer = 0
-	collision_mask = 1  # Detect player (layer 1)
+	collision_mask = 1
 
 func _on_enter(body: Node2D):
-	if body is CharacterBody2D and body.name.begins_with("Player"):
-		if "friction" in body:
-			body.friction = 0.15
+	if body is CharacterBody2D and body.name.begins_with(\"Player\"):
+		if \"on_mud\" in body:
+			body.on_mud = true
 			_players_inside.append(body)
 
 func _on_exit(body: Node2D):
 	if body in _players_inside:
 		_players_inside.erase(body)
-		if "friction" in body:
-			body.friction = 1.0
+		if \"on_mud\" in body:
+			body.on_mud = false
 """
 	script.reload()
 	mud_zone.set_script(script)
@@ -1373,10 +1387,9 @@ func _on_exit(body: Node2D):
 	# Remove mud after 60 seconds
 	get_tree().create_timer(60.0).timeout.connect(func() -> void:
 		if is_instance_valid(mud_zone):
-			# Restore friction for anyone still inside
 			for body in mud_zone._players_inside:
-				if is_instance_valid(body) and "friction" in body:
-					body.friction = 1.0
+				if is_instance_valid(body) and "on_mud" in body:
+					body.on_mud = false
 			var fade := mud_zone.create_tween()
 			fade.tween_property(mud_zone, "modulate:a", 0.0, 1.0)
 			fade.tween_callback(mud_zone.queue_free)

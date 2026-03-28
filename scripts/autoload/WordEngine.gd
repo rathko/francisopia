@@ -18,6 +18,8 @@ var current_hint_image := ""
 var collected_letters: Array[String] = []
 var current_difficulty := 1
 var _word_attempts: Dictionary = {}  # word -> {correct: int, hints_used: int, time_ms: int}
+var _recent_words: Array[String] = []  # Last N words to avoid repetition
+const RECENT_WORD_MEMORY := 5  # How many recent words to avoid repeating
 
 # Fixed starter sequence — these words always come first in order
 var _starter_sequence: Array[String] = ["dog", "sun", "cat", "hat"]
@@ -332,6 +334,20 @@ func select_word_for_area(area: String) -> String:
 		)
 	if candidates.is_empty():
 		return "cat"
+	# Filter out recently used words to reduce repetition
+	var fresh := candidates.filter(func(w: Dictionary) -> bool:
+		return w.get("word", "") not in _recent_words
+	)
+	if not fresh.is_empty():
+		candidates = fresh
+	# If all candidates are recent, allow them but at least avoid the very last word
+	elif _recent_words.size() > 0:
+		var last_word: String = _recent_words[-1]
+		var not_last := candidates.filter(func(w: Dictionary) -> bool:
+			return w.get("word", "") != last_word
+		)
+		if not not_last.is_empty():
+			candidates = not_last
 	var entry: Dictionary = candidates[randi() % candidates.size()]
 	current_target_word = entry.get("word", "cat").to_upper()
 	current_hint_image = entry.get("image", "")
@@ -359,6 +375,10 @@ func try_collect_letter(letter: String) -> bool:
 
 func _on_word_complete() -> void:
 	var word := current_target_word.to_lower()
+	# Track recent words to avoid repetition
+	_recent_words.append(word)
+	if _recent_words.size() > RECENT_WORD_MEMORY:
+		_recent_words.pop_front()
 	word_spelled_correctly.emit(word)
 	GameManager.complete_word(word)
 	# Sync starter progress to GameManager for persistence
@@ -417,3 +437,4 @@ func _on_progress_reset() -> void:
 	collected_letters.clear()
 	current_difficulty = 1
 	_word_attempts.clear()
+	_recent_words.clear()

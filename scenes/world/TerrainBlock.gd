@@ -153,8 +153,15 @@ func _apply_depth_darkening() -> void:
 func dig() -> void:
 	## Called when a player digs this block. Destroys it with a small particle effect.
 	_spawn_break_particles()
+	# Dig sound feedback
+	var sfx := get_node_or_null("/root/SoundFX")
+	if sfx:
+		sfx.play_dig(_get_block_type())
 
 	if has_treasure:
+		var sfx2 := get_node_or_null("/root/SoundFX")
+		if sfx2:
+			sfx2.play_treasure_found()
 		_spawn_treasure()
 
 	# Remove block

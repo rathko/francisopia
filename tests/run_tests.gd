@@ -34,6 +34,10 @@ func _initialize() -> void:
 	mvfx.name = "MagicVFX"
 	root.add_child(mvfx)
 
+	var sfx = load("res://scripts/autoload/SoundFX.gd").new()
+	sfx.name = "SoundFX"
+	root.add_child(sfx)
+
 func _process(_delta: float) -> bool:
 	if _has_run:
 		return true

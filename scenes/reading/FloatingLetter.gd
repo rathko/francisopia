@@ -81,6 +81,10 @@ func is_needed() -> bool:
 func collect() -> void:
 	_collected = true
 	AudioManager.play_letter_sound(_letter)
+	# Ascending pentatonic chime based on position in word
+	var sfx := get_node_or_null("/root/SoundFX")
+	if sfx:
+		sfx.play_letter_chime(WordEngine.collected_letters.size() - 1)
 	# Trail particles float upward toward HUD
 	var scene_root := get_tree().current_scene
 	var vfx := get_node_or_null("/root/MagicVFX")

@@ -48,7 +48,30 @@
 
 ## Queued
 
-### Phase 8: Terrain Edge Darkening (Terraria)
+### Phase 8: Feedback Sounds -- COMPLETE (2026-03-28)
+- SoundFX autoload — hybrid sample + pitch-shift approach (not raw AudioStreamGenerator)
+- WAV generation tool creates 4 warm samples: kalimba chime (5 harmonics + ADSR), wood tap, dirt crumble, stone clink (75KB total)
+- Letter collection chime — ascending C major pentatonic (C-D-E-G-A-C5) via pitch_scale
+- Warm kalimba timbre: fundamental + 4 harmonics + inharmonic overtone + metallic attack noise
+- Micro-randomization: +/- 5 cents pitch, +/- 1.5 dB volume per play
+- Word completion chord — C major triad (3 simultaneous pitch-shifted samples)
+- Wrong letter — soft wood tap (auto-connected to WordEngine.wrong_letter_rejected signal)
+- Dig sounds — dirt crumble or stone clink based on block type + pitch jitter
+- Treasure found — two-note ascending (G4 -> C5) with 150ms gap
+- Summon type accents — pet (C5), world (G4+reverb), item (E4->A4), cosmetic (D4->G4)
+- Audio bus: Master(HardLimiter -1dB) > SFX(-6dB, reverb room_size 0.25)
+- Volume sliders in pause menu (Master + SFX with percentage display)
+- 8-player AudioStreamPlayer pool with round-robin recycling
+- All parameters exposed as top-of-file constants for easy tweaking
+
+### Phase 8b: Phoneme Sounds
+- [ ] Record or source CC0 phoneme audio for A-Z (letter sounds, not names)
+- [ ] Play phoneme on letter collection (before/alongside chime)
+- [ ] Voice bus at 0 dB (loudest — phoneme clarity is paramount)
+- [ ] Music auto-ducks via sidechain when phoneme plays
+- **Impact:** Letter-sound knowledge is the #1 predictor of reading success. This is THE learning feature.
+
+### Phase 9: Terrain Edge Darkening (Terraria)
 - [ ] Exposed block faces get 2-4px darker border on air-facing edges
 - [ ] 4-bit cardinal bitmask per block (N/E/S/W neighbor detection)
 - [ ] Corner rounding where two edges meet air
@@ -56,7 +79,7 @@
 - **Impact:** Transforms flat colored grid into shaped, readable terrain. Single biggest visual leap remaining.
 - **Ref:** Terraria research report `/home/shared/terraria-terrain-rendering-research.md` Section 1
 
-### Phase 9: Day/Night Cycle (Kingdom)
+### Phase 10: Day/Night Cycle (Kingdom)
 - [ ] CanvasModulate shifts world color over real time (warm gold dawn, cool blue night)
 - [ ] Cycle duration configurable (default ~5 minutes per full day)
 - [ ] Underground levels unaffected (already dark)
@@ -64,7 +87,7 @@
 - [ ] Gentle — no gameplay impact, purely atmospheric
 - **Impact:** Kingdom's golden-hour atmosphere is iconic. Low effort, transforms mood.
 
-### Phase 10: Water System (Kingdom)
+### Phase 11: Water System (Kingdom)
 - [ ] Water areas with animated sine-wave surface edge
 - [ ] Semi-transparent blue fill below surface line
 - [ ] Faded mirror reflection of nearby objects (simplified)
@@ -72,30 +95,29 @@
 - [ ] Spelling "POND", "LAKE", "RAIN" could summon water features
 - **Impact:** Kingdom's water is its visual signature. Brings world to life.
 
-### Phase 11: Remaining Summon Sprites
+### Phase 12: Remaining Summon Sprites
 - [ ] Pixel art sprites for 78 MagicSummon words still using ColorRect
 - [ ] Batch by category: animals, objects, nature, effects
 - [ ] Priority: most-common starter words first (sun, cat, dog, tree already done)
 - [ ] Each sprite: 32x32 or 48x48, Ghibli-warm palette, nearest-neighbor filtering
 - **Impact:** A kid spelling "DRAGON" and seeing a pixel dragon materialize instead of a colored rectangle is the difference between magic and disappointment.
 
-### Phase 12: Sound & Music
-- [ ] Letter collection sound (soft chime, pitch rises with each letter)
-- [ ] Word completion fanfare (short, celebratory, not loud)
-- [ ] Summon sound per type (pet chirp, world shimmer, item clang)
-- [ ] Ambient background music (calm, loopable, Ghibli-inspired)
-- [ ] Dig/break sound, footstep sounds
-- [ ] Volume control in pause menu
-- **Impact:** Silent games feel broken to a 5-year-old. Sound is mandatory for release.
+### Phase 13: Background Music
+- [ ] Adaptive layered system using AudioStreamSynchronized + AudioStreamInteractive
+- [ ] Three states: Silent (active spelling), Gentle (exploring, 65-75 BPM), Warm (summon)
+- [ ] C major pentatonic, piano/kalimba/music box instrumentation
+- [ ] Underground: same notes shifted to A minor root, added reverb
+- [ ] Minimum 90-second loops, randomized variation
+- **Impact:** Sets emotional tone. But feedback sounds come first — music is enhancement, not core.
 
-### Phase 13: Title Screen & Menus
+### Phase 14: Title Screen & Menus
 - [ ] Title screen with game logo, "Press any key" prompt
 - [ ] New Game / Continue / Settings flow
 - [ ] Character name entry (simple keyboard for kids)
 - [ ] Settings: volume, difficulty, language selector
 - **Impact:** Currently drops straight into gameplay. Needs a front door.
 
-### Phase 14: Steam Release Prep
+### Phase 15: Steam Release Prep
 - [ ] Steamworks developer account ($100)
 - [ ] Store capsule images (header, hero, screenshots)
 - [ ] Achievements via GodotSteam

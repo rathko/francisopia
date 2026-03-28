@@ -30,6 +30,7 @@ InputHelper="*res://scripts/autoload/InputHelper.gd"
 QuestGenerator="*res://scripts/autoload/QuestGenerator.gd"
 MagicSummon="*res://scripts/autoload/MagicSummon.gd"
 MagicVFX="*res://scripts/autoload/MagicVFX.gd"
+SoundFX="*res://scripts/autoload/SoundFX.gd"
 
 [display]
 

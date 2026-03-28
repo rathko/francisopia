@@ -18,6 +18,7 @@ signal teleport_beacon_requested(position: Vector2)
 @export var dig_cooldown := 0.25  # Seconds between digs (hold to mine)
 @export var wall_slide_speed := 60.0  # Max fall speed when sliding on wall
 var friction := 1.0  # 1.0 = normal, lower = slippery (set by MUD spell)
+var on_mud := false   # When true, player slides with no steering control
 
 var _coyote_timer := 0.0
 var _jump_buffer_timer := 0.0
@@ -396,6 +397,11 @@ func _handle_jump_buffer(delta: float) -> void:
 		_jump_buffer_timer -= delta
 
 func _handle_movement() -> void:
+	if on_mud:
+		# Sliding on mud — no steering, barely any deceleration
+		velocity.x = move_toward(velocity.x, 0, move_speed * 0.02)
+		return
+
 	var direction := _get_movement_axis()
 	if abs(direction) > 0.1:
 		if friction < 1.0:
