@@ -199,73 +199,36 @@ func _spawn_treasure() -> void:
 	chest.collision_layer = 4
 	chest.z_index = 3
 
-	# === WARM WOODEN CHEST BODY ===
-	# Main body — dark warm wood
-	var chest_body := ColorRect.new()
-	chest_body.name = "ChestBody"
-	chest_body.position = Vector2(-16, -12)
-	chest_body.size = Vector2(32, 20)
-	chest_body.color = Color(0.55, 0.35, 0.12, 1)
-	chest.add_child(chest_body)
+	# Try pixel art chest sprite
+	var chest_tex_path := "res://assets/sprites/world/chest_closed.png"
+	if ResourceLoader.exists(chest_tex_path):
+		var tex := load(chest_tex_path) as Texture2D
+		if tex:
+			var spr := Sprite2D.new()
+			spr.name = "ChestSprite"
+			spr.texture = tex
+			spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+			spr.offset = Vector2(0, -tex.get_height() / 2.0)
+			chest.add_child(spr)
+	else:
+		# Fallback: simple ColorRect
+		var chest_body := ColorRect.new()
+		chest_body.name = "ChestBody"
+		chest_body.position = Vector2(-16, -20)
+		chest_body.size = Vector2(32, 22)
+		chest_body.color = Color(0.55, 0.35, 0.12, 1)
+		chest.add_child(chest_body)
+		var lid := ColorRect.new()
+		lid.name = "Lid"
+		lid.position = Vector2(-18, -28)
+		lid.size = Vector2(36, 10)
+		lid.color = Color(0.65, 0.45, 0.18, 1)
+		chest.add_child(lid)
 
-	# Wood plank lines (horizontal grain)
-	for py in [0, 6, 12]:
-		var plank := ColorRect.new()
-		plank.position = Vector2(-15, -11 + py)
-		plank.size = Vector2(30, 1)
-		plank.color = Color(0.45, 0.28, 0.1, 0.4)
-		chest.add_child(plank)
-
-	# Gold bottom band
-	var bottom_band := ColorRect.new()
-	bottom_band.position = Vector2(-17, 6)
-	bottom_band.size = Vector2(34, 3)
-	bottom_band.color = Color(0.9, 0.7, 0.15, 1)
-	chest.add_child(bottom_band)
-
-	# === LID — slightly wider, rounded look ===
-	var lid := ColorRect.new()
-	lid.name = "Lid"
-	lid.position = Vector2(-18, -19)
-	lid.size = Vector2(36, 9)
-	lid.color = Color(0.65, 0.45, 0.18, 1)
-	chest.add_child(lid)
-
-	# Lid highlight (top edge catches light)
-	var lid_highlight := ColorRect.new()
-	lid_highlight.name = "LidHighlight"
-	lid_highlight.position = Vector2(-17, -19)
-	lid_highlight.size = Vector2(34, 2)
-	lid_highlight.color = Color(0.8, 0.6, 0.25, 0.6)
-	chest.add_child(lid_highlight)
-
-	# Gold lid band
-	var lid_band := ColorRect.new()
-	lid_band.position = Vector2(-18, -12)
-	lid_band.size = Vector2(36, 3)
-	lid_band.color = Color(0.9, 0.7, 0.15, 1)
-	chest.add_child(lid_band)
-
-	# === GOLDEN CLASP / KEYHOLE ===
-	var clasp_bg := ColorRect.new()
-	clasp_bg.position = Vector2(-5, -15)
-	clasp_bg.size = Vector2(10, 8)
-	clasp_bg.color = Color(0.85, 0.65, 0.1, 1)
-	chest.add_child(clasp_bg)
-
-	# Keyhole (dark center)
-	var keyhole := ColorRect.new()
-	keyhole.position = Vector2(-2, -13)
-	keyhole.size = Vector2(4, 4)
-	keyhole.color = Color(0.2, 0.15, 0.05, 1)
-	chest.add_child(keyhole)
-
-	# === IDLE SPARKLE (attracts attention) ===
+	# Idle sparkle particles
 	var sparkle_container := Node2D.new()
 	sparkle_container.name = "IdleSparkle"
 	chest.add_child(sparkle_container)
-
-	# Sparkle script — tiny golden particles drift upward periodically
 	var sparkle_script := GDScript.new()
 	sparkle_script.source_code = "extends Node2D\nvar _t := 0.0\nfunc _process(d):\n\t_t += d\n\tif fmod(_t, 1.5) < d:\n\t\tvar s = ColorRect.new()\n\t\ts.size = Vector2(3,3)\n\t\ts.position = Vector2(randf_range(-12,12), -20)\n\t\ts.color = Color(1, 0.85, 0.2, 0.6)\n\t\ts.z_index = 4\n\t\tadd_child(s)\n\t\tvar tw = s.create_tween()\n\t\ttw.tween_property(s, \"position:y\", s.position.y - 25, 1.0)\n\t\ttw.parallel().tween_property(s, \"modulate:a\", 0.0, 1.0)\n\t\ttw.tween_callback(s.queue_free)\n"
 	sparkle_script.reload()
@@ -274,8 +237,9 @@ func _spawn_treasure() -> void:
 	# Collision
 	var col := CollisionShape2D.new()
 	var shape := RectangleShape2D.new()
-	shape.size = Vector2(32, 20)
+	shape.size = Vector2(40, 28)
 	col.shape = shape
+	col.position = Vector2(0, -14)
 	chest.add_child(col)
 
 	if chest_script:

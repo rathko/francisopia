@@ -81,12 +81,11 @@ func is_needed() -> bool:
 func collect() -> void:
 	_collected = true
 	var pos := WordEngine.collected_letters.size() - 1
-	# Sound sequence: phoneme FIRST (learning), then chime (feedback)
-	# Never overlap — phoneme must be clearly heard by the child
+	# Play phoneme first (learning), then chime after
 	var phoneme_node := get_node_or_null("/root/PhonemePlayer")
 	if phoneme_node:
 		phoneme_node.play_phoneme_for_position(WordEngine.current_target_word, pos)
-	# Chime plays after phoneme finishes (~0.35s delay)
+	# Chime plays after phoneme (~0.35s delay)
 	var sfx := get_node_or_null("/root/SoundFX")
 	if sfx:
 		get_tree().create_timer(0.35).timeout.connect(func() -> void:

@@ -57,6 +57,14 @@ func _ready() -> void:
 		print("Francis-opia: New adventure begins!")
 	if qa_mode:
 		_apply_qa_config()
+	# --level N: start at specific level for testing (e.g., godot --path . -- --level 2)
+	var args := OS.get_cmdline_args() + OS.get_cmdline_user_args()
+	for i in args.size():
+		if args[i] == "--level" and i + 1 < args.size():
+			var lvl := args[i + 1].to_int()
+			if lvl >= 1:
+				current_level = lvl
+				print("Francis-opia: Starting at level %d (--level flag)" % lvl)
 
 func _process(delta: float) -> void:
 	_auto_save_timer += delta

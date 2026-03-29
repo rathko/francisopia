@@ -72,6 +72,9 @@ var summon_registry: Dictionary = {
 	"pen": {"type": "world", "builder": "_summon_pen", "label": "A fence!", "color": Color(0.55, 0.4, 0.2)},
 	"jug": {"type": "world", "builder": "_summon_jug", "label": "A jug of water!", "color": Color(0.4, 0.65, 0.85)},
 	"pan": {"type": "cosmetic", "builder": "_summon_pan", "label": "Frying pan!", "color": Color(0.45, 0.45, 0.5)},
+	"jet": {"type": "world", "builder": "_summon_jet", "label": "Whoooosh! A jet!", "color": Color(0.8, 0.85, 0.9)},
+	"pet": {"type": "cosmetic", "builder": "_summon_pet_love", "label": "Pet love!", "color": Color(1.0, 0.5, 0.6), "temporary": true},
+	"rug": {"type": "world", "builder": "_summon_rug", "label": "Magic carpet!", "color": Color(0.8, 0.2, 0.3)},
 	# Simple/visual effects
 	"dot": {"type": "cosmetic", "builder": "_summon_dot", "label": "Confetti!", "color": Color(1.0, 0.6, 0.2)},
 	"can": {"type": "cosmetic", "builder": "_summon_can", "label": "Kick the can!", "color": Color(0.6, 0.6, 0.65)},
@@ -308,6 +311,20 @@ func _play_summon_animation(word: String, entry: Dictionary) -> void:
 	var active_camera := get_viewport().get_camera_2d()
 	MagicVFX.camera_word_complete(active_camera)
 
+	# === PHASE 3b: Show summon sprite (magical reveal) ===
+	var reveal_sprite := _create_summon_sprite(word, summon_pos + Vector2(0, -30), 0.7)
+	if reveal_sprite:
+		reveal_sprite.z_index = 22
+		scene_root.add_child(reveal_sprite)
+		# Dramatic pop-in: scale from 0, slight float upward, then fade
+		reveal_sprite.scale = Vector2.ZERO
+		var reveal_tw := reveal_sprite.create_tween()
+		reveal_tw.tween_property(reveal_sprite, "scale", Vector2(0.7, 0.7), 0.4).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		reveal_tw.parallel().tween_property(reveal_sprite, "position:y", reveal_sprite.position.y - 20, 0.4).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		reveal_tw.tween_interval(1.0)
+		reveal_tw.tween_property(reveal_sprite, "modulate:a", 0.0, 0.5)
+		reveal_tw.tween_callback(reveal_sprite.queue_free)
+
 	# === PHASE 4: Summon the thing! ===
 	await get_tree().create_timer(0.3).timeout
 	# Auto-evict oldest companion if at limit (queue behavior)
@@ -331,8 +348,41 @@ func _play_summon_animation(word: String, entry: Dictionary) -> void:
 					GameManager.words_summoned.append(word)
 				GameManager.save_game()
 
-	# === PHASE 5: Big friendly label ===
-	_show_summon_label(scene_root, summon_pos, entry)
+	# Phase 5 label removed — the sprite reveal (Phase 3b) shows what was summoned.
+	# Individual builders may still show context-specific text when needed.
+
+const SUMMON_SPRITE_DIR := "res://assets/sprites/summons/"
+
+func _create_summon_sprite(word: String, pos: Vector2, scale_factor: float = 0.5) -> Sprite2D:
+	## Loads a summon sprite for the given word. Returns null if no sprite exists.
+	## scale_factor: 0.5 = 64px rendered from 128px source. Adjust per summon.
+	var path := SUMMON_SPRITE_DIR + word + ".png"
+	if not ResourceLoader.exists(path):
+		return null
+	var tex := load(path) as Texture2D
+	if not tex:
+		return null
+	var spr := Sprite2D.new()
+	spr.texture = tex
+	spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	spr.scale = Vector2(scale_factor, scale_factor)
+	spr.position = pos
+	return spr
+
+
+func _summon_with_sprite(scene_root: Node, word: String, pos: Vector2,
+		scale_factor: float = 0.5, z: int = 5) -> Sprite2D:
+	## Creates and adds a summon sprite to the scene. Returns the sprite or null.
+	var spr := _create_summon_sprite(word, pos, scale_factor)
+	if spr:
+		spr.z_index = z
+		scene_root.add_child(spr)
+		# Pop-in animation
+		spr.scale = Vector2.ZERO
+		var tw := spr.create_tween()
+		tw.tween_property(spr, "scale", Vector2(scale_factor, scale_factor), 0.3).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	return spr
+
 
 func _spawn_sparkles(parent: Node, pos: Vector2, color: Color) -> void:
 	for i in 12:
@@ -1287,32 +1337,30 @@ func _summon_run(scene_root: Node, player: Node2D, _pos: Vector2) -> Node:
 	return null
 
 func _summon_red(scene_root: Node, player: Node2D, _pos: Vector2) -> Node:
-	# Turn nearby terrain blocks red for 60 seconds
+	# Turn nearby terrain blocks red for 60 seconds using modulate (works with sprites AND ColorRects)
 	var affected: Array[Node] = []
 	var radius := 600.0
-	for key in scene_root.get("_terrain_blocks") if "_terrain_blocks" in scene_root else {}:
-		var block: Node = scene_root._terrain_blocks[key]
-		if not is_instance_valid(block):
-			continue
-		if block.global_position.distance_to(player.global_position) < radius:
-			var visual := block.get_node_or_null("Visual") as ColorRect
-			if visual:
-				affected.append(visual)
-				var orig_color: Color = visual.color
-				# Tint red but keep some variation
-				visual.color = Color(0.9, 0.15 + randf() * 0.1, 0.1, 1)
-				# Store original for restore
-				visual.set_meta("orig_color", orig_color)
+	if "_terrain_blocks" in scene_root:
+		var blocks: Dictionary = scene_root._terrain_blocks
+		for key: String in blocks:
+			var block: Node = blocks.get(key)
+			if block == null or not is_instance_valid(block):
+				continue
+			if not block is Node2D:
+				continue
+			if (block as Node2D).global_position.distance_to(player.global_position) < radius:
+				affected.append(block)
+				block.set_meta("orig_modulate", block.modulate)
+				block.modulate = Color(1.5, 0.4, 0.3, 1)  # Red tint via modulate
 
-	# Also tint grass on platforms in visible chunks
-	print("Francis-opia: The ground turned RED! (%d blocks)" % affected.size())
+	print("Francis-opia: Everything turned RED! (%d blocks)" % affected.size())
 
 	# Revert after 60 seconds
 	get_tree().create_timer(60.0).timeout.connect(func() -> void:
-		for visual in affected:
-			if is_instance_valid(visual) and visual.has_meta("orig_color"):
-				var tween := visual.create_tween()
-				tween.tween_property(visual, "color", visual.get_meta("orig_color"), 1.0)
+		for block in affected:
+			if is_instance_valid(block) and block.has_meta("orig_modulate"):
+				var tween := block.create_tween()
+				tween.tween_property(block, "modulate", block.get_meta("orig_modulate"), 1.0)
 		print("Francis-opia: The red faded away!")
 	)
 	return null
@@ -2248,28 +2296,170 @@ func _spawn_coins(scene_root: Node, pos: Vector2, count: int) -> void:
 	GameManager.add_coins(count)
 
 func _summon_gem(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
-	_spawn_coins(scene_root, pos, 5)
-	print("Francis-opia: A shiny gem worth 5 coins!")
+	## Huge sparkling gem rises from ground, shoots rainbow light, then coins
+	var gem := Node2D.new()
+	gem.global_position = pos
+	gem.z_index = 10
+	scene_root.add_child(gem)
+
+	# Diamond shape — two triangles approximated with rotated rects
+	var gem_body := ColorRect.new()
+	gem_body.position = Vector2(-18, -40)
+	gem_body.size = Vector2(36, 36)
+	gem_body.color = Color(0.3, 0.85, 0.95, 0.9)  # Cyan crystal
+	gem_body.rotation = PI / 4  # Diamond orientation
+	gem.add_child(gem_body)
+
+	# Bright center
+	var gem_center := ColorRect.new()
+	gem_center.position = Vector2(-8, -30)
+	gem_center.size = Vector2(16, 16)
+	gem_center.color = Color(0.8, 0.95, 1.0, 0.7)
+	gem_center.rotation = PI / 4
+	gem.add_child(gem_center)
+
+	# Rise from ground with sparkles
+	gem.scale = Vector2(0.1, 0.1)
+	gem.modulate.a = 0.0
+	var rise := gem.create_tween()
+	rise.tween_property(gem, "scale", Vector2(2.0, 2.0), 0.6).set_trans(Tween.TRANS_BACK)
+	rise.parallel().tween_property(gem, "modulate:a", 1.0, 0.3)
+	rise.tween_interval(0.8)
+	rise.tween_callback(func() -> void:
+		MagicVFX.spawn_sparkle_burst(scene_root, pos + Vector2(0, -40), Color(0.5, 0.9, 1.0), 20)
+		_spawn_coins(scene_root, pos, 5)
+	)
+	rise.tween_property(gem, "modulate:a", 0.0, 0.5)
+	rise.tween_callback(gem.queue_free)
+	print("Francis-opia: A magnificent gem! 5 coins!")
 	return null
 
-func _summon_pot(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
-	_spawn_coins(scene_root, pos, 10)
-	print("Francis-opia: Pot of gold! 10 coins!")
+func _summon_pot(scene_root: Node, _player: Node2D, pos: Vector2) -> Node:
+	## Pot of gold with a rainbow arc leading into it
+	var pot := Node2D.new()
+	pot.global_position = pos
+	pot.z_index = 8
+	scene_root.add_child(pot)
+
+	# Pot body — rounded black cauldron
+	var pot_body := ColorRect.new()
+	pot_body.position = Vector2(-22, -25)
+	pot_body.size = Vector2(44, 28)
+	pot_body.color = Color(0.15, 0.15, 0.18, 1)
+	pot.add_child(pot_body)
+
+	# Gold coins peeking out the top
+	for i in 5:
+		var coin := ColorRect.new()
+		coin.position = Vector2(-16 + i * 7, -30)
+		coin.size = Vector2(8, 8)
+		coin.color = Color(1.0, 0.85, 0.15, 1)
+		pot.add_child(coin)
+
+	# Rainbow arc above pot
+	var rainbow_colors := [Color.RED, Color.ORANGE, Color.YELLOW, Color.GREEN, Color.BLUE, Color(0.5, 0, 0.8)]
+	for j in rainbow_colors.size():
+		var arc := ColorRect.new()
+		arc.position = Vector2(-60 + j * 4, -70 + j * 3)
+		arc.size = Vector2(120 - j * 8, 4)
+		arc.color = Color(rainbow_colors[j].r, rainbow_colors[j].g, rainbow_colors[j].b, 0.7)
+		pot.add_child(arc)
+
+	# Entrance animation
+	pot.scale = Vector2.ZERO
+	var anim := pot.create_tween()
+	anim.tween_property(pot, "scale", Vector2(1.0, 1.0), 0.5).set_trans(Tween.TRANS_BACK)
+	anim.tween_interval(1.0)
+	anim.tween_callback(func() -> void: _spawn_coins(scene_root, pos, 10))
+	print("Francis-opia: A pot of gold! 10 coins with a rainbow!")
+	return pot
+
+func _summon_bag(scene_root: Node, _player: Node2D, pos: Vector2) -> Node:
+	## Bulging bag drops from sky, hits ground, coins spill out
+	var bag := Node2D.new()
+	bag.global_position = Vector2(pos.x, pos.y - 300)  # Start high
+	bag.z_index = 10
+	scene_root.add_child(bag)
+
+	# Bag body — bulging sack
+	var sack := ColorRect.new()
+	sack.position = Vector2(-16, -20)
+	sack.size = Vector2(32, 28)
+	sack.color = Color(0.6, 0.45, 0.2, 1)
+	bag.add_child(sack)
+
+	# Tied top
+	var tie := ColorRect.new()
+	tie.position = Vector2(-6, -26)
+	tie.size = Vector2(12, 8)
+	tie.color = Color(0.5, 0.35, 0.15, 1)
+	bag.add_child(tie)
+
+	# Coin peeking out
+	var peek := ColorRect.new()
+	peek.position = Vector2(-3, -22)
+	peek.size = Vector2(6, 6)
+	peek.color = Color(1, 0.85, 0.2, 1)
+	bag.add_child(peek)
+
+	# Drop animation
+	var drop := bag.create_tween()
+	drop.tween_property(bag, "global_position:y", pos.y, 0.5).set_trans(Tween.TRANS_BOUNCE)
+	drop.tween_callback(func() -> void:
+		# Bounce squash
+		var squash := bag.create_tween()
+		squash.tween_property(bag, "scale", Vector2(1.3, 0.7), 0.1)
+		squash.tween_property(bag, "scale", Vector2(1.0, 1.0), 0.15)
+		_spawn_coins(scene_root, pos, 3)
+		SoundFX.play_dig("dirt")
+	)
+	print("Francis-opia: A bag of coins dropped from the sky! 3 coins!")
+	return bag
+
+func _summon_six(scene_root: Node, _player: Node2D, pos: Vector2) -> Node:
+	## Six stars appear in a hexagon, spin, become coins
+	for i in 6:
+		var angle := TAU * float(i) / 6.0 - PI / 2.0
+		var star_pos := pos + Vector2(cos(angle) * 50, sin(angle) * 50 - 30)
+		var star := ColorRect.new()
+		star.size = Vector2(12, 12)
+		star.position = star_pos - Vector2(6, 6)
+		star.color = Color(1.0, 0.9, 0.2, 1)
+		star.z_index = 10
+		scene_root.add_child(star)
+		# Pop in with delay
+		star.scale = Vector2.ZERO
+		var tw := star.create_tween()
+		tw.tween_interval(i * 0.1)
+		tw.tween_property(star, "scale", Vector2(1.5, 1.5), 0.2).set_trans(Tween.TRANS_BACK)
+		tw.tween_interval(0.8)
+		tw.tween_property(star, "scale", Vector2(0.0, 0.0), 0.2)
+		tw.tween_callback(star.queue_free)
+	# Coins after animation
+	get_tree().create_timer(1.5).timeout.connect(func() -> void:
+		_spawn_coins(scene_root, pos, 6))
+	print("Francis-opia: Six magic stars! 6 coins!")
 	return null
 
-func _summon_bag(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
-	_spawn_coins(scene_root, pos, 3)
-	print("Francis-opia: Coin bag! 3 coins!")
-	return null
-
-func _summon_six(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
-	_spawn_coins(scene_root, pos, 6)
-	print("Francis-opia: Six coins!")
-	return null
-
-func _summon_ten(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
-	_spawn_coins(scene_root, pos, 10)
-	print("Francis-opia: Ten coins!")
+func _summon_ten(scene_root: Node, _player: Node2D, pos: Vector2) -> Node:
+	## Ten golden orbs cascade down in an arc
+	for i in 10:
+		var orb := ColorRect.new()
+		orb.size = Vector2(10, 10)
+		orb.color = Color(1.0, 0.85, 0.15, 0.9)
+		orb.z_index = 10
+		var start_x := pos.x - 100 + i * 22
+		orb.position = Vector2(start_x, pos.y - 200)
+		scene_root.add_child(orb)
+		var tw := orb.create_tween()
+		tw.tween_interval(i * 0.08)
+		tw.tween_property(orb, "position:y", pos.y - 10, 0.4 + i * 0.03).set_trans(Tween.TRANS_BOUNCE)
+		tw.tween_interval(0.3)
+		tw.tween_property(orb, "modulate:a", 0.0, 0.3)
+		tw.tween_callback(orb.queue_free)
+	get_tree().create_timer(2.0).timeout.connect(func() -> void:
+		_spawn_coins(scene_root, pos, 10))
+	print("Francis-opia: Ten golden orbs! 10 coins!")
 	return null
 
 func _summon_nut(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
@@ -2289,10 +2479,44 @@ func _summon_nut(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
 	print("Francis-opia: A squirrel grabbed the nut and left 2 coins!")
 	return null
 
-func _summon_bun(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
+func _summon_bun(scene_root: Node, _player: Node2D, pos: Vector2) -> Node:
+	## Tasty bun appears with steam rising, gives a coin
+	var bun := Node2D.new()
+	bun.global_position = pos + Vector2(0, -10)
+	bun.z_index = 8
+	scene_root.add_child(bun)
+	# Bun body — warm golden brown
+	var body := ColorRect.new()
+	body.position = Vector2(-14, -10)
+	body.size = Vector2(28, 16)
+	body.color = Color(0.85, 0.65, 0.3, 1)
+	bun.add_child(body)
+	# Top dome
+	var dome := ColorRect.new()
+	dome.position = Vector2(-12, -16)
+	dome.size = Vector2(24, 8)
+	dome.color = Color(0.9, 0.7, 0.35, 1)
+	bun.add_child(dome)
+	# Steam rising
+	for i in 3:
+		var steam := ColorRect.new()
+		steam.size = Vector2(4, 4)
+		steam.position = Vector2(-6 + i * 6, -20)
+		steam.color = Color(1, 1, 1, 0.3)
+		bun.add_child(steam)
+		var tw := steam.create_tween().set_loops(3)
+		tw.tween_property(steam, "position:y", steam.position.y - 20, 0.8)
+		tw.parallel().tween_property(steam, "modulate:a", 0.0, 0.8)
+		tw.tween_property(steam, "position:y", steam.position.y, 0.0)
+		tw.tween_property(steam, "modulate:a", 0.3, 0.0)
+	# Pop in
+	bun.scale = Vector2.ZERO
+	var pop := bun.create_tween()
+	pop.tween_property(bun, "scale", Vector2(1.2, 1.2), 0.3).set_trans(Tween.TRANS_BACK)
+	pop.tween_property(bun, "scale", Vector2(1.0, 1.0), 0.1)
 	_spawn_coins(scene_root, pos, 1)
-	print("Francis-opia: A tasty bun! 1 coin!")
-	return null
+	print("Francis-opia: A tasty warm bun! Yum!")
+	return bun
 
 func _summon_gum(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
 	# Blow a bubble
@@ -2795,9 +3019,56 @@ func _summon_jug(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
 	return jug
 
 func _summon_pan(scene_root: Node, player: Node2D, _pos: Vector2) -> Node:
+	## Frying pan appears, sizzles, flips a pancake into the air!
+	var pan := Node2D.new()
+	pan.global_position = player.global_position + Vector2(60, 0)
+	pan.z_index = 8
+	scene_root.add_child(pan)
+
+	# Pan body — dark grey circle
+	var pan_body := ColorRect.new()
+	pan_body.position = Vector2(-20, -6)
+	pan_body.size = Vector2(40, 12)
+	pan_body.color = Color(0.3, 0.3, 0.35, 1)
+	pan.add_child(pan_body)
+	# Handle
+	var handle := ColorRect.new()
+	handle.position = Vector2(20, -3)
+	handle.size = Vector2(25, 6)
+	handle.color = Color(0.5, 0.35, 0.15, 1)
+	pan.add_child(handle)
+	# Pancake inside
+	var pancake := ColorRect.new()
+	pancake.name = "Pancake"
+	pancake.position = Vector2(-14, -10)
+	pancake.size = Vector2(28, 8)
+	pancake.color = Color(0.9, 0.75, 0.35, 1)
+	pan.add_child(pancake)
+
+	# Sizzle particles
+	for i in 4:
+		var sizzle := ColorRect.new()
+		sizzle.size = Vector2(2, 2)
+		sizzle.position = Vector2(randf_range(-15, 15), -12)
+		sizzle.color = Color(1, 1, 0.8, 0.6)
+		pan.add_child(sizzle)
+		var tw := sizzle.create_tween()
+		tw.tween_property(sizzle, "position:y", sizzle.position.y - 15, 0.3)
+		tw.parallel().tween_property(sizzle, "modulate:a", 0.0, 0.3)
+		tw.tween_callback(sizzle.queue_free)
+
+	# Flip animation — pancake flies up, spins, comes back down
+	get_tree().create_timer(0.5).timeout.connect(func() -> void:
+		if not is_instance_valid(pancake):
+			return
+		var flip := pancake.create_tween()
+		flip.tween_property(pancake, "position:y", pancake.position.y - 80, 0.4).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		flip.parallel().tween_property(pancake, "rotation", TAU, 0.8)
+		flip.tween_property(pancake, "position:y", pancake.position.y, 0.4).set_trans(Tween.TRANS_BOUNCE)
+	)
 	_spawn_coins(scene_root, player.global_position, 1)
-	print("Francis-opia: Frying pan! 1 coin!")
-	return null
+	print("Francis-opia: Frying pan! The pancake flips!")
+	return pan
 
 func _summon_can(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
 	var can := ColorRect.new()
@@ -2867,7 +3138,8 @@ func _summon_house(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
 
 	var house := Node2D.new()
 	house.name = "MagicHouse"
-	house.global_position = Vector2(pos.x + 120, ground_y)
+	# Place castle well to the right of player, away from any stairwells
+	house.global_position = Vector2(pos.x + 400, ground_y)
 
 	# Castle sprite overlay (replaces old ColorRect visuals, collision still built below)
 	var _has_castle_sprite := false
@@ -2930,17 +3202,24 @@ func _summon_house(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
 		gp_col.shape = gp_shape
 		gp_col.position = Vector2(0, 60)
 		ground_pad.add_child(gp_col)
-		# Visible terrain fill
-		var gp_grass := ColorRect.new()
-		gp_grass.position = Vector2(-350, -8)
-		gp_grass.size = Vector2(700, 10)
-		gp_grass.color = Color(0.36, 0.68, 0.34, 1)
-		ground_pad.add_child(gp_grass)
-		var gp_dirt := ColorRect.new()
-		gp_dirt.position = Vector2(-350, 2)
-		gp_dirt.size = Vector2(700, 160)
-		gp_dirt.color = Color(0.5, 0.35, 0.2, 1)
-		ground_pad.add_child(gp_dirt)
+		# Fill terrain visually under the castle — dirt blocks to prevent black void
+		var fill_container := Node2D.new()
+		fill_container.name = "TerrainFill"
+		fill_container.z_index = -1  # Behind the castle
+		house.add_child(fill_container)
+		var FILL_BLOCK := 32.0
+		# Fill a grid of dirt-colored blocks under the castle
+		for fx in range(-11, 12):  # ~22 blocks wide = 704px
+			for fy in range(0, 7):  # 7 rows deep
+				var block := ColorRect.new()
+				block.position = Vector2(240 + fx * FILL_BLOCK - FILL_BLOCK / 2, fy * FILL_BLOCK)
+				block.size = Vector2(FILL_BLOCK, FILL_BLOCK)
+				if fy == 0:
+					block.color = Color(0.36, 0.68, 0.34, 1)  # Grass top
+				else:
+					var shade := randf_range(0.0, 0.05)
+					block.color = Color(0.50 + shade, 0.35 + shade, 0.20, 1)  # Dirt
+				fill_container.add_child(block)
 
 		# Door-level walkable platform
 		var door_plat := StaticBody2D.new()
@@ -2958,6 +3237,26 @@ func _summon_house(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
 		scene_root.add_child(house)
 		GameManager.home_pos_x = house.global_position.x + 240
 		GameManager.home_pos_y = house.global_position.y - 40
+		# Clear trees, flowers, targets near the castle so it doesn't look cluttered
+		var castle_world_x := house.global_position.x + 240
+		var clear_radius := 500.0
+		# Objects are children of Chunk nodes, so iterate chunks
+		for chunk in scene_root.get_children():
+			if not chunk.name.begins_with("Chunk_"):
+				continue
+			for child in chunk.get_children():
+				if not child is Node2D:
+					continue
+				var world_x: float = chunk.global_position.x + (child as Node2D).position.x
+				if absf(world_x - castle_world_x) < clear_radius:
+					# Only remove decorative objects, not terrain or structural
+					if child.name == "Terrain" or child.name == "BackgroundWalls":
+						continue
+					if child is StaticBody2D and child.collision_layer == 1:
+						continue  # Terrain block or platform
+					if child is Sprite2D:
+						child.queue_free()  # Tree/flower sprites
+
 		print("Francis-opia: A magnificent castle appeared!")
 		return house
 
@@ -3491,3 +3790,148 @@ func get_hint_label_for_word(word: String) -> String:
 func get_summon_type_for_word(word: String) -> String:
 	var entry: Dictionary = summon_registry.get(word.to_lower(), {})
 	return entry.get("type", "")
+
+
+# === LEVEL 1 NEW SUMMONS ===
+
+func _summon_jet(scene_root: Node, _player: Node2D, pos: Vector2) -> Node:
+	## A jet streaks across the sky leaving a trail — exciting and fast!
+	var jet := Node2D.new()
+	jet.name = "Jet"
+	jet.global_position = Vector2(pos.x - 800, 150)  # Start off-screen left, high up
+	jet.z_index = 15
+	scene_root.add_child(jet)
+
+	# Jet body — sleek triangle shape
+	var body := ColorRect.new()
+	body.position = Vector2(-30, -8)
+	body.size = Vector2(60, 16)
+	body.color = Color(0.8, 0.85, 0.9, 1)
+	jet.add_child(body)
+
+	# Nose cone
+	var nose := ColorRect.new()
+	nose.position = Vector2(30, -5)
+	nose.size = Vector2(15, 10)
+	nose.color = Color(0.9, 0.9, 0.95, 1)
+	jet.add_child(nose)
+
+	# Wings
+	var wing := ColorRect.new()
+	wing.position = Vector2(-15, -20)
+	wing.size = Vector2(30, 40)
+	wing.color = Color(0.7, 0.75, 0.85, 0.9)
+	jet.add_child(wing)
+
+	# Trail script — leaves particles behind as it flies
+	var trail_script := GDScript.new()
+	trail_script.source_code = "extends Node2D\nvar _t := 0.0\nfunc _process(d):\n\t_t += d\n\tif fmod(_t, 0.03) < d:\n\t\tvar p = ColorRect.new()\n\t\tp.size = Vector2(8, 4)\n\t\tp.global_position = global_position + Vector2(-35, randf_range(-3, 3))\n\t\tp.color = Color(1, 1, 1, 0.6)\n\t\tp.z_index = 14\n\t\tget_tree().current_scene.add_child(p)\n\t\tvar tw = p.create_tween()\n\t\ttw.tween_property(p, \"modulate:a\", 0.0, 0.8)\n\t\ttw.tween_callback(p.queue_free)\n"
+	trail_script.reload()
+	jet.set_script(trail_script)
+
+	# Fly across screen
+	var fly := jet.create_tween()
+	fly.tween_property(jet, "global_position", Vector2(pos.x + 1200, 120), 2.0).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	fly.tween_callback(jet.queue_free)
+
+	# Camera shake on pass
+	var cam := get_viewport().get_camera_2d()
+	if cam:
+		MagicVFX.camera_word_complete(cam)
+
+	print("Francis-opia: WHOOOOSH! A jet streaks across the sky!")
+	return jet
+
+
+func _summon_pet_love(scene_root: Node, player: Node2D, _pos: Vector2) -> Node:
+	## Hearts float up from all nearby companions — "pet" means to show love!
+	var companions := get_tree().get_nodes_in_group("companions") if get_tree().has_group("companions") else []
+	# Also find pets by checking for Pet script
+	for child in scene_root.get_children():
+		if child.has_method("get_pet_type") and child not in companions:
+			companions.append(child)
+
+	# Spawn hearts from player and all nearby companions
+	var sources: Array[Node2D] = [player]
+	for comp in companions:
+		if comp is Node2D and player.global_position.distance_to(comp.global_position) < 400:
+			sources.append(comp)
+
+	for source in sources:
+		for i in 5:
+			var heart := Label.new()
+			heart.text = "<3"
+			heart.add_theme_font_size_override("font_size", 24 + randi() % 16)
+			heart.add_theme_color_override("font_color", Color(1.0, 0.4 + randf() * 0.3, 0.5 + randf() * 0.2))
+			heart.global_position = source.global_position + Vector2(randf_range(-20, 20), -30)
+			heart.z_index = 15
+			scene_root.add_child(heart)
+			var tw := heart.create_tween()
+			tw.tween_property(heart, "global_position:y", heart.global_position.y - 60 - randf() * 40, 1.0 + randf() * 0.5)
+			tw.parallel().tween_property(heart, "modulate:a", 0.0, 1.2)
+			tw.parallel().tween_property(heart, "scale", Vector2(1.5, 1.5), 1.0)
+			tw.tween_callback(heart.queue_free)
+
+	print("Francis-opia: Pet love! Hearts everywhere!")
+	return null
+
+
+func _summon_rug(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
+	## Magic carpet! A colorful rug floats up and carries the player briefly.
+	var rug := StaticBody2D.new()
+	rug.name = "MagicRug"
+	rug.global_position = Vector2(player.global_position.x, player.global_position.y + 10)
+	rug.collision_layer = 1
+	rug.collision_mask = 0
+	rug.z_index = -1
+
+	# Rug body — colorful striped pattern
+	var rug_body := ColorRect.new()
+	rug_body.position = Vector2(-40, -4)
+	rug_body.size = Vector2(80, 8)
+	rug_body.color = Color(0.8, 0.15, 0.2, 1)  # Deep red
+	rug.add_child(rug_body)
+
+	# Gold border trim
+	var trim_top := ColorRect.new()
+	trim_top.position = Vector2(-42, -5)
+	trim_top.size = Vector2(84, 2)
+	trim_top.color = Color(0.9, 0.75, 0.2, 1)
+	rug.add_child(trim_top)
+	var trim_bot := ColorRect.new()
+	trim_bot.position = Vector2(-42, 3)
+	trim_bot.size = Vector2(84, 2)
+	trim_bot.color = Color(0.9, 0.75, 0.2, 1)
+	rug.add_child(trim_bot)
+
+	# Center pattern
+	var pattern := ColorRect.new()
+	pattern.position = Vector2(-15, -3)
+	pattern.size = Vector2(30, 6)
+	pattern.color = Color(0.2, 0.15, 0.6, 0.8)  # Blue diamond center
+	rug.add_child(pattern)
+
+	# Collision so player stands on it
+	var col := CollisionShape2D.new()
+	col.one_way_collision = true
+	var shape := RectangleShape2D.new()
+	shape.size = Vector2(80, 6)
+	col.shape = shape
+	rug.add_child(col)
+
+	scene_root.add_child(rug)
+
+	# Magic carpet ride — float up, drift forward, then gently descend
+	var ride := rug.create_tween()
+	ride.tween_property(rug, "global_position", rug.global_position + Vector2(0, -120), 0.8).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	ride.tween_property(rug, "global_position", rug.global_position + Vector2(300, -80), 2.0).set_trans(Tween.TRANS_SINE)
+	ride.tween_property(rug, "global_position", rug.global_position + Vector2(400, 0), 1.0).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+
+	# Sparkle trail during flight
+	var sparkle_script := GDScript.new()
+	sparkle_script.source_code = "extends StaticBody2D\nvar _t := 0.0\nvar _alive := 5.0\nfunc _process(d):\n\t_t += d\n\t_alive -= d\n\tif _alive <= 0: return\n\tif fmod(_t, 0.1) < d:\n\t\tvar s = ColorRect.new()\n\t\ts.size = Vector2(3,3)\n\t\ts.global_position = global_position + Vector2(randf_range(-30,30), 5)\n\t\ts.color = Color(1, 0.85, 0.2, 0.5)\n\t\ts.z_index = 0\n\t\tget_tree().current_scene.add_child(s)\n\t\tvar tw = s.create_tween()\n\t\ttw.tween_property(s, \"modulate:a\", 0.0, 0.6)\n\t\ttw.tween_callback(s.queue_free)\n"
+	sparkle_script.reload()
+	rug.set_script(sparkle_script)
+
+	print("Francis-opia: A magic carpet! Hold on tight!")
+	return rug

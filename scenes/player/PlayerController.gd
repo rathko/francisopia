@@ -129,16 +129,19 @@ func _physics_process(delta: float) -> void:
 				velocity.y = jump_velocity * 0.5
 
 	if is_on_floor():
-		_last_safe_position = global_position
+		# Only update safe position if we can actually move (not wedged)
+		if abs(velocity.x) > 10.0 or abs(_get_movement_axis()) < 0.1:
+			_last_safe_position = global_position
 
-	# Stuck detection — if player is pressing movement but velocity stays near zero
+	# Stuck detection — pressing movement but can't move (wedged between objects)
 	var pressing_move: bool = abs(_get_movement_axis()) > 0.3 or _is_jump_just_pressed()
 	var barely_moving: bool = velocity.length() < 5.0
-	if pressing_move and barely_moving and not is_on_floor():
+	if pressing_move and barely_moving:
 		_stuck_timer += delta
 		if _stuck_timer >= STUCK_THRESHOLD:
 			print("Francis-opia: Oops, you were stuck! Popping you free.")
-			global_position = _last_safe_position
+			# Pop upward and slightly to the left to escape
+			global_position = _last_safe_position + Vector2(-50, -60)
 			velocity = Vector2.ZERO
 			_stuck_timer = 0.0
 	else:

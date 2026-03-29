@@ -25,7 +25,7 @@ const BEDROCK_Y := GROUND_Y + (TerrainHeight.MAX_AMPLITUDE + UNDERGROUND_ROWS + 
 const STAIRWELL_SPACING_BASE := 3   # Level 2 entrance every ~3 chunks (~20s walk)
 const STAIRWELL_SPACING_SCALE := 5  # Each deeper level adds this many chunks between entrances
 const STAIRWELL_JITTER := 1         # ± random offset so it doesn't feel perfectly regular
-const STAIRWELL_MIN_DISTANCE := 4   # No stairwells within this many chunks of spawn
+const STAIRWELL_MIN_DISTANCE := 6   # No stairwells within this many chunks of spawn (~2 screens away)
 
 # Level configuration templates — each level is a full world with its own palette
 # Add new levels by appending to this array
@@ -375,10 +375,12 @@ func _get_flat_zones(chunk_index: int) -> Array[Dictionary]:
 		if "hut" in GameManager.words_summoned or "house" in GameManager.words_summoned:
 			var house_center := center + 10  # House is placed to the right of stairwell
 			zones.append({"center": house_center, "flat_radius": 8, "blend_radius": 12})
-	# Home castle (chunk 0, near spawn)
-	if "hut" in GameManager.words_summoned or "house" in GameManager.words_summoned and chunk_index == 0:
-		var home_center := 12 + 8  # Player starts at x=400, ~block 12. House at +8 blocks right
-		zones.append({"center": home_center, "flat_radius": 10, "blend_radius": 14})
+	# Home castle (chunk 0, near spawn) — wide flat zone for the large castle
+	# Castle spawns at player_x(400) + 400 = x=800, center at x=800+240=1040
+	# Block 1040/32 = block 32.5, centered. Need wide radius for 640px castle + margins
+	if ("hut" in GameManager.words_summoned or "house" in GameManager.words_summoned) and chunk_index == 0:
+		var home_center := int(1040.0 / 32.0)  # Block position of castle center
+		zones.append({"center": home_center, "flat_radius": 16, "blend_radius": 20})
 	return zones
 
 func _update_chunks() -> void:
@@ -511,13 +513,28 @@ func _generate_chunk(index: int) -> void:
 	add_child(chunk)
 	_chunks[index] = chunk
 
-	# Sky background
-	var sky := ColorRect.new()
-	sky.z_index = -10
-	sky.position = Vector2(0, -200)
-	sky.size = Vector2(CHUNK_WIDTH, 1000)
-	sky.color = Color(0.53, 0.81, 0.92, 1)
-	chunk.add_child(sky)
+	# Sky background — try pixel art sky sprite, fallback to solid color
+	var sky_path := "res://assets/sprites/sky/sky_day.png"
+	if ResourceLoader.exists(sky_path):
+		var sky_tex := load(sky_path) as Texture2D
+		if sky_tex:
+			var sky_spr := Sprite2D.new()
+			sky_spr.texture = sky_tex
+			sky_spr.z_index = -10
+			sky_spr.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+			# Scale to fill chunk width, position at top
+			var scale_x := CHUNK_WIDTH / float(sky_tex.get_width())
+			var scale_y := 800.0 / float(sky_tex.get_height())
+			sky_spr.scale = Vector2(scale_x, maxf(scale_x, scale_y))
+			sky_spr.position = Vector2(CHUNK_WIDTH / 2.0, 200)
+			chunk.add_child(sky_spr)
+	else:
+		var sky := ColorRect.new()
+		sky.z_index = -10
+		sky.position = Vector2(0, -200)
+		sky.size = Vector2(CHUNK_WIDTH, 1000)
+		sky.color = Color(0.53, 0.81, 0.92, 1)
+		chunk.add_child(sky)
 
 	# Dark earth behind terrain — visible when blocks are dug out
 	var earth_bg := ColorRect.new()
@@ -617,14 +634,11 @@ func _generate_chunk(index: int) -> void:
 				l2_ground_y - BLOCK_SIZE / 2.0),
 				Vector2(stairwell_start_x * BLOCK_SIZE + BLOCK_SIZE * 3, GROUND_Y - 40),
 				"Level 1")
-		# House appears near every stairwell once the player has spelled "house"
+		# Small cottage ONLY on L2 near the stairwell exit (not on surface — too cluttered)
 		if "hut" in GameManager.words_summoned or "house" in GameManager.words_summoned:
-			var stairwell_right_x := (stairwell_start_x + STAIRWELL_WIDTH + 2) * BLOCK_SIZE
-			var surface_ground := _get_ground_y_at_px(index, stairwell_right_x, stairwell_centers)
-			_add_stairwell_house(chunk, Vector2(stairwell_right_x, surface_ground))
-			# Also place on L2 near the stairwell exit
 			var l2_sky_h2: float = LEVEL_CONFIGS[1].get("sky_height", 450.0)
 			var l2_ground_y2 := bedrock_y + 20 + l2_sky_h2
+			var stairwell_right_x := (stairwell_start_x + STAIRWELL_WIDTH + 2) * BLOCK_SIZE
 			_add_stairwell_house(chunk, Vector2(stairwell_right_x, l2_ground_y2))
 	else:
 		# Solid bedrock — no stairwell
@@ -634,31 +648,49 @@ func _generate_chunk(index: int) -> void:
 	_generate_level(chunk, block_script, index, bedrock_y, LEVEL_CONFIGS[1])
 
 	# === ABOVE-GROUND DECORATIONS ===
+	# Build exclusion zones — areas where trees/flowers/platforms must NOT spawn
+	# Prevents clutter in front of structures
+	var exclusion_zones: Array[Dictionary] = []
+	if has_stairwell:
+		# Stairwell area + cottage area
+		var sw_center_x := (stairwell_start_x + STAIRWELL_WIDTH / 2.0) * BLOCK_SIZE
+		exclusion_zones.append({"x": sw_center_x, "radius": 300.0})
+		# Cottage is placed at stairwell_right_x + 150
+		var cottage_x := (stairwell_start_x + STAIRWELL_WIDTH + 2) * BLOCK_SIZE + 150
+		exclusion_zones.append({"x": cottage_x, "radius": 350.0})
+	# Home castle (chunk 0)
+	if ("hut" in GameManager.words_summoned or "house" in GameManager.words_summoned) and index == 0:
+		exclusion_zones.append({"x": 400.0 + 120 + 240, "radius": 500.0})
 
-	# Random platforms (1-3 per chunk) — above ground level
-	var platform_count := _rng.randi_range(1, 3)
+	# Random platforms (0-1 per chunk, away from structures)
+	var platform_count := _rng.randi_range(0, 1)
 	for p in platform_count:
 		var plat_x := _rng.randf_range(100, CHUNK_WIDTH - 100)
+		if _is_in_exclusion_zone(plat_x, exclusion_zones):
+			continue  # Skip — too close to a structure
 		var plat_ground := _get_ground_y_at_px(index, plat_x, stairwell_centers)
-		# Place platforms 75-275px above the local ground
 		_add_platform(chunk, Vector2(
 			plat_x,
 			plat_ground - _rng.randf_range(75, 275)
 		), _rng.randf_range(120, 220))
 
-	# Random trees (1-3) — only appear after player spells "tree"
+	# Random trees (1-2) — only appear after player spells "tree", away from structures
 	var trees_unlocked := "tree" in GameManager.words_summoned
-	var tree_count := _rng.randi_range(1, 3)
+	var tree_count := _rng.randi_range(1, 2)
 	for t in tree_count:
 		var tree_x := _rng.randf_range(50, CHUNK_WIDTH - 50)
+		if _is_in_exclusion_zone(tree_x, exclusion_zones):
+			continue  # Skip — don't put trees in front of buildings
 		var tree_ground := _get_ground_y_at_px(index, tree_x, stairwell_centers)
 		if trees_unlocked:
 			_add_tree(chunk, Vector2(tree_x, tree_ground))
 
-	# Random flowers (2-5)
-	var flower_count := _rng.randi_range(2, 5)
+	# Random flowers (2-4), away from structures
+	var flower_count := _rng.randi_range(2, 4)
 	for f in flower_count:
 		var flower_x := _rng.randf_range(30, CHUNK_WIDTH - 30)
+		if _is_in_exclusion_zone(flower_x, exclusion_zones):
+			continue
 		var flower_ground := _get_ground_y_at_px(index, flower_x, stairwell_centers)
 		_add_flower(chunk, Vector2(flower_x, flower_ground - _rng.randf_range(0, 5)))
 
@@ -672,11 +704,12 @@ func _generate_chunk(index: int) -> void:
 		cloud.color = Color(1, 1, 1, _rng.randf_range(0.4, 0.7))
 		chunk.add_child(cloud)
 
-	# Occasional archery target (20% chance)
+	# Occasional archery target (20% chance, away from structures)
 	if _rng.randf() < 0.2:
 		var target_x := _rng.randf_range(200, CHUNK_WIDTH - 200)
-		var target_ground := _get_ground_y_at_px(index, target_x, stairwell_centers)
-		_add_archery_target(chunk, Vector2(target_x, target_ground))
+		if not _is_in_exclusion_zone(target_x, exclusion_zones):
+			var target_ground := _get_ground_y_at_px(index, target_x, stairwell_centers)
+			_add_archery_target(chunk, Vector2(target_x, target_ground))
 
 	# Surface treasure chests (1-2 per chunk, minimum 300px apart)
 	var surface_chests := _rng.randi_range(1, 2)
@@ -689,8 +722,8 @@ func _generate_chunk(index: int) -> void:
 			if absf(chest_x - prev_x) < 300.0:
 				too_close = true
 				break
-		if too_close:
-			continue  # Skip this chest, don't spawn it
+		if too_close or _is_in_exclusion_zone(chest_x, exclusion_zones):
+			continue  # Skip — too close to another chest or a structure
 		chest_positions.append(chest_x)
 		var chest_ground := _get_ground_y_at_px(index, chest_x, stairwell_centers)
 		_spawn_surface_chest(chunk, Vector2(chest_x, chest_ground - 9))
@@ -793,6 +826,13 @@ func _add_bedrock_segment(chunk: Node2D, x_offset: float, width: float, y_pos: f
 	bedrock_visual.color = Color(0.3, 0.3, 0.35, 1)
 	bedrock.add_child(bedrock_visual)
 
+func _is_in_exclusion_zone(x: float, zones: Array[Dictionary]) -> bool:
+	## Returns true if x is within any exclusion zone (too close to a structure).
+	for zone in zones:
+		if absf(x - zone.get("x", 0.0)) < zone.get("radius", 200.0):
+			return true
+	return false
+
 func _add_background_wall(container: Node2D, block_x: float, block_y: float, gx: int, gy: int, col_underground: int) -> void:
 	## Background wall block — darker semi-transparent, visible when foreground is dug.
 	var wall := ColorRect.new()
@@ -860,16 +900,7 @@ func _generate_stairwell(chunk: Node2D, terrain: Node2D, _block_script: GDScript
 		current_y += BLOCK_SIZE * 3
 		going_left = not going_left
 
-	# "DIG HERE" sign just above bedrock (visible when player digs deep enough)
-	var sign_label := Label.new()
-	sign_label.text = "DIG HERE"
-	sign_label.add_theme_font_size_override("font_size", 18)
-	sign_label.add_theme_color_override("font_color", Color(0.9, 0.8, 0.4))
-	sign_label.position = Vector2(
-		(start_x + 1) * BLOCK_SIZE,
-		GROUND_Y + (UNDERGROUND_ROWS - 1) * BLOCK_SIZE)
-	sign_label.z_index = 5
-	stair_container.add_child(sign_label)
+	# Shaft markers removed — pillars above are sufficient visual cue
 
 	# "LEVEL 2" sign at the bottom of the shaft
 	var l2_label := Label.new()
@@ -922,27 +953,7 @@ func _add_stairwell_marker(chunk: Node2D, start_x: int) -> void:
 	glow.color = Color(0.3, 0.8, 0.5, 0.08)
 	marker.add_child(glow)
 
-	# Clear "DIG HERE" sign
-	var hint := Label.new()
-	hint.text = "DIG HERE"
-	hint.add_theme_font_size_override("font_size", 22)
-	hint.add_theme_color_override("font_color", Color(1.0, 0.9, 0.4, 0.9))
-	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	hint.position = Vector2(-45, -70)
-	hint.size = Vector2(90, 30)
-	hint.z_index = 5
-	marker.add_child(hint)
-
-	# Arrow pointing down
-	var arrow := Label.new()
-	arrow.text = "v v v"
-	arrow.add_theme_font_size_override("font_size", 18)
-	arrow.add_theme_color_override("font_color", Color(0.9, 0.8, 0.3, 0.7))
-	arrow.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	arrow.position = Vector2(-30, -48)
-	arrow.size = Vector2(60, 20)
-	arrow.z_index = 5
-	marker.add_child(arrow)
+	# Stairwell marker is now just the stone pillars — no text clutter
 
 func _add_stair_block(container: Node2D, pos: Vector2) -> void:
 	## Creates a single indestructible stone stair block. No dig method = can't break it.
@@ -1445,12 +1456,15 @@ func _add_l2_tree(chunk: Node2D, pos: Vector2) -> void:
 		"res://assets/sprites/world/tree_", 3, int(trunk_h), Vector2(0, -55))
 	if glow_tree_sprite:
 		glow_tree_sprite.position = pos
+		glow_tree_sprite.scale = Vector2(3.0, 3.0)  # 3x bigger L2 trees
+		glow_tree_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 		glow_tree_sprite.modulate = Color(0.5, 1.0, 0.85, 0.9)  # Cyan-green bioluminescent tint
 		chunk.add_child(glow_tree_sprite)
 		return
 
 	var tree := Node2D.new()
 	tree.position = pos
+	tree.scale = Vector2(3.0, 3.0)  # 3x bigger fallback too
 	chunk.add_child(tree)
 	var trunk := ColorRect.new()
 	trunk.position = Vector2(-6, -trunk_h)
@@ -1555,18 +1569,27 @@ func _add_platform(chunk: Node2D, pos: Vector2, width: float) -> void:
 	col.shape = shape
 	platform.add_child(col)
 
-	# Platforms stay as ColorRects (they need dynamic width, sprites would tile poorly)
-
-	var visual := ColorRect.new()
-	visual.position = Vector2(-width / 2.0, -10)
-	visual.size = Vector2(width, 20)
-	visual.color = Color(0.55, 0.4, 0.25, 1)
-	platform.add_child(visual)
-	var grass_top := ColorRect.new()
-	grass_top.position = Vector2(-width / 2.0, -14)
-	grass_top.size = Vector2(width, 4)
-	grass_top.color = Color(0.3, 0.7, 0.3, 1)
-	platform.add_child(grass_top)
+	# Try magic platform sprite
+	var plat_sprite := SpriteLoader.try_load_sprite(
+		"res://assets/sprites/world/platform_magic.png", Vector2(0, 0))
+	if plat_sprite:
+		plat_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		# Scale to match requested width
+		var tex_width := plat_sprite.texture.get_width()
+		var scale_x := width / float(tex_width) if tex_width > 0 else 1.0
+		plat_sprite.scale = Vector2(scale_x, scale_x)
+		platform.add_child(plat_sprite)
+	else:
+		var visual := ColorRect.new()
+		visual.position = Vector2(-width / 2.0, -10)
+		visual.size = Vector2(width, 20)
+		visual.color = Color(0.55, 0.4, 0.25, 1)
+		platform.add_child(visual)
+		var grass_top := ColorRect.new()
+		grass_top.position = Vector2(-width / 2.0, -14)
+		grass_top.size = Vector2(width, 4)
+		grass_top.color = Color(0.3, 0.7, 0.3, 1)
+		platform.add_child(grass_top)
 
 func _add_tree(chunk: Node2D, pos: Vector2) -> void:
 	# Consume RNG to keep sequence deterministic regardless of sprite/fallback path
@@ -1581,11 +1604,12 @@ func _add_tree(chunk: Node2D, pos: Vector2) -> void:
 
 	# Try sprite first (pick variant based on trunk_h RNG)
 	# Offset: sprite is 80x110, bottom-anchored. Place so bottom touches ground.
+	# Sprite is 80x110. Offset = -half height so bottom touches ground. Scale applied after.
 	var tree_sprite := SpriteLoader.try_load_random_sprite(
-		"res://assets/sprites/world/tree_", 3, int(trunk_h), Vector2(0, -140))
+		"res://assets/sprites/world/tree_", 3, int(trunk_h), Vector2(0, -55))
 	if tree_sprite:
 		tree_sprite.position = pos
-		tree_sprite.scale = Vector2(2.5, 2.5)  # 2.5x bigger trees
+		tree_sprite.scale = Vector2(2.5, 2.5)
 		tree_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 		chunk.add_child(tree_sprite)
 		return
@@ -1632,30 +1656,42 @@ func _spawn_surface_chest(chunk: Node2D, pos: Vector2) -> void:
 	var chest_script := load("res://scenes/world/TreasureChest.gd") as GDScript
 	var chest := StaticBody2D.new()
 	chest.position = pos
-	chest.collision_layer = 4  # Interactable
+	chest.collision_layer = 4
+	chest.z_index = 3
 
-	# Chest body
-	var chest_body := ColorRect.new()
-	chest_body.name = "ChestBody"
-	chest_body.position = Vector2(-14, -11)
-	chest_body.size = Vector2(28, 18)
-	chest_body.color = Color(0.6, 0.4, 0.15, 1)
-	chest.add_child(chest_body)
+	# Try pixel art chest sprite
+	var chest_tex_path := "res://assets/sprites/world/chest_closed.png"
+	if ResourceLoader.exists(chest_tex_path):
+		var tex := load(chest_tex_path) as Texture2D
+		if tex:
+			var spr := Sprite2D.new()
+			spr.name = "ChestSprite"
+			spr.texture = tex
+			spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+			spr.offset = Vector2(0, -tex.get_height() / 2.0)
+			chest.add_child(spr)
+	else:
+		var chest_body := ColorRect.new()
+		chest_body.name = "ChestBody"
+		chest_body.position = Vector2(-14, -11)
+		chest_body.size = Vector2(28, 18)
+		chest_body.color = Color(0.6, 0.4, 0.15, 1)
+		chest.add_child(chest_body)
+		var lid := ColorRect.new()
+		lid.name = "Lid"
+		lid.position = Vector2(-16, -17)
+		lid.size = Vector2(32, 8)
+		lid.color = Color(0.7, 0.5, 0.2, 1)
+		chest.add_child(lid)
 
-	# Chest lid
-	var lid := ColorRect.new()
-	lid.name = "Lid"
-	lid.position = Vector2(-16, -17)
-	lid.size = Vector2(32, 8)
-	lid.color = Color(0.7, 0.5, 0.2, 1)
-	chest.add_child(lid)
-
-	# Gold clasp
-	var clasp := ColorRect.new()
-	clasp.position = Vector2(-3, -13)
-	clasp.size = Vector2(6, 5)
-	clasp.color = Color(1, 0.85, 0.2, 1)
-	chest.add_child(clasp)
+	# Idle sparkle
+	var sparkle := Node2D.new()
+	sparkle.name = "IdleSparkle"
+	chest.add_child(sparkle)
+	var ss := GDScript.new()
+	ss.source_code = "extends Node2D\nvar _t := 0.0\nfunc _process(d):\n\t_t += d\n\tif fmod(_t, 1.5) < d:\n\t\tvar s = ColorRect.new()\n\t\ts.size = Vector2(3,3)\n\t\ts.position = Vector2(randf_range(-12,12), -20)\n\t\ts.color = Color(1, 0.85, 0.2, 0.6)\n\t\ts.z_index = 4\n\t\tadd_child(s)\n\t\tvar tw = s.create_tween()\n\t\ttw.tween_property(s, \"position:y\", s.position.y - 25, 1.0)\n\t\ttw.parallel().tween_property(s, \"modulate:a\", 0.0, 1.0)\n\t\ttw.tween_callback(s.queue_free)\n"
+	ss.reload()
+	sparkle.set_script(ss)
 
 	# Collision
 	var col := CollisionShape2D.new()
@@ -1836,10 +1872,10 @@ func _on_world_word_completed(word: String) -> void:
 func _add_stairwell_house(chunk: Node2D, pos: Vector2) -> void:
 	## Places a travel cottage near a stairwell — 3x sized landmark.
 	var cottage_sprite := SpriteLoader.try_load_sprite(
-		"res://assets/sprites/world/cottage_0.png", Vector2(0, -195))
+		"res://assets/sprites/world/cottage_0.png", Vector2(0, -65))
 	if cottage_sprite:
 		cottage_sprite.position = pos + Vector2(150, 0)
-		cottage_sprite.scale = Vector2(3, 3)  # 3x bigger
+		cottage_sprite.scale = Vector2(3, 3)
 		cottage_sprite.z_index = -2
 		cottage_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 		chunk.add_child(cottage_sprite)
@@ -1856,17 +1892,7 @@ func _add_stairwell_house(chunk: Node2D, pos: Vector2) -> void:
 		gp_col.shape = gp_shape
 		gp_col.position = Vector2(0, 30)
 		ground_pad.add_child(gp_col)
-		# Visible terrain fill under cottage
-		var gp_vis := ColorRect.new()
-		gp_vis.position = Vector2(-270, -6)
-		gp_vis.size = Vector2(540, 8)
-		gp_vis.color = Color(0.36, 0.68, 0.34, 1)  # Grass
-		ground_pad.add_child(gp_vis)
-		var gp_dirt := ColorRect.new()
-		gp_dirt.position = Vector2(-270, 2)
-		gp_dirt.size = Vector2(540, 70)
-		gp_dirt.color = Color(0.5, 0.35, 0.2, 1)  # Dirt fill
-		ground_pad.add_child(gp_dirt)
+		# Collision only — terrain tiles provide the visual
 
 		# Walk-on platform at door level
 		var door_platform := StaticBody2D.new()

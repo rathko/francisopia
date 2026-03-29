@@ -115,56 +115,42 @@ func _drop_letters() -> void:
 		_letter_arc.add_child(medallion)
 
 		var is_needed: bool = entry["needed"]
-		var circle_size := 28.0 if is_needed else 22.0
+		var letter_char: String = str(entry["char"]).to_upper()
 
-		# Golden medallion circle — outer ring
-		var outer := ColorRect.new()
-		outer.position = Vector2(-circle_size - 3, -circle_size - 3)
-		outer.size = Vector2((circle_size + 3) * 2, (circle_size + 3) * 2)
-		if is_needed:
-			outer.color = Color(0.95, 0.75, 0.1, 0.9)  # Bright gold ring
+		# Try pixel art letter medallion sprite
+		var letter_path := "res://assets/sprites/ui/letters/%s.png" % letter_char
+		if ResourceLoader.exists(letter_path):
+			var tex := load(letter_path) as Texture2D
+			if tex:
+				var spr := Sprite2D.new()
+				spr.texture = tex
+				spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+				if is_needed:
+					spr.scale = Vector2(1.35, 1.35)  # Big golden coin for needed
+				else:
+					spr.scale = Vector2(0.9, 0.9)  # Smaller for distractor
+					spr.modulate = Color(0.6, 0.6, 0.6, 0.5)  # Dimmed
+				medallion.add_child(spr)
 		else:
-			outer.color = Color(0.5, 0.45, 0.3, 0.4)  # Dim ring
-		medallion.add_child(outer)
+			# Fallback: Label
+			var label := Label.new()
+			label.text = letter_char
+			label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			label.position = Vector2(-20, -25)
+			if is_needed:
+				label.add_theme_font_size_override("font_size", 52)
+				label.add_theme_color_override("font_color", Color(1.0, 0.9, 0.3))
+			else:
+				label.add_theme_font_size_override("font_size", 38)
+				label.add_theme_color_override("font_color", Color(0.5, 0.5, 0.5, 0.4))
+			medallion.add_child(label)
 
-		# Inner fill — darker gold center
-		var inner := ColorRect.new()
-		inner.position = Vector2(-circle_size, -circle_size)
-		inner.size = Vector2(circle_size * 2, circle_size * 2)
-		if is_needed:
-			inner.color = Color(0.85, 0.6, 0.08, 0.85)  # Rich gold fill
-		else:
-			inner.color = Color(0.35, 0.3, 0.2, 0.35)  # Dim fill
-		medallion.add_child(inner)
-
-		# Highlight shine — top-left corner catch light (needed only)
-		if is_needed:
-			var shine := ColorRect.new()
-			shine.position = Vector2(-circle_size + 4, -circle_size + 4)
-			shine.size = Vector2(circle_size * 0.6, circle_size * 0.4)
-			shine.color = Color(1.0, 0.95, 0.7, 0.3)
-			medallion.add_child(shine)
-
-		# Letter text centered in medallion
-		var label := Label.new()
-		label.text = str(entry["char"])
-		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		label.position = Vector2(-circle_size, -circle_size - 2)
-		label.custom_minimum_size = Vector2(circle_size * 2, circle_size * 2)
-
-		if is_needed:
-			label.add_theme_font_size_override("font_size", 52)
-			label.add_theme_color_override("font_color", Color(1.0, 0.95, 0.8, 1.0))
-			label.add_theme_color_override("font_outline_color", Color(0.5, 0.35, 0.0))
-			label.add_theme_constant_override("outline_size", 3)
-		else:
-			label.add_theme_font_size_override("font_size", 38)
-			label.add_theme_color_override("font_color", Color(0.6, 0.55, 0.45, 0.6))
-			label.add_theme_constant_override("outline_size", 0)
-
-		medallion.add_child(label)
-		_letter_labels.append(label)
+		# Keep a label reference for text (even with sprites, we track by medallion)
+		var dummy_label := Label.new()
+		dummy_label.text = letter_char
+		dummy_label.visible = false
+		medallion.add_child(dummy_label)
+		_letter_labels.append(dummy_label)
 		_letter_medallions.append(medallion)
 
 		# Pop-in animation

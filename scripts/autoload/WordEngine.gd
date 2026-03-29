@@ -19,7 +19,7 @@ var collected_letters: Array[String] = []
 var current_difficulty := 1
 var _word_attempts: Dictionary = {}  # word -> {correct: int, hints_used: int, time_ms: int}
 var _recent_words: Array[String] = []  # Last N words to avoid repetition
-const RECENT_WORD_MEMORY := 5  # How many recent words to avoid repeating
+const RECENT_WORD_MEMORY := 30  # How many recent words to avoid repeating
 
 # Fixed starter sequence — these words always come first in order
 # Phonics-informed: CVC words the child already knows, pets early for engagement
@@ -315,8 +315,8 @@ func select_word_for_area(area: String) -> String:
 		return current_target_word
 
 	# After starter sequence, use random selection by area and difficulty
-	# Prefer words not yet summoned. Repeatable words (big, hat, bow, hammer) are always allowed.
-	var repeatable := ["big", "hat", "cap", "wig", "lip", "bow", "hammer", "run", "hop", "zip", "dig", "fan", "leg", "hug", "net", "web", "jam", "fog", "red", "mud", "hot", "wet", "mix", "mop", "gem", "pot", "bag", "six", "ten", "nut", "bun", "gum", "dot", "can", "map", "pin", "bit", "fin", "sit", "hit", "men", "bus", "pan"]
+	# Only TEMPORARY POWER-UPS are repeatable — regular words should be learned once, then move on
+	var repeatable := ["big", "run", "hop", "zip", "dig", "red", "hot", "wet", "hug", "hit", "mud"]
 	# Underground levels bump minimum difficulty: Level 2 uses words level 2+
 	var min_difficulty: int = maxi(1, GameManager.current_level)
 	var max_difficulty: int = maxi(current_difficulty, min_difficulty)
@@ -341,20 +341,29 @@ func select_word_for_area(area: String) -> String:
 		)
 	if candidates.is_empty():
 		return "cat"
-	# Filter out recently used words to reduce repetition
+
+	# Priority 1: ALWAYS prefer words never summoned yet (new words = learning!)
+	var never_done := candidates.filter(func(w: Dictionary) -> bool:
+		return w.get("word", "") not in GameManager.words_summoned
+	)
+	if not never_done.is_empty():
+		candidates = never_done
+
+	# Priority 2: Filter out recently used words
 	var fresh := candidates.filter(func(w: Dictionary) -> bool:
 		return w.get("word", "") not in _recent_words
 	)
 	if not fresh.is_empty():
 		candidates = fresh
-	# If all candidates are recent, allow them but at least avoid the very last word
 	elif _recent_words.size() > 0:
+		# At minimum avoid the very last word
 		var last_word: String = _recent_words[-1]
 		var not_last := candidates.filter(func(w: Dictionary) -> bool:
 			return w.get("word", "") != last_word
 		)
 		if not not_last.is_empty():
 			candidates = not_last
+
 	var entry: Dictionary = candidates[randi() % candidates.size()]
 	current_target_word = entry.get("word", "cat").to_upper()
 	current_hint_image = entry.get("image", "")

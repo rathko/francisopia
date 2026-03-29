@@ -68,17 +68,8 @@ func _ready() -> void:
 	_word_box.add_theme_constant_override("separation", 8)
 	root_ctrl.add_child(_word_box)
 
-	# Phonetic spelling hint below letter slots
-	_phonetic_label = Label.new()
-	_phonetic_label.set_anchors_preset(Control.PRESET_TOP_WIDE)
-	_phonetic_label.offset_top = 155.0
-	_phonetic_label.offset_bottom = 180.0
-	_phonetic_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_phonetic_label.add_theme_font_size_override("font_size", 22)
-	_phonetic_label.add_theme_color_override("font_color", Color(0.7, 0.7, 0.8, 0.5))
-	if _bold_font:
-		_phonetic_label.add_theme_font_override("font", _bold_font)
-	root_ctrl.add_child(_phonetic_label)
+	# Phonetic spelling removed — research says 4 sensory channels max.
+	# Word display + letter slots + hint text + chime is already 4. Adding phonetic text = clutter.
 
 	# Coin display with icon
 	var coin_container := HBoxContainer.new()
@@ -182,13 +173,7 @@ func _on_target_word_changed(word: String, hint_image: String) -> void:
 	bbcode += "[/center]"
 	_hint_label.text = bbcode
 
-	# Phonetic spelling hint — shows sound segments (e.g., "f - i - sh")
-	if _phonetic_label:
-		var phoneme_player := get_node_or_null("/root/PhonemePlayer")
-		if phoneme_player:
-			_phonetic_label.text = phoneme_player.get_phonetic_spelling(word)
-		else:
-			_phonetic_label.text = ""
+	# Phonetic spelling removed to reduce visual clutter
 
 	# Create styled letter slots with rounded backgrounds
 	_letter_panels.clear()
