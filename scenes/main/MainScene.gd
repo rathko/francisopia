@@ -678,10 +678,20 @@ func _generate_chunk(index: int) -> void:
 		var target_ground := _get_ground_y_at_px(index, target_x, stairwell_centers)
 		_add_archery_target(chunk, Vector2(target_x, target_ground))
 
-	# Surface treasure chests (1-2 per chunk, sitting on the ground)
+	# Surface treasure chests (1-2 per chunk, minimum 300px apart)
 	var surface_chests := _rng.randi_range(1, 2)
+	var chest_positions: Array[float] = []
 	for sc in surface_chests:
 		var chest_x := _rng.randf_range(100, CHUNK_WIDTH - 100)
+		# Enforce minimum distance between chests
+		var too_close := false
+		for prev_x in chest_positions:
+			if absf(chest_x - prev_x) < 300.0:
+				too_close = true
+				break
+		if too_close:
+			continue  # Skip this chest, don't spawn it
+		chest_positions.append(chest_x)
 		var chest_ground := _get_ground_y_at_px(index, chest_x, stairwell_centers)
 		_spawn_surface_chest(chunk, Vector2(chest_x, chest_ground - 9))
 
@@ -1572,15 +1582,18 @@ func _add_tree(chunk: Node2D, pos: Vector2) -> void:
 	# Try sprite first (pick variant based on trunk_h RNG)
 	# Offset: sprite is 80x110, bottom-anchored. Place so bottom touches ground.
 	var tree_sprite := SpriteLoader.try_load_random_sprite(
-		"res://assets/sprites/world/tree_", 3, int(trunk_h), Vector2(0, -55))
+		"res://assets/sprites/world/tree_", 3, int(trunk_h), Vector2(0, -140))
 	if tree_sprite:
 		tree_sprite.position = pos
+		tree_sprite.scale = Vector2(2.5, 2.5)  # 2.5x bigger trees
+		tree_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 		chunk.add_child(tree_sprite)
 		return
 
-	# Fallback: procedural ColorRect tree
+	# Fallback: procedural ColorRect tree (2.5x scale)
 	var tree := Node2D.new()
 	tree.position = pos
+	tree.scale = Vector2(2.5, 2.5)
 	chunk.add_child(tree)
 	var trunk := ColorRect.new()
 	trunk.position = Vector2(-8, -trunk_h)
@@ -1821,24 +1834,63 @@ func _on_world_word_completed(word: String) -> void:
 		_regenerate_all_chunks()
 
 func _add_stairwell_house(chunk: Node2D, pos: Vector2) -> void:
-	## Places a travel castle near a stairwell as a cozy landmark.
-	# Cozy cottage/inn next to stairwell (160x130, bottom-anchored)
+	## Places a travel cottage near a stairwell — 3x sized landmark.
 	var cottage_sprite := SpriteLoader.try_load_sprite(
-		"res://assets/sprites/world/cottage_0.png", Vector2(0, -65))
+		"res://assets/sprites/world/cottage_0.png", Vector2(0, -195))
 	if cottage_sprite:
-		cottage_sprite.position = pos + Vector2(100, 0)
-		cottage_sprite.z_index = -2  # Behind player
+		cottage_sprite.position = pos + Vector2(150, 0)
+		cottage_sprite.scale = Vector2(3, 3)  # 3x bigger
+		cottage_sprite.z_index = -2
+		cottage_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 		chunk.add_child(cottage_sprite)
-		# One-way roof platform (cottage is 160x130)
+
+		# Ground platform under the cottage so it doesn't float
+		var ground_pad := StaticBody2D.new()
+		ground_pad.position = pos + Vector2(150, 10)
+		ground_pad.collision_layer = 1
+		ground_pad.collision_mask = 0
+		chunk.add_child(ground_pad)
+		var gp_col := CollisionShape2D.new()
+		var gp_shape := RectangleShape2D.new()
+		gp_shape.size = Vector2(480 + 60, 80)
+		gp_col.shape = gp_shape
+		gp_col.position = Vector2(0, 30)
+		ground_pad.add_child(gp_col)
+		# Visible terrain fill under cottage
+		var gp_vis := ColorRect.new()
+		gp_vis.position = Vector2(-270, -6)
+		gp_vis.size = Vector2(540, 8)
+		gp_vis.color = Color(0.36, 0.68, 0.34, 1)  # Grass
+		ground_pad.add_child(gp_vis)
+		var gp_dirt := ColorRect.new()
+		gp_dirt.position = Vector2(-270, 2)
+		gp_dirt.size = Vector2(540, 70)
+		gp_dirt.color = Color(0.5, 0.35, 0.2, 1)  # Dirt fill
+		ground_pad.add_child(gp_dirt)
+
+		# Walk-on platform at door level
+		var door_platform := StaticBody2D.new()
+		door_platform.position = pos + Vector2(150, -10)
+		door_platform.collision_layer = 1
+		door_platform.collision_mask = 0
+		chunk.add_child(door_platform)
+		var dp_col := CollisionShape2D.new()
+		dp_col.one_way_collision = true
+		var dp_shape := RectangleShape2D.new()
+		dp_shape.size = Vector2(360, 8)
+		dp_col.shape = dp_shape
+		door_platform.add_child(dp_col)
+
+		# Roof platform (3x bigger)
 		var roof := StaticBody2D.new()
-		roof.position = pos + Vector2(100, -120)
+		roof.position = pos + Vector2(150, -360)
 		roof.collision_layer = 1
 		roof.collision_mask = 0
 		chunk.add_child(roof)
 		var roof_col := CollisionShape2D.new()
 		roof_col.one_way_collision = true
 		var roof_shape := RectangleShape2D.new()
-		roof_shape.size = Vector2(120, 12)
+		roof_shape.size = Vector2(360, 12)
 		roof_col.shape = roof_shape
 		roof.add_child(roof_col)
 		return

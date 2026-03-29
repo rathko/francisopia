@@ -1021,8 +1021,15 @@ func _summon_box(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
 	return box
 
 func _summon_trampoline(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
+	# Place on terrain surface, not at fixed Y
+	const TH = preload("res://scripts/world/TerrainHeight.gd")
+	var BLOCK_SIZE := 32.0
+	var GROUND_Y := 725.0
+	var world_block_x := int(floor(pos.x / BLOCK_SIZE))
+	var height_offset := TH.get_height(world_block_x, GameManager.world_seed)
+	var surface_y := GROUND_Y + height_offset * BLOCK_SIZE
 	var tramp := StaticBody2D.new()
-	tramp.global_position = Vector2(pos.x, 725)
+	tramp.global_position = Vector2(pos.x, surface_y)
 
 	var base := ColorRect.new()
 	base.position = Vector2(-30, -8)
@@ -1043,8 +1050,27 @@ func _summon_trampoline(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
 	col.shape = shape
 	tramp.add_child(col)
 
+	# Bounce area — launches player high when they land on it
+	var bounce_area := Area2D.new()
+	bounce_area.position = Vector2(0, -16)
+	bounce_area.collision_layer = 0
+	bounce_area.collision_mask = 1
+	bounce_area.monitoring = true
+	var bounce_col := CollisionShape2D.new()
+	var bounce_shape := RectangleShape2D.new()
+	bounce_shape.size = Vector2(56, 8)
+	bounce_col.shape = bounce_shape
+	bounce_area.add_child(bounce_col)
+	tramp.add_child(bounce_area)
+
+	# Bounce script — launches player very high
+	var bounce_script := GDScript.new()
+	bounce_script.source_code = "extends Area2D\n\nfunc _ready():\n\tbody_entered.connect(_on_body)\n\nfunc _on_body(body: Node2D):\n\tif body is CharacterBody2D and body.velocity.y > 0:\n\t\tbody.velocity.y = -900.0\n\t\tvar sfx = get_node_or_null(\"/root/SoundFX\")\n\t\tif sfx: sfx._play_sound(sfx._chime_stream, 1.5, 0.2)\n"
+	bounce_script.reload()
+	bounce_area.set_script(bounce_script)
+
 	scene_root.add_child(tramp)
-	print("Francis-opia: ✨ A bouncy trampoline appeared! Jump on it!")
+	print("Francis-opia: A bouncy trampoline appeared! Jump on it!")
 	return tramp
 
 func _summon_leaves(scene_root: Node, _player: Node2D, pos: Vector2) -> Node:
@@ -2831,9 +2857,16 @@ func _hide_colorrects_recursive(node: Node) -> void:
 
 func _summon_house(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
 	# Enterable house! Player walks through the open door on the right side.
+	# Place on terrain surface, not at fixed Y
+	const TH = preload("res://scripts/world/TerrainHeight.gd")
+	var BLOCK_SIZE := 32.0
+	var BASE_GROUND_Y := 725.0
+	var world_block_x := int(floor((pos.x + 120) / BLOCK_SIZE))
+	var height_offset := TH.get_height(world_block_x, GameManager.world_seed)
+	var ground_y := BASE_GROUND_Y + height_offset * BLOCK_SIZE
+
 	var house := Node2D.new()
 	house.name = "MagicHouse"
-	var ground_y := 725.0  # Baseline ground, always flat
 	house.global_position = Vector2(pos.x + 120, ground_y)
 
 	# Castle sprite overlay (replaces old ColorRect visuals, collision still built below)
@@ -2884,6 +2917,43 @@ func _summon_house(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
 		ledge_shape.size = Vector2(500, 16)
 		ledge_col.shape = ledge_shape
 		ledge.add_child(ledge_col)
+
+		# Ground pad under castle so it doesn't float
+		var ground_pad := StaticBody2D.new()
+		ground_pad.position = Vector2(240, 40)
+		ground_pad.collision_layer = 1
+		ground_pad.collision_mask = 0
+		house.add_child(ground_pad)
+		var gp_col := CollisionShape2D.new()
+		var gp_shape := RectangleShape2D.new()
+		gp_shape.size = Vector2(700, 200)
+		gp_col.shape = gp_shape
+		gp_col.position = Vector2(0, 60)
+		ground_pad.add_child(gp_col)
+		# Visible terrain fill
+		var gp_grass := ColorRect.new()
+		gp_grass.position = Vector2(-350, -8)
+		gp_grass.size = Vector2(700, 10)
+		gp_grass.color = Color(0.36, 0.68, 0.34, 1)
+		ground_pad.add_child(gp_grass)
+		var gp_dirt := ColorRect.new()
+		gp_dirt.position = Vector2(-350, 2)
+		gp_dirt.size = Vector2(700, 160)
+		gp_dirt.color = Color(0.5, 0.35, 0.2, 1)
+		ground_pad.add_child(gp_dirt)
+
+		# Door-level walkable platform
+		var door_plat := StaticBody2D.new()
+		door_plat.position = Vector2(240, -8)
+		door_plat.collision_layer = 1
+		door_plat.collision_mask = 0
+		house.add_child(door_plat)
+		var dp_col := CollisionShape2D.new()
+		dp_col.one_way_collision = true
+		var dp_shape := RectangleShape2D.new()
+		dp_shape.size = Vector2(600, 10)
+		dp_col.shape = dp_shape
+		door_plat.add_child(dp_col)
 
 		scene_root.add_child(house)
 		GameManager.home_pos_x = house.global_position.x + 240

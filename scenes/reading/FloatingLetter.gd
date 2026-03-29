@@ -80,17 +80,19 @@ func is_needed() -> bool:
 
 func collect() -> void:
 	_collected = true
-	# Play correct phoneme for this letter position in the word
-	# Approach C: first letter of a digraph triggers the sound, rest are silent
-	# e.g., "S" in "SHIP" plays /sh/, "H" plays nothing
-	var phoneme := get_node_or_null("/root/PhonemePlayer")
-	if phoneme:
-		var pos := WordEngine.collected_letters.size() - 1
-		phoneme.play_phoneme_for_position(WordEngine.current_target_word, pos)
-	# Ascending pentatonic chime based on position in word
+	var pos := WordEngine.collected_letters.size() - 1
+	# Sound sequence: phoneme FIRST (learning), then chime (feedback)
+	# Never overlap — phoneme must be clearly heard by the child
+	var phoneme_node := get_node_or_null("/root/PhonemePlayer")
+	if phoneme_node:
+		phoneme_node.play_phoneme_for_position(WordEngine.current_target_word, pos)
+	# Chime plays after phoneme finishes (~0.35s delay)
 	var sfx := get_node_or_null("/root/SoundFX")
 	if sfx:
-		sfx.play_letter_chime(WordEngine.collected_letters.size() - 1)
+		get_tree().create_timer(0.35).timeout.connect(func() -> void:
+			if is_instance_valid(sfx):
+				sfx.play_letter_chime(pos)
+		)
 	# Trail particles float upward toward HUD
 	var scene_root := get_tree().current_scene
 	var vfx := get_node_or_null("/root/MagicVFX")

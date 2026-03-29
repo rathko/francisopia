@@ -61,9 +61,9 @@ func _ready() -> void:
 	_load_phoneme_map()
 	_preload_phonemes()
 	# Auto-play word pronunciation when a word is completed
+	# Delayed so completion chord + summon accent play first, then clear word pronunciation
 	WordEngine.word_spelled_correctly.connect(func(word: String) -> void:
-		# Small delay so the chime plays first, then the word
-		await get_tree().create_timer(0.5).timeout
+		await get_tree().create_timer(1.0).timeout
 		play_word(word)
 	)
 
@@ -133,6 +133,8 @@ func play_phoneme(phoneme_id: String) -> void:
 	phoneme_id = phoneme_id.to_lower()
 	if phoneme_id in _phoneme_cache:
 		_play(_phoneme_cache[phoneme_id])
+	else:
+		print("PhonemePlayer: WARNING — no audio for phoneme '%s'" % phoneme_id)
 
 
 func play_phoneme_for_position(word: String, letter_position: int) -> void:
@@ -144,10 +146,13 @@ func play_phoneme_for_position(word: String, letter_position: int) -> void:
 	word = word.to_lower()
 	var lpm := get_letter_phoneme_map(word)
 	if letter_position < 0 or letter_position >= lpm.size():
+		print("PhonemePlayer: position %d out of range for '%s' (map size %d)" % [letter_position, word, lpm.size()])
 		return
 	var phoneme_id: String = lpm[letter_position]
 	if phoneme_id.is_empty():
+		print("PhonemePlayer: position %d in '%s' is continuation (silent)" % [letter_position, word])
 		return  # This letter is part of a digraph already triggered
+	print("PhonemePlayer: playing '%s' for position %d in '%s'" % [phoneme_id, letter_position, word])
 	play_phoneme(phoneme_id)
 
 

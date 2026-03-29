@@ -101,7 +101,7 @@
 - **Impact:** Kingdom's water is its visual signature. Brings world to life.
 
 ### Phase 12: Remaining Summon Sprites
-- [ ] Pixel art sprites for 78 MagicSummon words still using ColorRect
+- [ ] Pixel art sprites for all other MagicSummon words still using ColorRect
 - [ ] Batch by category: animals, objects, nature, effects
 - [ ] Priority: most-common starter words first (sun, cat, dog, tree already done)
 - [ ] Each sprite: 32x32 or 48x48, Ghibli-warm palette, nearest-neighbor filtering

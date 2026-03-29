@@ -38,32 +38,36 @@ curl -s "https://api.elevenlabs.io/v1/text-to-speech/$VOICE_ID" \
 ### Phoneme text mappings (what text produces clean letter sounds)
 | Letter | Text sent to API | Phoneme sound |
 |--------|-----------------|---------------|
-| a | "ah" | short /a/ as in cat |
-| b | "b" | clipped /b/ |
-| c | "k" | clipped /k/ |
-| d | "d" | clipped /d/ |
-| e | "eh" | short /e/ as in bed |
-| f | "ff" | continuant /f/ |
-| g | "g" | clipped /g/ |
-| h | "hh" | breathy /h/ |
-| i | "ih" | short /i/ as in sit |
-| j | "j" | clipped /dj/ |
-| k | "k" | clipped /k/ |
-| l | "ll" | continuant /l/ |
-| m | "mm" | continuant /m/ |
-| n | "nn" | continuant /n/ |
-| o | "oh" | short /o/ as in hot |
-| p | "p" | clipped /p/ |
-| q | "kw" | /kw/ blend |
-| r | "rr" | continuant /r/ |
-| s | "ss" | continuant /s/ |
-| t | "t" | clipped /t/ |
-| u | "uh" | short /u/ as in cup |
-| v | "vv" | continuant /v/ |
-| w | "ww" | glide /w/ |
+| a | "aah" | short /a/ as in cat |
+| b | "buh" | clipped /b/ — NEVER send just "b" (TTS says "bee") |
+| c | "kuh" | hard c = /k/ |
+| d | "duh" | clipped /d/ — NEVER send just "d" (TTS says "dee") |
+| e | "ehh" | short /e/ as in bed |
+| f | "ffff" | sustained /f/ |
+| g | "guh" | clipped /g/ — NEVER send just "g" (TTS says "gee") |
+| h | "huh" | breathy /h/ with minimal vowel |
+| i | "ihh" | short /i/ as in sit — NOT "ih" (sounds like "I") |
+| j | "juh" | clipped /dj/ |
+| k | "kuh" | clipped /k/ |
+| l | "llll" | sustained /l/ |
+| m | "mmmm" | sustained /m/ |
+| n | "nnnn" | sustained /n/ |
+| o | "aww" | short /o/ as in hot — NOT "oh" (that's long o) |
+| p | "puh" | clipped /p/ — NEVER send just "p" (TTS says "pee") |
+| q | "kwuh" | /kw/ blend |
+| r | "rrrr" | sustained /r/ |
+| s | "ssss" | sustained /s/ |
+| t | "tuh" | clipped /t/ — NEVER send just "t" (TTS says "tee") |
+| u | "uhh" | short /u/ as in cup |
+| v | "vvvv" | sustained /v/ |
+| w | "wuh" | glide /w/ |
 | x | "ks" | /ks/ blend |
-| y | "yy" | glide /j/ |
-| z | "zz" | continuant /z/ |
+| y | "yuh" | glide /j/ |
+| z | "zzzz" | sustained /z/ |
+
+**CRITICAL LESSON LEARNED**: Never send a single letter to ElevenLabs TTS.
+The model interprets single letters as letter NAMES ("b"→"bee", "g"→"gee"),
+not phoneme SOUNDS. Always use syllable text that forces the sound.
 
 ## Adding a New Voice Persona
 
