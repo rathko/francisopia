@@ -62,10 +62,17 @@ if [ "$DO_EXPORT" = true ]; then
 
     mkdir -p "${EXPORT_DIR}"
 
-    # Check if export templates are installed
-    TEMPLATE_DIR="${HOME}/.local/share/godot/export_templates"
-    if [ ! -d "${TEMPLATE_DIR}" ]; then
-        err "Export templates not found at ${TEMPLATE_DIR}\n  Download them: Godot Editor → Editor → Manage Export Templates"
+    # Check if export templates are installed for THIS Godot version
+    # (the parent dir existing isn't enough — version subdir must contain linux_release.x86_64)
+    GODOT_VER_LINE=$(godot --version 2>/dev/null | head -1 || true)
+    if [[ "$GODOT_VER_LINE" =~ ^([0-9]+\.[0-9]+\.[0-9]+)\.stable ]]; then
+        TEMPLATE_SUBDIR="${BASH_REMATCH[1]}.stable"
+    else
+        TEMPLATE_SUBDIR="$GODOT_VER_LINE"   # best effort if non-stable build
+    fi
+    TEMPLATE_FILE="${HOME}/.local/share/godot/export_templates/${TEMPLATE_SUBDIR}/linux_release.x86_64"
+    if [ ! -f "${TEMPLATE_FILE}" ]; then
+        err "Export template missing: ${TEMPLATE_FILE}\n  CLI fix: /home/shared/nfs/logs/install-godot-templates.sh\n  GUI fix: godot --editor  →  Editor menu  →  Manage Export Templates"
     fi
 
     # Run Godot headless export
@@ -88,14 +95,34 @@ if [ "$DO_EXPORT" = true ]; then
         warn "  Fix: cp /home/shared/francisopia-icon.png ${GAME_DIR}/icon.png"
     fi
 
-    godot --headless --export-release "${EXPORT_PRESET}" "${EXPORT_DIR}/${BINARY_NAME}" 2>&1 | tail -5
+    EXPORT_LOG="${EXPORT_DIR}/.last-export.log"
+    EXPORT_BIN="${EXPORT_DIR}/${BINARY_NAME}"
 
-    if [ -f "${EXPORT_DIR}/${BINARY_NAME}" ]; then
-        SIZE=$(du -sh "${EXPORT_DIR}/${BINARY_NAME}" | cut -f1)
-        ok "Export complete: ${EXPORT_DIR}/${BINARY_NAME} (${SIZE})"
-    else
-        err "Export failed — binary not found at ${EXPORT_DIR}/${BINARY_NAME}"
+    # CRITICAL: delete any stale binary BEFORE export. If we don't, a failed
+    # godot run leaves the previous binary in place — the "did it build?"
+    # existence check below would falsely pass and we'd rsync a stale binary
+    # to the deck. Lost a Sunday afternoon to this once.
+    if [ -f "${EXPORT_BIN}" ]; then
+        log "Removing previous binary to ensure freshness"
+        rm -f "${EXPORT_BIN}"
     fi
+
+    # rm above + exit-code check + file-exists check below is enough to catch
+    # the stale-binary bug. An extra mtime comparison against `date +%s` fires
+    # false positives on NFS-mounted export dirs because of clock skew between
+    # framework and the NFS server (mainframe).
+    if ! godot --headless --export-release "${EXPORT_PRESET}" "${EXPORT_BIN}" >"${EXPORT_LOG}" 2>&1; then
+        tail -30 "${EXPORT_LOG}"
+        err "godot --export-release exited non-zero. Full output: ${EXPORT_LOG}"
+    fi
+    tail -10 "${EXPORT_LOG}"
+
+    if [ ! -f "${EXPORT_BIN}" ]; then
+        err "Export reported success but binary not at ${EXPORT_BIN}\n  Full Godot output: ${EXPORT_LOG}"
+    fi
+
+    SIZE=$(du -sh "${EXPORT_BIN}" | cut -f1)
+    ok "Export complete: ${EXPORT_BIN} (${SIZE})"
 fi
 
 # ─── DEPLOY ──────────────────────────────────────────────────────

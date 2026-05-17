@@ -23,7 +23,23 @@ func interact() -> void:
 
 	print("Francis-opia: Found %d coins and some letters!" % _coin_reward)
 
-	# Open animation — lid flies up with golden burst
+	# Open animation — swap pixel-art sprite (sprite-mode chests) AND/OR fly the lid (fallback)
+	var chest_sprite := get_node_or_null("ChestSprite") as Sprite2D
+	if not chest_sprite:
+		# Defensive: if naming ever drifts, fall back to first Sprite2D child
+		for child in get_children():
+			if child is Sprite2D:
+				chest_sprite = child
+				break
+	if chest_sprite:
+		var open_tex := load("res://assets/sprites/world/chest_open.png") as Texture2D
+		if open_tex:
+			chest_sprite.texture = open_tex
+			# Brief brightness flash to draw the eye
+			var flash := chest_sprite.create_tween()
+			flash.tween_property(chest_sprite, "modulate", Color(1.4, 1.3, 0.9, 1), 0.1)
+			flash.tween_property(chest_sprite, "modulate", Color(1, 1, 1, 1), 0.2)
+
 	var tween := create_tween()
 	var lid := get_node_or_null("Lid")
 	var lid_highlight := get_node_or_null("LidHighlight")
