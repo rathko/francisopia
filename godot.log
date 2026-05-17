@@ -1,18 +1,64 @@
-Godot Engine v4.6.1.stable.arch_linux.14d19694e - https://godotengine.org
-Authorization required, but no authorization protocol specified
+Godot Engine v4.6.2.stable.arch_linux.001aa128b (2026-03-31 20:42:38 UTC) - https://godotengine.org
+OpenGL API 4.6 (Core Profile) Mesa 26.0.5-arch1.1 - Compatibility - Using Device: Intel - Mesa Intel(R) Iris(R) Xe Graphics (ADL GT2)
 
-ERROR: X11 Display is not available
-   at: DisplayServerX11 (platform/linuxbsd/x11/display_server_x11.cpp:6855)
-WARNING: Display driver x11 failed, falling back to wayland.
-     at: setup2 (main/main.cpp:3244)
-ERROR: Can't connect to a Wayland display.
-   at: init (platform/linuxbsd/wayland/wayland_thread.cpp:4827)
-ERROR: Could not initialize the Wayland thread.
-   at: DisplayServerWayland (platform/linuxbsd/wayland/display_server_wayland.cpp:2031)
-ERROR: Can't create the Wayland display server.
-   at: create_func (platform/linuxbsd/wayland/display_server_wayland.cpp:2001)
-ERROR: Unable to create DisplayServer, all display drivers failed.
-Use "--headless" command line argument to run the engine in headless mode if this is desired (e.g. for continuous integration).
-   at: setup2 (main/main.cpp:3254)
-WARNING: ObjectDB instances leaked at exit (run with --verbose for details).
-     at: cleanup (core/object/object.cpp:2641)
+Francis-opia: Save loaded! Welcome back to Francis-opia!
+WordEngine: Loaded 53 words from word_bank.tres
+SoundFX: Loaded 4/4 sound samples
+PhonemePlayer: Loaded phoneme segmentation for 162 words
+PhonemePlayer: Loaded 48/48 phoneme sounds from res://assets/sounds/voices/alice/
+Francis-opia: WARNING — No gamepads detected! On Steam Deck, check controller layout is set to 'Gamepad' (Steam button > Controller Settings).
+Francis-opia: Spell 'BIG'!
+Francis-opia: Ground at Y=725, Player at Y=781, Chunks: 7, Seed: 886589041
+Francis-opia: WASD/arrows to move, Space to jump, Click/RT to shoot, Q/LB to dig, Tab for quests
+Francis-opia: A magical dog appeared!
+Francis-opia: Your dog is here! Woof!
+Francis-opia: A magical cat appeared!
+Francis-opia: Restored cat from last session!
+Francis-opia: The sun shines brightly!
+Francis-opia: Restored sun from last session!
+Francis-opia: A tiny hut!
+Francis-opia: Restored hut from last session!
+Francis-opia: A clucky hen appeared! Bawk bawk!
+Francis-opia: Restored hen from last session!
+Francis-opia: A cute pink pig appeared! Oink oink!
+Francis-opia: Restored pig from last session!
+Francis-opia: Found 4 coins and some letters!
+PhonemePlayer: playing 'b' for position 0 in 'big'
+ERROR: Tween (bound to /root/Main/Chunk_21/@StaticBody2D@14474): started with no Tweeners.
+   at: step (scene/animation/tween.cpp:352)
+Francis-opia: Found 3 coins and some letters!
+Francis-opia: Oh no! A letter thief is coming!
+ERROR: Tween (bound to /root/Main/Chunk_22/@StaticBody2D@18177): started with no Tweeners.
+   at: step (scene/animation/tween.cpp:352)
+Francis-opia: Oh no! A letter thief is coming!
+PhonemePlayer: playing 'i' for position 1 in 'big'
+Francis-opia: Your cat scared the thief away!
+Francis-opia: Found 5 coins and some letters!
+Francis-opia: Oh no! A letter thief is coming!
+ERROR: Tween (bound to /root/Main/Chunk_23/@StaticBody2D@21737): started with no Tweeners.
+   at: step (scene/animation/tween.cpp:352)
+PhonemePlayer: playing 'g' for position 2 in 'big'
+Francis-opia: DogPet got BIGGER!
+Francis-opia: Oh no! A letter thief is coming!
+Francis-opia: Your cat scared the thief away!
+
+================================================================
+handle_crash: Program crashed with signal 11
+Engine version: Godot Engine v4.6.2.stable.arch_linux (001aa128b1cd80dc4e47e823c360bccf45ed6bad)
+Dumping the backtrace. Please include this when reporting the bug on: https://github.com/godotengine/godot/issues
+[1] /usr/lib/libc.so.6(+0x3e2d0) [0x7f824ea3e2d0] (??:0)
+[2] /usr/lib/libc.so.6(pthread_mutex_lock+0x4) [0x7f824ea9a014] (??:0)
+[3] godot(+0x14dd346) [0x5621fc5a2346] (??:?)
+[4] godot(+0x1517266) [0x5621fc5dc266] (??:?)
+[5] godot(+0xe1eab8) [0x5621fbee3ab8] (??:?)
+[6] godot(+0x16c0ee1) [0x5621fc785ee1] (??:?)
+[7] godot(+0x6013f3a) [0x5622010d8f3a] (??:?)
+[8] godot(+0x63ab0c2) [0x5622014700c2] (??:?)
+[9] godot(+0x644f0d1) [0x5622015140d1] (??:?)
+[10] godot(+0xeda048) [0x5621fbf9f048] (??:?)
+[11] godot(+0xd8a52c) [0x5621fbe4f52c] (??:?)
+[12] /usr/lib/libc.so.6(+0x276c1) [0x7f824ea276c1] (??:0)
+[13] /usr/lib/libc.so.6(__libc_start_main+0x89) [0x7f824ea277f9] (??:0)
+[14] godot(+0xdeea25) [0x5621fbeb3a25] (??:?)
+-- END OF C++ BACKTRACE --
+================================================================

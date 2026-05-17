@@ -652,12 +652,9 @@ func _generate_chunk(index: int) -> void:
 	# Prevents clutter in front of structures
 	var exclusion_zones: Array[Dictionary] = []
 	if has_stairwell:
-		# Stairwell area + cottage area
+		# Stairwell shaft — wide exclusion so platforms NEVER block the descent
 		var sw_center_x := (stairwell_start_x + STAIRWELL_WIDTH / 2.0) * BLOCK_SIZE
-		exclusion_zones.append({"x": sw_center_x, "radius": 300.0})
-		# Cottage is placed at stairwell_right_x + 150
-		var cottage_x := (stairwell_start_x + STAIRWELL_WIDTH + 2) * BLOCK_SIZE + 150
-		exclusion_zones.append({"x": cottage_x, "radius": 350.0})
+		exclusion_zones.append({"x": sw_center_x, "radius": 500.0})
 	# Home castle (chunk 0)
 	if ("hut" in GameManager.words_summoned or "house" in GameManager.words_summoned) and index == 0:
 		exclusion_zones.append({"x": 400.0 + 120 + 240, "radius": 500.0})
@@ -1278,6 +1275,9 @@ func _ensure_home_teleport() -> void:
 
 func _restore_teleport_beacon() -> void:
 	if GameManager.teleport_beacon_x != 0.0 or GameManager.teleport_beacon_y != 0.0:
+		# Remove any existing beacon first (safety cleanup)
+		if _teleport_beacon and is_instance_valid(_teleport_beacon):
+			_teleport_beacon.queue_free()
 		var pos := Vector2(GameManager.teleport_beacon_x, GameManager.teleport_beacon_y)
 		_teleport_beacon = _create_beacon_visual(pos)
 		add_child(_teleport_beacon)

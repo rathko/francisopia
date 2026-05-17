@@ -1,63 +1,1904 @@
 {
-  "version": "0.1.0",
-  "description": "Francis-opia word bank. Organized by difficulty level and area.",
+  "version": "0.2.0",
+  "description": "Francis-opia word bank. Single source of truth \u2014 edit this file to add/change words. Run `godot --headless --script tools/import_words.gd` to regenerate word_bank.tres.",
   "words": [
-    {"word": "cat", "level": 1, "area": "meadow", "image": "cat", "phonics": ["c", "a", "t"]},
-    {"word": "dog", "level": 1, "area": "meadow", "image": "dog", "phonics": ["d", "o", "g"]},
-    {"word": "sun", "level": 1, "area": "meadow", "image": "sun", "phonics": ["s", "u", "n"]},
-    {"word": "hat", "level": 1, "area": "castle", "image": "hat", "phonics": ["h", "a", "t"]},
-    {"word": "bed", "level": 1, "area": "castle", "image": "bed", "phonics": ["b", "e", "d"]},
-    {"word": "cup", "level": 1, "area": "castle", "image": "cup", "phonics": ["c", "u", "p"]},
-    {"word": "bat", "level": 1, "area": "forest", "image": "bat", "phonics": ["b", "a", "t"]},
-    {"word": "pig", "level": 1, "area": "meadow", "image": "pig", "phonics": ["p", "i", "g"]},
-    {"word": "hen", "level": 1, "area": "meadow", "image": "hen", "phonics": ["h", "e", "n"]},
-    {"word": "bus", "level": 1, "area": "castle", "image": "bus", "phonics": ["b", "u", "s"]},
-    {"word": "red", "level": 1, "area": "meadow", "image": "red", "phonics": ["r", "e", "d"]},
-    {"word": "big", "level": 1, "area": "meadow", "image": "big", "phonics": ["b", "i", "g"]},
-    {"word": "run", "level": 1, "area": "meadow", "image": "run", "phonics": ["r", "u", "n"]},
-    {"word": "hot", "level": 1, "area": "beach", "image": "hot", "phonics": ["h", "o", "t"]},
-    {"word": "mud", "level": 1, "area": "meadow", "image": "mud", "phonics": ["m", "u", "d"]},
-    {"word": "map", "level": 1, "area": "castle", "image": "map", "phonics": ["m", "a", "p"]},
-    {"word": "bug", "level": 1, "area": "forest", "image": "bug", "phonics": ["b", "u", "g"]},
-    {"word": "hug", "level": 1, "area": "castle", "image": "hug", "phonics": ["h", "u", "g"]},
-    {"word": "rug", "level": 1, "area": "castle", "image": "rug", "phonics": ["r", "u", "g"]},
-    {"word": "pot", "level": 1, "area": "castle", "image": "pot", "phonics": ["p", "o", "t"]},
-
-    {"word": "frog", "level": 2, "area": "meadow", "image": "frog", "phonics": ["f", "r", "o", "g"]},
-    {"word": "tree", "level": 2, "area": "forest", "image": "tree", "phonics": ["t", "r", "ee"]},
-    {"word": "star", "level": 2, "area": "mountain", "image": "star", "phonics": ["s", "t", "a", "r"]},
-    {"word": "jump", "level": 2, "area": "meadow", "image": "jump", "phonics": ["j", "u", "m", "p"]},
-    {"word": "hand", "level": 2, "area": "castle", "image": "hand", "phonics": ["h", "a", "n", "d"]},
-    {"word": "fish", "level": 2, "area": "beach", "image": "fish", "phonics": ["f", "i", "sh"]},
-    {"word": "bird", "level": 2, "area": "meadow", "image": "bird", "phonics": ["b", "ir", "d"]},
-    {"word": "leaf", "level": 2, "area": "forest", "image": "leaf", "phonics": ["l", "ea", "f"]},
-    {"word": "sand", "level": 2, "area": "beach", "image": "sand", "phonics": ["s", "a", "n", "d"]},
-    {"word": "wind", "level": 2, "area": "mountain", "image": "wind", "phonics": ["w", "i", "n", "d"]},
-    {"word": "drum", "level": 2, "area": "castle", "image": "drum", "phonics": ["d", "r", "u", "m"]},
-    {"word": "stop", "level": 2, "area": "meadow", "image": "stop", "phonics": ["s", "t", "o", "p"]},
-    {"word": "flag", "level": 2, "area": "castle", "image": "flag", "phonics": ["f", "l", "a", "g"]},
-    {"word": "nest", "level": 2, "area": "forest", "image": "nest", "phonics": ["n", "e", "s", "t"]},
-    {"word": "lamp", "level": 2, "area": "castle", "image": "lamp", "phonics": ["l", "a", "m", "p"]},
-
-    {"word": "cake", "level": 3, "area": "castle", "image": "cake", "phonics": ["c", "a_e", "k"]},
-    {"word": "bike", "level": 3, "area": "meadow", "image": "bike", "phonics": ["b", "i_e", "k"]},
-    {"word": "home", "level": 3, "area": "castle", "image": "home", "phonics": ["h", "o_e", "m"]},
-    {"word": "wave", "level": 3, "area": "beach", "image": "wave", "phonics": ["w", "a_e", "v"]},
-    {"word": "moon", "level": 3, "area": "mountain", "image": "moon", "phonics": ["m", "oo", "n"]},
-    {"word": "boat", "level": 3, "area": "beach", "image": "boat", "phonics": ["b", "oa", "t"]},
-    {"word": "rain", "level": 3, "area": "meadow", "image": "rain", "phonics": ["r", "ai", "n"]},
-    {"word": "snow", "level": 3, "area": "mountain", "image": "snow", "phonics": ["s", "n", "ow"]},
-
-    {"word": "flower", "level": 4, "area": "meadow", "image": "flower", "phonics": ["f", "l", "ow", "er"]},
-    {"word": "castle", "level": 4, "area": "castle", "image": "castle", "phonics": ["c", "a", "s", "t", "le"]},
-    {"word": "garden", "level": 4, "area": "meadow", "image": "garden", "phonics": ["g", "ar", "d", "en"]},
-    {"word": "forest", "level": 4, "area": "forest", "image": "forest", "phonics": ["f", "or", "e", "s", "t"]},
-    {"word": "island", "level": 4, "area": "beach", "image": "island", "phonics": ["i", "s", "l", "and"]},
-
-    {"word": "rainbow", "level": 5, "area": "mountain", "image": "rainbow", "phonics": ["r", "ai", "n", "b", "ow"]},
-    {"word": "sunset", "level": 5, "area": "beach", "image": "sunset", "phonics": ["s", "u", "n", "s", "e", "t"]},
-    {"word": "crystal", "level": 5, "area": "mountain", "image": "crystal", "phonics": ["c", "r", "y", "s", "t", "al"]},
-    {"word": "meadow", "level": 5, "area": "meadow", "image": "meadow", "phonics": ["m", "ea", "d", "ow"]},
-    {"word": "lantern", "level": 5, "area": "forest", "image": "lantern", "phonics": ["l", "a", "n", "t", "er", "n"]}
+    {
+      "word": "bag",
+      "level": 1,
+      "area": "meadow",
+      "image": "bag",
+      "phonics": [
+        "b",
+        "a",
+        "g"
+      ]
+    },
+    {
+      "word": "bat",
+      "level": 1,
+      "area": "forest",
+      "image": "bat",
+      "phonics": [
+        "b",
+        "a",
+        "t"
+      ]
+    },
+    {
+      "word": "bed",
+      "level": 1,
+      "area": "castle",
+      "image": "bed",
+      "phonics": [
+        "b",
+        "e",
+        "d"
+      ]
+    },
+    {
+      "word": "big",
+      "level": 1,
+      "area": "meadow",
+      "image": "big",
+      "phonics": [
+        "b",
+        "i",
+        "g"
+      ]
+    },
+    {
+      "word": "bin",
+      "level": 1,
+      "area": "meadow",
+      "image": "bin",
+      "phonics": [
+        "b",
+        "i",
+        "n"
+      ]
+    },
+    {
+      "word": "bit",
+      "level": 1,
+      "area": "meadow",
+      "image": "bit",
+      "phonics": [
+        "b",
+        "i",
+        "t"
+      ]
+    },
+    {
+      "word": "bow",
+      "level": 1,
+      "area": "meadow",
+      "image": "bow",
+      "phonics": [
+        "b",
+        "ow"
+      ]
+    },
+    {
+      "word": "box",
+      "level": 1,
+      "area": "meadow",
+      "image": "box",
+      "phonics": [
+        "b",
+        "o",
+        "x"
+      ]
+    },
+    {
+      "word": "bug",
+      "level": 1,
+      "area": "forest",
+      "image": "bug",
+      "phonics": [
+        "b",
+        "u",
+        "g"
+      ]
+    },
+    {
+      "word": "bun",
+      "level": 1,
+      "area": "meadow",
+      "image": "bun",
+      "phonics": [
+        "b",
+        "u",
+        "n"
+      ]
+    },
+    {
+      "word": "bus",
+      "level": 1,
+      "area": "castle",
+      "image": "bus",
+      "phonics": [
+        "b",
+        "u",
+        "s"
+      ]
+    },
+    {
+      "word": "can",
+      "level": 1,
+      "area": "meadow",
+      "image": "can",
+      "phonics": [
+        "c",
+        "a",
+        "n"
+      ]
+    },
+    {
+      "word": "cap",
+      "level": 1,
+      "area": "meadow",
+      "image": "cap",
+      "phonics": [
+        "c",
+        "a",
+        "p"
+      ]
+    },
+    {
+      "word": "cat",
+      "level": 1,
+      "area": "meadow",
+      "image": "cat",
+      "phonics": [
+        "c",
+        "a",
+        "t"
+      ]
+    },
+    {
+      "word": "cot",
+      "level": 1,
+      "area": "meadow",
+      "image": "cot",
+      "phonics": [
+        "c",
+        "o",
+        "t"
+      ]
+    },
+    {
+      "word": "cup",
+      "level": 1,
+      "area": "castle",
+      "image": "cup",
+      "phonics": [
+        "c",
+        "u",
+        "p"
+      ]
+    },
+    {
+      "word": "dig",
+      "level": 1,
+      "area": "meadow",
+      "image": "dig",
+      "phonics": [
+        "d",
+        "i",
+        "g"
+      ]
+    },
+    {
+      "word": "dog",
+      "level": 1,
+      "area": "meadow",
+      "image": "dog",
+      "phonics": [
+        "d",
+        "o",
+        "g"
+      ]
+    },
+    {
+      "word": "dot",
+      "level": 1,
+      "area": "meadow",
+      "image": "dot",
+      "phonics": [
+        "d",
+        "o",
+        "t"
+      ]
+    },
+    {
+      "word": "fan",
+      "level": 1,
+      "area": "meadow",
+      "image": "fan",
+      "phonics": [
+        "f",
+        "a",
+        "n"
+      ]
+    },
+    {
+      "word": "fin",
+      "level": 1,
+      "area": "meadow",
+      "image": "fin",
+      "phonics": [
+        "f",
+        "i",
+        "n"
+      ]
+    },
+    {
+      "word": "fog",
+      "level": 1,
+      "area": "meadow",
+      "image": "fog",
+      "phonics": [
+        "f",
+        "o",
+        "g"
+      ]
+    },
+    {
+      "word": "fox",
+      "level": 1,
+      "area": "meadow",
+      "image": "fox",
+      "phonics": [
+        "f",
+        "o",
+        "x"
+      ]
+    },
+    {
+      "word": "gem",
+      "level": 1,
+      "area": "meadow",
+      "image": "gem",
+      "phonics": [
+        "j",
+        "e",
+        "m"
+      ]
+    },
+    {
+      "word": "gum",
+      "level": 1,
+      "area": "meadow",
+      "image": "gum",
+      "phonics": [
+        "g",
+        "u",
+        "m"
+      ]
+    },
+    {
+      "word": "hat",
+      "level": 1,
+      "area": "castle",
+      "image": "hat",
+      "phonics": [
+        "h",
+        "a",
+        "t"
+      ]
+    },
+    {
+      "word": "hen",
+      "level": 1,
+      "area": "meadow",
+      "image": "hen",
+      "phonics": [
+        "h",
+        "e",
+        "n"
+      ]
+    },
+    {
+      "word": "hit",
+      "level": 1,
+      "area": "meadow",
+      "image": "hit",
+      "phonics": [
+        "h",
+        "i",
+        "t"
+      ]
+    },
+    {
+      "word": "hop",
+      "level": 1,
+      "area": "meadow",
+      "image": "hop",
+      "phonics": [
+        "h",
+        "o",
+        "p"
+      ]
+    },
+    {
+      "word": "hot",
+      "level": 1,
+      "area": "beach",
+      "image": "hot",
+      "phonics": [
+        "h",
+        "o",
+        "t"
+      ]
+    },
+    {
+      "word": "hug",
+      "level": 1,
+      "area": "castle",
+      "image": "hug",
+      "phonics": [
+        "h",
+        "u",
+        "g"
+      ]
+    },
+    {
+      "word": "hut",
+      "level": 1,
+      "area": "meadow",
+      "image": "hut",
+      "phonics": [
+        "h",
+        "u",
+        "t"
+      ]
+    },
+    {
+      "word": "jam",
+      "level": 1,
+      "area": "meadow",
+      "image": "jam",
+      "phonics": [
+        "j",
+        "a",
+        "m"
+      ]
+    },
+    {
+      "word": "jet",
+      "level": 1,
+      "area": "meadow",
+      "image": "jet",
+      "phonics": [
+        "j",
+        "e",
+        "t"
+      ]
+    },
+    {
+      "word": "jug",
+      "level": 1,
+      "area": "meadow",
+      "image": "jug",
+      "phonics": [
+        "j",
+        "u",
+        "g"
+      ]
+    },
+    {
+      "word": "leg",
+      "level": 1,
+      "area": "meadow",
+      "image": "leg",
+      "phonics": [
+        "l",
+        "e",
+        "g"
+      ]
+    },
+    {
+      "word": "lip",
+      "level": 1,
+      "area": "meadow",
+      "image": "lip",
+      "phonics": [
+        "l",
+        "i",
+        "p"
+      ]
+    },
+    {
+      "word": "log",
+      "level": 1,
+      "area": "meadow",
+      "image": "log",
+      "phonics": [
+        "l",
+        "o",
+        "g"
+      ]
+    },
+    {
+      "word": "map",
+      "level": 1,
+      "area": "castle",
+      "image": "map",
+      "phonics": [
+        "m",
+        "a",
+        "p"
+      ]
+    },
+    {
+      "word": "mat",
+      "level": 1,
+      "area": "meadow",
+      "image": "mat",
+      "phonics": [
+        "m",
+        "a",
+        "t"
+      ]
+    },
+    {
+      "word": "men",
+      "level": 1,
+      "area": "meadow",
+      "image": "men",
+      "phonics": [
+        "m",
+        "e",
+        "n"
+      ]
+    },
+    {
+      "word": "mix",
+      "level": 1,
+      "area": "meadow",
+      "image": "mix",
+      "phonics": [
+        "m",
+        "i",
+        "x"
+      ]
+    },
+    {
+      "word": "mop",
+      "level": 1,
+      "area": "meadow",
+      "image": "mop",
+      "phonics": [
+        "m",
+        "o",
+        "p"
+      ]
+    },
+    {
+      "word": "mud",
+      "level": 1,
+      "area": "meadow",
+      "image": "mud",
+      "phonics": [
+        "m",
+        "u",
+        "d"
+      ]
+    },
+    {
+      "word": "net",
+      "level": 1,
+      "area": "meadow",
+      "image": "net",
+      "phonics": [
+        "n",
+        "e",
+        "t"
+      ]
+    },
+    {
+      "word": "nut",
+      "level": 1,
+      "area": "meadow",
+      "image": "nut",
+      "phonics": [
+        "n",
+        "u",
+        "t"
+      ]
+    },
+    {
+      "word": "pan",
+      "level": 1,
+      "area": "meadow",
+      "image": "pan",
+      "phonics": [
+        "p",
+        "a",
+        "n"
+      ]
+    },
+    {
+      "word": "pen",
+      "level": 1,
+      "area": "meadow",
+      "image": "pen",
+      "phonics": [
+        "p",
+        "e",
+        "n"
+      ]
+    },
+    {
+      "word": "pet",
+      "level": 1,
+      "area": "meadow",
+      "image": "pet",
+      "phonics": [
+        "p",
+        "e",
+        "t"
+      ]
+    },
+    {
+      "word": "pig",
+      "level": 1,
+      "area": "meadow",
+      "image": "pig",
+      "phonics": [
+        "p",
+        "i",
+        "g"
+      ]
+    },
+    {
+      "word": "pin",
+      "level": 1,
+      "area": "meadow",
+      "image": "pin",
+      "phonics": [
+        "p",
+        "i",
+        "n"
+      ]
+    },
+    {
+      "word": "pot",
+      "level": 1,
+      "area": "castle",
+      "image": "pot",
+      "phonics": [
+        "p",
+        "o",
+        "t"
+      ]
+    },
+    {
+      "word": "pup",
+      "level": 1,
+      "area": "meadow",
+      "image": "pup",
+      "phonics": [
+        "p",
+        "u",
+        "p"
+      ]
+    },
+    {
+      "word": "rat",
+      "level": 1,
+      "area": "meadow",
+      "image": "rat",
+      "phonics": [
+        "r",
+        "a",
+        "t"
+      ]
+    },
+    {
+      "word": "red",
+      "level": 1,
+      "area": "meadow",
+      "image": "red",
+      "phonics": [
+        "r",
+        "e",
+        "d"
+      ]
+    },
+    {
+      "word": "rug",
+      "level": 1,
+      "area": "castle",
+      "image": "rug",
+      "phonics": [
+        "r",
+        "u",
+        "g"
+      ]
+    },
+    {
+      "word": "run",
+      "level": 1,
+      "area": "meadow",
+      "image": "run",
+      "phonics": [
+        "r",
+        "u",
+        "n"
+      ]
+    },
+    {
+      "word": "sit",
+      "level": 1,
+      "area": "meadow",
+      "image": "sit",
+      "phonics": [
+        "s",
+        "i",
+        "t"
+      ]
+    },
+    {
+      "word": "six",
+      "level": 1,
+      "area": "meadow",
+      "image": "six",
+      "phonics": [
+        "s",
+        "i",
+        "x"
+      ]
+    },
+    {
+      "word": "sun",
+      "level": 1,
+      "area": "meadow",
+      "image": "sun",
+      "phonics": [
+        "s",
+        "u",
+        "n"
+      ]
+    },
+    {
+      "word": "ten",
+      "level": 1,
+      "area": "meadow",
+      "image": "ten",
+      "phonics": [
+        "t",
+        "e",
+        "n"
+      ]
+    },
+    {
+      "word": "tub",
+      "level": 1,
+      "area": "meadow",
+      "image": "tub",
+      "phonics": [
+        "t",
+        "u",
+        "b"
+      ]
+    },
+    {
+      "word": "van",
+      "level": 1,
+      "area": "meadow",
+      "image": "van",
+      "phonics": [
+        "v",
+        "a",
+        "n"
+      ]
+    },
+    {
+      "word": "web",
+      "level": 1,
+      "area": "meadow",
+      "image": "web",
+      "phonics": [
+        "w",
+        "e",
+        "b"
+      ]
+    },
+    {
+      "word": "wet",
+      "level": 1,
+      "area": "meadow",
+      "image": "wet",
+      "phonics": [
+        "w",
+        "e",
+        "t"
+      ]
+    },
+    {
+      "word": "wig",
+      "level": 1,
+      "area": "meadow",
+      "image": "wig",
+      "phonics": [
+        "w",
+        "i",
+        "g"
+      ]
+    },
+    {
+      "word": "zap",
+      "level": 1,
+      "area": "meadow",
+      "image": "zap",
+      "phonics": [
+        "z",
+        "a",
+        "p"
+      ]
+    },
+    {
+      "word": "zip",
+      "level": 1,
+      "area": "meadow",
+      "image": "zip",
+      "phonics": [
+        "z",
+        "i",
+        "p"
+      ]
+    },
+    {
+      "word": "bell",
+      "level": 2,
+      "area": "meadow",
+      "image": "bell",
+      "phonics": [
+        "b",
+        "e",
+        "ll"
+      ]
+    },
+    {
+      "word": "bird",
+      "level": 2,
+      "area": "meadow",
+      "image": "bird",
+      "phonics": [
+        "b",
+        "ir",
+        "d"
+      ]
+    },
+    {
+      "word": "clap",
+      "level": 2,
+      "area": "meadow",
+      "image": "clap",
+      "phonics": [
+        "c",
+        "l",
+        "a",
+        "p"
+      ]
+    },
+    {
+      "word": "crab",
+      "level": 2,
+      "area": "meadow",
+      "image": "crab",
+      "phonics": [
+        "c",
+        "r",
+        "a",
+        "b"
+      ]
+    },
+    {
+      "word": "drop",
+      "level": 2,
+      "area": "meadow",
+      "image": "drop",
+      "phonics": [
+        "d",
+        "r",
+        "o",
+        "p"
+      ]
+    },
+    {
+      "word": "drum",
+      "level": 2,
+      "area": "castle",
+      "image": "drum",
+      "phonics": [
+        "d",
+        "r",
+        "u",
+        "m"
+      ]
+    },
+    {
+      "word": "fish",
+      "level": 2,
+      "area": "beach",
+      "image": "fish",
+      "phonics": [
+        "f",
+        "i",
+        "sh"
+      ]
+    },
+    {
+      "word": "flag",
+      "level": 2,
+      "area": "castle",
+      "image": "flag",
+      "phonics": [
+        "f",
+        "l",
+        "a",
+        "g"
+      ]
+    },
+    {
+      "word": "frog",
+      "level": 2,
+      "area": "meadow",
+      "image": "frog",
+      "phonics": [
+        "f",
+        "r",
+        "o",
+        "g"
+      ]
+    },
+    {
+      "word": "gold",
+      "level": 2,
+      "area": "meadow",
+      "image": "gold",
+      "phonics": [
+        "g",
+        "o",
+        "l",
+        "d"
+      ]
+    },
+    {
+      "word": "hand",
+      "level": 2,
+      "area": "castle",
+      "image": "hand",
+      "phonics": [
+        "h",
+        "a",
+        "n",
+        "d"
+      ]
+    },
+    {
+      "word": "hill",
+      "level": 2,
+      "area": "meadow",
+      "image": "hill",
+      "phonics": [
+        "h",
+        "i",
+        "ll"
+      ]
+    },
+    {
+      "word": "jump",
+      "level": 2,
+      "area": "meadow",
+      "image": "jump",
+      "phonics": [
+        "j",
+        "u",
+        "m",
+        "p"
+      ]
+    },
+    {
+      "word": "lamp",
+      "level": 2,
+      "area": "castle",
+      "image": "lamp",
+      "phonics": [
+        "l",
+        "a",
+        "m",
+        "p"
+      ]
+    },
+    {
+      "word": "leaf",
+      "level": 2,
+      "area": "forest",
+      "image": "leaf",
+      "phonics": [
+        "l",
+        "ea",
+        "f"
+      ]
+    },
+    {
+      "word": "milk",
+      "level": 2,
+      "area": "meadow",
+      "image": "milk",
+      "phonics": [
+        "m",
+        "i",
+        "l",
+        "k"
+      ]
+    },
+    {
+      "word": "nest",
+      "level": 2,
+      "area": "forest",
+      "image": "nest",
+      "phonics": [
+        "n",
+        "e",
+        "s",
+        "t"
+      ]
+    },
+    {
+      "word": "pond",
+      "level": 2,
+      "area": "meadow",
+      "image": "pond",
+      "phonics": [
+        "p",
+        "o",
+        "n",
+        "d"
+      ]
+    },
+    {
+      "word": "sand",
+      "level": 2,
+      "area": "beach",
+      "image": "sand",
+      "phonics": [
+        "s",
+        "a",
+        "n",
+        "d"
+      ]
+    },
+    {
+      "word": "snap",
+      "level": 2,
+      "area": "meadow",
+      "image": "snap",
+      "phonics": [
+        "s",
+        "n",
+        "a",
+        "p"
+      ]
+    },
+    {
+      "word": "star",
+      "level": 2,
+      "area": "mountain",
+      "image": "star",
+      "phonics": [
+        "s",
+        "t",
+        "a",
+        "r"
+      ]
+    },
+    {
+      "word": "step",
+      "level": 2,
+      "area": "meadow",
+      "image": "step",
+      "phonics": [
+        "s",
+        "t",
+        "e",
+        "p"
+      ]
+    },
+    {
+      "word": "stop",
+      "level": 2,
+      "area": "meadow",
+      "image": "stop",
+      "phonics": [
+        "s",
+        "t",
+        "o",
+        "p"
+      ]
+    },
+    {
+      "word": "swim",
+      "level": 2,
+      "area": "meadow",
+      "image": "swim",
+      "phonics": [
+        "s",
+        "w",
+        "i",
+        "m"
+      ]
+    },
+    {
+      "word": "tent",
+      "level": 2,
+      "area": "meadow",
+      "image": "tent",
+      "phonics": [
+        "t",
+        "e",
+        "n",
+        "t"
+      ]
+    },
+    {
+      "word": "tree",
+      "level": 2,
+      "area": "forest",
+      "image": "tree",
+      "phonics": [
+        "t",
+        "r",
+        "ee"
+      ]
+    },
+    {
+      "word": "well",
+      "level": 2,
+      "area": "meadow",
+      "image": "well",
+      "phonics": [
+        "w",
+        "e",
+        "ll"
+      ]
+    },
+    {
+      "word": "wind",
+      "level": 2,
+      "area": "mountain",
+      "image": "wind",
+      "phonics": [
+        "w",
+        "i",
+        "n",
+        "d"
+      ]
+    },
+    {
+      "word": "worm",
+      "level": 2,
+      "area": "meadow",
+      "image": "worm",
+      "phonics": [
+        "w",
+        "or",
+        "m"
+      ]
+    },
+    {
+      "word": "bath",
+      "level": 3,
+      "area": "meadow",
+      "image": "bath",
+      "phonics": [
+        "b",
+        "a",
+        "th"
+      ]
+    },
+    {
+      "word": "bike",
+      "level": 3,
+      "area": "meadow",
+      "image": "bike",
+      "phonics": [
+        "b",
+        "i_e",
+        "k"
+      ]
+    },
+    {
+      "word": "boat",
+      "level": 3,
+      "area": "beach",
+      "image": "boat",
+      "phonics": [
+        "b",
+        "oa",
+        "t"
+      ]
+    },
+    {
+      "word": "boot",
+      "level": 3,
+      "area": "meadow",
+      "image": "boot",
+      "phonics": [
+        "b",
+        "oo",
+        "t"
+      ]
+    },
+    {
+      "word": "cake",
+      "level": 3,
+      "area": "castle",
+      "image": "cake",
+      "phonics": [
+        "c",
+        "a_e",
+        "k"
+      ]
+    },
+    {
+      "word": "duck",
+      "level": 3,
+      "area": "meadow",
+      "image": "duck",
+      "phonics": [
+        "d",
+        "u",
+        "ck"
+      ]
+    },
+    {
+      "word": "hammer",
+      "level": 3,
+      "area": "meadow",
+      "image": "hammer",
+      "phonics": [
+        "h",
+        "a",
+        "m",
+        "er"
+      ]
+    },
+    {
+      "word": "home",
+      "level": 3,
+      "area": "castle",
+      "image": "home",
+      "phonics": [
+        "h",
+        "o_e",
+        "m"
+      ]
+    },
+    {
+      "word": "king",
+      "level": 3,
+      "area": "meadow",
+      "image": "king",
+      "phonics": [
+        "k",
+        "i",
+        "ng"
+      ]
+    },
+    {
+      "word": "lock",
+      "level": 3,
+      "area": "meadow",
+      "image": "lock",
+      "phonics": [
+        "l",
+        "o",
+        "ck"
+      ]
+    },
+    {
+      "word": "moon",
+      "level": 3,
+      "area": "mountain",
+      "image": "moon",
+      "phonics": [
+        "m",
+        "oo",
+        "n"
+      ]
+    },
+    {
+      "word": "path",
+      "level": 3,
+      "area": "meadow",
+      "image": "path",
+      "phonics": [
+        "p",
+        "a",
+        "th"
+      ]
+    },
+    {
+      "word": "rain",
+      "level": 3,
+      "area": "meadow",
+      "image": "rain",
+      "phonics": [
+        "r",
+        "ai",
+        "n"
+      ]
+    },
+    {
+      "word": "ring",
+      "level": 3,
+      "area": "meadow",
+      "image": "ring",
+      "phonics": [
+        "r",
+        "i",
+        "ng"
+      ]
+    },
+    {
+      "word": "rock",
+      "level": 3,
+      "area": "meadow",
+      "image": "rock",
+      "phonics": [
+        "r",
+        "o",
+        "ck"
+      ]
+    },
+    {
+      "word": "seed",
+      "level": 3,
+      "area": "meadow",
+      "image": "seed",
+      "phonics": [
+        "s",
+        "ee",
+        "d"
+      ]
+    },
+    {
+      "word": "ship",
+      "level": 3,
+      "area": "meadow",
+      "image": "ship",
+      "phonics": [
+        "sh",
+        "i",
+        "p"
+      ]
+    },
+    {
+      "word": "sing",
+      "level": 3,
+      "area": "meadow",
+      "image": "sing",
+      "phonics": [
+        "s",
+        "i",
+        "ng"
+      ]
+    },
+    {
+      "word": "snow",
+      "level": 3,
+      "area": "mountain",
+      "image": "snow",
+      "phonics": [
+        "s",
+        "n",
+        "ow"
+      ]
+    },
+    {
+      "word": "sock",
+      "level": 3,
+      "area": "meadow",
+      "image": "sock",
+      "phonics": [
+        "s",
+        "o",
+        "ck"
+      ]
+    },
+    {
+      "word": "wave",
+      "level": 3,
+      "area": "beach",
+      "image": "wave",
+      "phonics": [
+        "w",
+        "a_e",
+        "v"
+      ]
+    },
+    {
+      "word": "bone",
+      "level": 4,
+      "area": "meadow",
+      "image": "bone",
+      "phonics": [
+        "b",
+        "o_e",
+        "n"
+      ]
+    },
+    {
+      "word": "bridge",
+      "level": 4,
+      "area": "meadow",
+      "image": "bridge",
+      "phonics": [
+        "b",
+        "r",
+        "i",
+        "dge"
+      ]
+    },
+    {
+      "word": "castle",
+      "level": 4,
+      "area": "castle",
+      "image": "castle",
+      "phonics": [
+        "c",
+        "a",
+        "s",
+        "t",
+        "le"
+      ]
+    },
+    {
+      "word": "cave",
+      "level": 4,
+      "area": "meadow",
+      "image": "cave",
+      "phonics": [
+        "c",
+        "a_e",
+        "v"
+      ]
+    },
+    {
+      "word": "cloud",
+      "level": 4,
+      "area": "meadow",
+      "image": "cloud",
+      "phonics": [
+        "c",
+        "l",
+        "ou",
+        "d"
+      ]
+    },
+    {
+      "word": "crown",
+      "level": 4,
+      "area": "meadow",
+      "image": "crown",
+      "phonics": [
+        "c",
+        "r",
+        "ow",
+        "n"
+      ]
+    },
+    {
+      "word": "cube",
+      "level": 4,
+      "area": "meadow",
+      "image": "cube",
+      "phonics": [
+        "c",
+        "u_e",
+        "b"
+      ]
+    },
+    {
+      "word": "fire",
+      "level": 4,
+      "area": "meadow",
+      "image": "fire",
+      "phonics": [
+        "f",
+        "igh",
+        "r"
+      ]
+    },
+    {
+      "word": "flower",
+      "level": 4,
+      "area": "meadow",
+      "image": "flower",
+      "phonics": [
+        "f",
+        "l",
+        "ow",
+        "er"
+      ]
+    },
+    {
+      "word": "forest",
+      "level": 4,
+      "area": "forest",
+      "image": "forest",
+      "phonics": [
+        "f",
+        "or",
+        "e",
+        "s",
+        "t"
+      ]
+    },
+    {
+      "word": "garden",
+      "level": 4,
+      "area": "meadow",
+      "image": "garden",
+      "phonics": [
+        "g",
+        "ar",
+        "d",
+        "en"
+      ]
+    },
+    {
+      "word": "gate",
+      "level": 4,
+      "area": "meadow",
+      "image": "gate",
+      "phonics": [
+        "g",
+        "a_e",
+        "t"
+      ]
+    },
+    {
+      "word": "goat",
+      "level": 4,
+      "area": "meadow",
+      "image": "goat",
+      "phonics": [
+        "g",
+        "oa",
+        "t"
+      ]
+    },
+    {
+      "word": "island",
+      "level": 4,
+      "area": "beach",
+      "image": "island",
+      "phonics": [
+        "i",
+        "s",
+        "l",
+        "and"
+      ]
+    },
+    {
+      "word": "kite",
+      "level": 4,
+      "area": "meadow",
+      "image": "kite",
+      "phonics": [
+        "k",
+        "igh",
+        "t"
+      ]
+    },
+    {
+      "word": "kitten",
+      "level": 4,
+      "area": "meadow",
+      "image": "kitten",
+      "phonics": [
+        "k",
+        "i",
+        "t",
+        "e",
+        "n"
+      ]
+    },
+    {
+      "word": "lake",
+      "level": 4,
+      "area": "meadow",
+      "image": "lake",
+      "phonics": [
+        "l",
+        "a_e",
+        "k"
+      ]
+    },
+    {
+      "word": "mouse",
+      "level": 4,
+      "area": "meadow",
+      "image": "mouse",
+      "phonics": [
+        "m",
+        "ou",
+        "s"
+      ]
+    },
+    {
+      "word": "mushroom",
+      "level": 4,
+      "area": "meadow",
+      "image": "mushroom",
+      "phonics": [
+        "m",
+        "u",
+        "sh",
+        "r",
+        "oo",
+        "m"
+      ]
+    },
+    {
+      "word": "nose",
+      "level": 4,
+      "area": "meadow",
+      "image": "nose",
+      "phonics": [
+        "n",
+        "o_e",
+        "s"
+      ]
+    },
+    {
+      "word": "planet",
+      "level": 4,
+      "area": "meadow",
+      "image": "planet",
+      "phonics": [
+        "p",
+        "l",
+        "a",
+        "n",
+        "e",
+        "t"
+      ]
+    },
+    {
+      "word": "puppy",
+      "level": 4,
+      "area": "meadow",
+      "image": "puppy",
+      "phonics": [
+        "p",
+        "u",
+        "p",
+        "ee"
+      ]
+    },
+    {
+      "word": "queen",
+      "level": 4,
+      "area": "meadow",
+      "image": "queen",
+      "phonics": [
+        "qu",
+        "ee",
+        "n"
+      ]
+    },
+    {
+      "word": "rabbit",
+      "level": 4,
+      "area": "meadow",
+      "image": "rabbit",
+      "phonics": [
+        "r",
+        "a",
+        "b",
+        "i",
+        "t"
+      ]
+    },
+    {
+      "word": "rope",
+      "level": 4,
+      "area": "meadow",
+      "image": "rope",
+      "phonics": [
+        "r",
+        "o_e",
+        "p"
+      ]
+    },
+    {
+      "word": "rose",
+      "level": 4,
+      "area": "meadow",
+      "image": "rose",
+      "phonics": [
+        "r",
+        "o_e",
+        "s"
+      ]
+    },
+    {
+      "word": "sheep",
+      "level": 4,
+      "area": "meadow",
+      "image": "sheep",
+      "phonics": [
+        "sh",
+        "ee",
+        "p"
+      ]
+    },
+    {
+      "word": "snail",
+      "level": 4,
+      "area": "meadow",
+      "image": "snail",
+      "phonics": [
+        "s",
+        "n",
+        "ai",
+        "l"
+      ]
+    },
+    {
+      "word": "thunder",
+      "level": 4,
+      "area": "meadow",
+      "image": "thunder",
+      "phonics": [
+        "th",
+        "u",
+        "n",
+        "d",
+        "er"
+      ]
+    },
+    {
+      "word": "toad",
+      "level": 4,
+      "area": "meadow",
+      "image": "toad",
+      "phonics": [
+        "t",
+        "oa",
+        "d"
+      ]
+    },
+    {
+      "word": "train",
+      "level": 4,
+      "area": "meadow",
+      "image": "train",
+      "phonics": [
+        "t",
+        "r",
+        "ai",
+        "n"
+      ]
+    },
+    {
+      "word": "tube",
+      "level": 4,
+      "area": "meadow",
+      "image": "tube",
+      "phonics": [
+        "t",
+        "u_e",
+        "b"
+      ]
+    },
+    {
+      "word": "vine",
+      "level": 4,
+      "area": "meadow",
+      "image": "vine",
+      "phonics": [
+        "v",
+        "igh",
+        "n"
+      ]
+    },
+    {
+      "word": "butterfly",
+      "level": 5,
+      "area": "meadow",
+      "image": "butterfly",
+      "phonics": [
+        "b",
+        "u",
+        "t",
+        "er",
+        "f",
+        "l",
+        "igh"
+      ]
+    },
+    {
+      "word": "crystal",
+      "level": 5,
+      "area": "mountain",
+      "image": "crystal",
+      "phonics": [
+        "c",
+        "r",
+        "y",
+        "s",
+        "t",
+        "al"
+      ]
+    },
+    {
+      "word": "dolphin",
+      "level": 5,
+      "area": "meadow",
+      "image": "dolphin",
+      "phonics": [
+        "d",
+        "o",
+        "l",
+        "f",
+        "i",
+        "n"
+      ]
+    },
+    {
+      "word": "dragon",
+      "level": 5,
+      "area": "meadow",
+      "image": "dragon",
+      "phonics": [
+        "d",
+        "r",
+        "a",
+        "g",
+        "o",
+        "n"
+      ]
+    },
+    {
+      "word": "lantern",
+      "level": 5,
+      "area": "forest",
+      "image": "lantern",
+      "phonics": [
+        "l",
+        "a",
+        "n",
+        "t",
+        "er",
+        "n"
+      ]
+    },
+    {
+      "word": "meadow",
+      "level": 5,
+      "area": "meadow",
+      "image": "meadow",
+      "phonics": [
+        "m",
+        "ea",
+        "d",
+        "ow"
+      ]
+    },
+    {
+      "word": "monster",
+      "level": 5,
+      "area": "meadow",
+      "image": "monster",
+      "phonics": [
+        "m",
+        "o",
+        "n",
+        "s",
+        "t",
+        "er"
+      ]
+    },
+    {
+      "word": "mountain",
+      "level": 5,
+      "area": "meadow",
+      "image": "mountain",
+      "phonics": [
+        "m",
+        "ou",
+        "n",
+        "t",
+        "i",
+        "n"
+      ]
+    },
+    {
+      "word": "penguin",
+      "level": 5,
+      "area": "meadow",
+      "image": "penguin",
+      "phonics": [
+        "p",
+        "e",
+        "ng",
+        "g",
+        "w",
+        "i",
+        "n"
+      ]
+    },
+    {
+      "word": "rainbow",
+      "level": 5,
+      "area": "mountain",
+      "image": "rainbow",
+      "phonics": [
+        "r",
+        "ai",
+        "n",
+        "b",
+        "ow"
+      ]
+    },
+    {
+      "word": "river",
+      "level": 5,
+      "area": "meadow",
+      "image": "river",
+      "phonics": [
+        "r",
+        "i",
+        "v",
+        "er"
+      ]
+    },
+    {
+      "word": "sunset",
+      "level": 5,
+      "area": "beach",
+      "image": "sunset",
+      "phonics": [
+        "s",
+        "u",
+        "n",
+        "s",
+        "e",
+        "t"
+      ]
+    },
+    {
+      "word": "treasure",
+      "level": 5,
+      "area": "meadow",
+      "image": "treasure",
+      "phonics": [
+        "t",
+        "r",
+        "e",
+        "zh",
+        "er"
+      ]
+    },
+    {
+      "word": "wizard",
+      "level": 5,
+      "area": "meadow",
+      "image": "wizard",
+      "phonics": [
+        "w",
+        "i",
+        "z",
+        "ar",
+        "d"
+      ]
+    }
   ]
 }
