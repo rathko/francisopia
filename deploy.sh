@@ -87,6 +87,21 @@ if [ "$DO_EXPORT" = true ]; then
         fi
     fi
 
+    # CRITICAL: regenerate the word bank from words.json BEFORE exporting.
+    # The exported .pck bundles word_bank.tres (a Godot resource), NOT the raw
+    # data/words.json (export_filter=all_resources skips non-resource files), and
+    # WordEngine falls back to the .tres when words.json isn't present at runtime.
+    # So any word added to words.json is INVISIBLE in the build unless the .tres is
+    # rebuilt here. Skipping this is why new words never showed up for weeks.
+    log "Regenerating word bank from words.json..."
+    WORDBANK_LOG="${EXPORT_DIR}/.last-wordbank.log"
+    if ! godot --headless --script tools/import_words.gd >"${WORDBANK_LOG}" 2>&1; then
+        tail -20 "${WORDBANK_LOG}"
+        err "Word bank regeneration failed. Full output: ${WORDBANK_LOG}"
+    fi
+    WORD_COUNT=$(grep -oE 'Found [0-9]+ words' "${WORDBANK_LOG}" | head -1 || true)
+    ok "Word bank refreshed (${WORD_COUNT:-regenerated})"
+
     # Check icon is present before export (it gets baked into the binary)
     if [ -f "${GAME_DIR}/icon.png" ]; then
         ok "Icon: icon.png found (will be embedded in binary)"
@@ -123,6 +138,7 @@ if [ "$DO_EXPORT" = true ]; then
 
     SIZE=$(du -sh "${EXPORT_BIN}" | cut -f1)
     ok "Export complete: ${EXPORT_BIN} (${SIZE})"
+    ok "Built at: $(date -r "${EXPORT_BIN}" '+%Y-%m-%d %H:%M:%S %Z')"
 fi
 
 # ─── DEPLOY ──────────────────────────────────────────────────────
@@ -230,6 +246,12 @@ if [ "$DO_DEPLOY" = true ]; then
 
     # Make executable on deck
     ssh "${DECK_USER}@${DECK_HOST}" "chmod +x '${DECK_PATH}/${BINARY_NAME}'"
+
+    # Show the timestamp of the binary AS IT NOW EXISTS ON THE DECK — confirms the
+    # freshly-built file actually landed (not a stale leftover from a failed transfer).
+    DECK_TS=$(ssh "${DECK_USER}@${DECK_HOST}" "stat -c '%y' '${DECK_PATH}/${BINARY_NAME}'" 2>/dev/null | cut -d'.' -f1 || true)
+    ok "Deployed binary on deck: ${DECK_PATH}/${BINARY_NAME}"
+    ok "Deck file timestamp: ${DECK_TS:-unknown}"
 
     # Install desktop entry for game mode
     ssh "${DECK_USER}@${DECK_HOST}" "

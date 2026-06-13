@@ -855,6 +855,31 @@
       ]
     },
     {
+      "word": "bunny",
+      "level": 2,
+      "area": "meadow",
+      "image": "bunny",
+      "phonics": [
+        "b",
+        "u",
+        "n",
+        "n",
+        "y"
+      ]
+    },
+    {
+      "word": "hero",
+      "level": 2,
+      "area": "castle",
+      "image": "hero",
+      "phonics": [
+        "h",
+        "e",
+        "r",
+        "o"
+      ]
+    },
+    {
       "word": "gold",
       "level": 2,
       "area": "meadow",

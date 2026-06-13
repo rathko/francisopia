@@ -238,3 +238,47 @@ func _get_next_player() -> AudioStreamPlayer:
 
 func _semitones_to_pitch_scale(semitones: float) -> float:
 	return pow(2.0, semitones / 12.0)
+
+
+# === ANIMAL VOICES (asset-free: pitch-shifted existing samples per species) ===
+
+func play_critter(species: String, background: bool = false) -> void:
+	## Give each follower a little voice without any new audio files — we pitch-shift
+	## the existing chime/tap samples into a short per-species motif. Quieter in the
+	## background; a touch louder when Francis walks up to the animal.
+	if not _enabled:
+		return
+	var vol: float = 0.22 if background else 0.42
+	match species:
+		"dog", "pup":
+			_critter_seq([[_tap_stream, 0.60], [_tap_stream, 0.55]], vol, 0.12)   # woof woof
+		"cat":
+			_critter_seq([[_chime_stream, 0.95], [_chime_stream, 1.20]], vol, 0.14)  # meow
+		"bunny":
+			_critter_seq([[_chime_stream, 1.70], [_chime_stream, 1.90]], vol, 0.08)  # squeak
+		"frog":
+			_critter_seq([[_tap_stream, 0.50], [_tap_stream, 0.50]], vol, 0.10)   # ribbit
+		"bird":
+			_critter_seq([[_chime_stream, 2.00], [_chime_stream, 2.30], [_chime_stream, 2.00]], vol, 0.07)  # tweet
+		"pig":
+			_critter_seq([[_tap_stream, 0.45], [_tap_stream, 0.50]], vol, 0.09)   # oink
+		"hen":
+			_critter_seq([[_tap_stream, 0.85], [_tap_stream, 0.95]], vol, 0.10)   # cluck
+		"fish", "bug", "bat", "rat", "fox":
+			_critter_seq([[_chime_stream, 1.40]], vol, 0.0)                       # soft blip
+		_:
+			_critter_seq([[_chime_stream, 1.10]], vol, 0.0)
+
+func _critter_seq(notes: Array, vol: float, gap: float) -> void:
+	for i in notes.size():
+		var note: Array = notes[i]
+		var stream: AudioStream = note[0]
+		var pitch: float = note[1]
+		if stream == null:
+			continue
+		if i == 0:
+			_play_sound(stream, pitch, vol)
+		else:
+			get_tree().create_timer(gap * float(i)).timeout.connect(func() -> void:
+				_play_sound(stream, pitch, vol)
+			)

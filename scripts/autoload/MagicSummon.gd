@@ -51,7 +51,7 @@ var summon_registry: Dictionary = {
 	# Coin rewards
 	"gem": {"type": "cosmetic", "builder": "_summon_gem", "label": "A shiny gem!", "color": Color(0.4, 0.8, 1.0)},
 	"pot": {"type": "cosmetic", "builder": "_summon_pot", "label": "Pot of gold!", "color": Color(1.0, 0.85, 0.2)},
-	"bag": {"type": "cosmetic", "builder": "_summon_bag", "label": "Coin bag!", "color": Color(0.7, 0.5, 0.25)},
+	"bag": {"type": "cosmetic", "builder": "_summon_bag", "label": "Hiking backpack!", "color": Color(0.42, 0.5, 0.28)},
 	"six": {"type": "cosmetic", "builder": "_summon_six", "label": "Six coins!", "color": Color(1.0, 0.85, 0.2)},
 	"ten": {"type": "cosmetic", "builder": "_summon_ten", "label": "Ten coins!", "color": Color(1.0, 0.9, 0.3)},
 	"nut": {"type": "cosmetic", "builder": "_summon_nut", "label": "A squirrel!", "color": Color(0.6, 0.45, 0.2)},
@@ -99,6 +99,7 @@ var summon_registry: Dictionary = {
 	"bow":  {"type": "item", "builder": "_summon_bow_upgrade", "label": "Bow upgraded!", "color": Color(0.8, 0.4, 0.2)},
 	"hammer": {"type": "item", "builder": "_summon_hammer", "label": "Dig faster now!", "color": Color(0.6, 0.6, 0.65)},
 	"house": {"type": "world", "builder": "_summon_house", "label": "A cozy house!", "color": Color(0.85, 0.55, 0.25)},
+	"hero": {"type": "cosmetic", "builder": "_summon_hero", "label": "Super hero puppy!", "color": Color(0.85, 0.15, 0.2), "temporary": true},
 	"portal": {"type": "world", "builder": "_summon_portal_unlock", "label": "Portals unlocked!", "color": Color(0.6, 0.2, 0.9)},
 	"zap": {"type": "world", "builder": "_summon_portal_unlock", "label": "Zap! Teleport!", "color": Color(0.6, 0.2, 0.9)},
 
@@ -751,6 +752,124 @@ func _process(delta):
 
 	print("Francis-opia: ✨ A singing bird flies overhead!")
 	return bird
+
+func _summon_hero(scene_root: Node, _player: Node2D, _pos: Vector2) -> Node:
+	## Spelling HERO: a caped super-puppy flies across the screen, then vanishes.
+	## Screen-space (CanvasLayer) so it crosses the whole viewport regardless of world scroll.
+	var layer := CanvasLayer.new()
+	layer.name = "HeroFlyby"
+	layer.layer = 8  # above the world, below the HUD (10)
+
+	var vp := get_viewport().get_visible_rect().size
+	var base_y: float = vp.y * 0.4
+
+	var hero := Node2D.new()
+	hero.position = Vector2(-160, base_y)
+
+	# Cape FIRST so it trails behind the body. Scaled each frame for a flapping flutter.
+	var cape := Node2D.new()
+	cape.name = "Cape"
+	cape.position = Vector2(-8, -2)
+	hero.add_child(cape)
+	var cape_rect := ColorRect.new()
+	cape_rect.position = Vector2(-26, -8)
+	cape_rect.size = Vector2(26, 22)
+	cape_rect.color = Color(0.85, 0.15, 0.2, 1)
+	cape.add_child(cape_rect)
+	var cape_tip := ColorRect.new()
+	cape_tip.position = Vector2(-32, -2)
+	cape_tip.size = Vector2(8, 12)
+	cape_tip.color = Color(0.7, 0.1, 0.16, 1)
+	cape.add_child(cape_tip)
+
+	# Body
+	var body := ColorRect.new()
+	body.position = Vector2(-10, -8)
+	body.size = Vector2(26, 16)
+	body.color = Color(0.78, 0.6, 0.38, 1)
+	hero.add_child(body)
+
+	# Head (front / right)
+	var head := ColorRect.new()
+	head.position = Vector2(10, -14)
+	head.size = Vector2(18, 16)
+	head.color = Color(0.82, 0.64, 0.42, 1)
+	hero.add_child(head)
+
+	# Floppy ear streaming back
+	var ear := ColorRect.new()
+	ear.position = Vector2(10, -16)
+	ear.size = Vector2(7, 12)
+	ear.color = Color(0.55, 0.4, 0.25, 1)
+	hero.add_child(ear)
+
+	# Snout + nose
+	var snout := ColorRect.new()
+	snout.position = Vector2(26, -6)
+	snout.size = Vector2(8, 7)
+	snout.color = Color(0.7, 0.52, 0.32, 1)
+	hero.add_child(snout)
+	var nose := ColorRect.new()
+	nose.position = Vector2(32, -5)
+	nose.size = Vector2(3, 3)
+	nose.color = Color(0.1, 0.08, 0.08, 1)
+	hero.add_child(nose)
+
+	# Hero mask (dark band over the eyes) + eye
+	var mask := ColorRect.new()
+	mask.position = Vector2(18, -11)
+	mask.size = Vector2(11, 5)
+	mask.color = Color(0.15, 0.15, 0.22, 1)
+	hero.add_child(mask)
+	var eye := ColorRect.new()
+	eye.position = Vector2(22, -10)
+	eye.size = Vector2(3, 3)
+	eye.color = Color(1, 1, 1, 1)
+	hero.add_child(eye)
+
+	# Legs tucked back (flying pose)
+	var leg1 := ColorRect.new()
+	leg1.position = Vector2(-8, 6)
+	leg1.size = Vector2(11, 5)
+	leg1.color = Color(0.7, 0.52, 0.32, 1)
+	hero.add_child(leg1)
+	var leg2 := ColorRect.new()
+	leg2.position = Vector2(-12, 1)
+	leg2.size = Vector2(9, 4)
+	leg2.color = Color(0.62, 0.46, 0.28, 1)
+	hero.add_child(leg2)
+
+	# Flight script — set before entering the tree so _process registers cleanly.
+	var script := GDScript.new()
+	script.source_code = """extends Node2D
+var _t := 0.0
+var _vx := 700.0
+var _base_y := 0.0
+var _start_x := -160.0
+var _end_x := 1600.0
+
+func _process(delta):
+	_t += delta
+	position.x = _start_x + _vx * _t
+	position.y = _base_y + sin(_t * 6.0) * 8.0
+	rotation = -0.10  # nose-up heroic tilt
+	var cape = get_node_or_null("Cape")
+	if cape:
+		cape.scale.y = 0.7 + abs(sin(_t * 12.0)) * 0.5
+	if position.x > _end_x:
+		get_parent().queue_free()  # free the whole CanvasLayer
+"""
+	script.reload()
+	hero.set_script(script)
+	hero._base_y = base_y
+	hero._start_x = -160.0
+	hero._end_x = vp.x + 160.0
+	hero._vx = (vp.x + 320.0) / 1.7  # cross the screen in ~1.7s
+
+	layer.add_child(hero)
+	scene_root.add_child(layer)
+	print("Francis-opia: A super hero puppy flies to the rescue!")
+	return layer
 
 # --- WORLD EFFECTS ---
 
@@ -2374,47 +2493,115 @@ func _summon_pot(scene_root: Node, _player: Node2D, pos: Vector2) -> Node:
 	print("Francis-opia: A pot of gold! 10 coins with a rainbow!")
 	return pot
 
-func _summon_bag(scene_root: Node, _player: Node2D, pos: Vector2) -> Node:
-	## Bulging bag drops from sky, hits ground, coins spill out
-	var bag := Node2D.new()
-	bag.global_position = Vector2(pos.x, pos.y - 300)  # Start high
-	bag.z_index = 10
-	scene_root.add_child(bag)
+func _summon_bag(_scene_root: Node, player: Node2D, _pos: Vector2) -> Node:
+	## Spelling BAG equips a hiking backpack worn on Francis's back.
+	## It rides on his back and swaps sides whenever he turns around.
+	var old := player.get_node_or_null("HikingBackpack")
+	if old: old.queue_free()
 
-	# Bag body — bulging sack
-	var sack := ColorRect.new()
-	sack.position = Vector2(-16, -20)
-	sack.size = Vector2(32, 28)
-	sack.color = Color(0.6, 0.45, 0.2, 1)
-	bag.add_child(sack)
+	var pack := Node2D.new()
+	pack.name = "HikingBackpack"
+	pack.z_index = -1  # tuck behind the player's body
 
-	# Tied top
-	var tie := ColorRect.new()
-	tie.position = Vector2(-6, -26)
-	tie.size = Vector2(12, 8)
-	tie.color = Color(0.5, 0.35, 0.15, 1)
-	bag.add_child(tie)
+	# Prefer the pixel-art sprite; fall back to procedural rects if the PNG has
+	# not been re-imported yet (Godot needs an editor import pass for new art).
+	var tex = load("res://assets/sprites/summons/bag.png")  # untyped: load() is nullable
+	if tex:
+		var spr := Sprite2D.new()
+		spr.texture = tex
+		spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST  # keep it pixelated when scaled
+		spr.scale = Vector2(0.22, 0.22)  # 128px art -> ~28px on the character
+		spr.position = Vector2(0, -24)
+		pack.add_child(spr)
+	else:
+		_build_backpack_rects(pack)
 
-	# Coin peeking out
-	var peek := ColorRect.new()
-	peek.position = Vector2(-3, -22)
-	peek.size = Vector2(6, 6)
-	peek.color = Color(1, 0.85, 0.2, 1)
-	bag.add_child(peek)
+	# Follow script — keep the pack on the BACK as Francis turns around.
+	# Set before entering the tree so _process registers cleanly.
+	var follow := GDScript.new()
+	follow.source_code = """extends Node2D
 
-	# Drop animation
-	var drop := bag.create_tween()
-	drop.tween_property(bag, "global_position:y", pos.y, 0.5).set_trans(Tween.TRANS_BOUNCE)
-	drop.tween_callback(func() -> void:
-		# Bounce squash
-		var squash := bag.create_tween()
-		squash.tween_property(bag, "scale", Vector2(1.3, 0.7), 0.1)
-		squash.tween_property(bag, "scale", Vector2(1.0, 1.0), 0.15)
-		_spawn_coins(scene_root, pos, 3)
-		SoundFX.play_dig("dirt")
-	)
-	print("Francis-opia: A bag of coins dropped from the sky! 3 coins!")
-	return bag
+var _player: Node2D = null
+var _back_offset := 11.0
+
+func _process(_delta):
+	if not _player or not is_instance_valid(_player):
+		return
+	var faces_right := true
+	if _player.has_method("is_facing_right"):
+		faces_right = _player.is_facing_right()
+	# The back is the side opposite to the way he faces
+	position.x = -_back_offset if faces_right else _back_offset
+	scale.x = 1.0 if faces_right else -1.0
+"""
+	follow.reload()
+	pack.set_script(follow)
+	pack._player = player
+
+	player.add_child(pack)
+
+	# Gentle fade-in (scale.x is owned by the follow script, so animate alpha only)
+	pack.modulate.a = 0.0
+	var tw := pack.create_tween()
+	tw.tween_property(pack, "modulate:a", 1.0, 0.3)
+
+	print("Francis-opia: A hiking backpack appeared! Ready to explore!")
+	return pack
+
+func _build_backpack_rects(pack: Node2D) -> void:
+	## Fallback worn-backpack drawn from ColorRects (used when bag.png is not
+	## yet imported). Mirrors the pixel sprite: body, lid, straps, bedroll, pocket.
+	var body := ColorRect.new()
+	body.position = Vector2(-9, -12)
+	body.size = Vector2(18, 22)
+	body.color = Color(0.42, 0.5, 0.28, 1)
+	pack.add_child(body)
+
+	var base := ColorRect.new()
+	base.position = Vector2(-9, 6)
+	base.size = Vector2(18, 4)
+	base.color = Color(0.3, 0.38, 0.2, 1)
+	pack.add_child(base)
+
+	var lid := ColorRect.new()
+	lid.position = Vector2(-10, -15)
+	lid.size = Vector2(20, 8)
+	lid.color = Color(0.5, 0.58, 0.34, 1)
+	pack.add_child(lid)
+
+	var strap := ColorRect.new()
+	strap.position = Vector2(-2, -14)
+	strap.size = Vector2(4, 12)
+	strap.color = Color(0.3, 0.24, 0.14, 1)
+	pack.add_child(strap)
+	var buckle := ColorRect.new()
+	buckle.position = Vector2(-3, -5)
+	buckle.size = Vector2(6, 4)
+	buckle.color = Color(0.85, 0.7, 0.2, 1)
+	pack.add_child(buckle)
+
+	var pocket := ColorRect.new()
+	pocket.position = Vector2(-7, -1)
+	pocket.size = Vector2(14, 9)
+	pocket.color = Color(0.36, 0.44, 0.24, 1)
+	pack.add_child(pocket)
+
+	var mat := ColorRect.new()
+	mat.position = Vector2(-11, -21)
+	mat.size = Vector2(22, 7)
+	mat.color = Color(0.9, 0.45, 0.2, 1)
+	pack.add_child(mat)
+	var mat_cap := ColorRect.new()
+	mat_cap.position = Vector2(-11, -21)
+	mat_cap.size = Vector2(4, 7)
+	mat_cap.color = Color(0.95, 0.6, 0.3, 1)
+	pack.add_child(mat_cap)
+
+	var shoulder := ColorRect.new()
+	shoulder.position = Vector2(6, -12)
+	shoulder.size = Vector2(3, 20)
+	shoulder.color = Color(0.3, 0.24, 0.14, 1)
+	pack.add_child(shoulder)
 
 func _summon_six(scene_root: Node, _player: Node2D, pos: Vector2) -> Node:
 	## Six stars appear in a hexagon, spin, become coins

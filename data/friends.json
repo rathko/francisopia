@@ -1,0 +1,45 @@
+{
+  "version": "0.1.0",
+  "description": "Francis-opia friends. Data-driven NPCs that ask for a word, then follow once spelled. See docs/friends-system-architecture.md. asks[] words MUST exist in words.json. The first meadow friend MUST be level 1 (CVC) — cold-start guarantee.",
+  "friends": [
+    {
+      "id": "mossy",
+      "name": "Mossy",
+      "area": "meadow",
+      "color": [0.4, 0.7, 0.4],
+      "sprite": "mossy",
+      "asks": ["BUG", "SUN"],
+      "level": 1,
+      "reward_type": "companion",
+      "reward": null,
+      "prerequisite_id": null,
+      "follow": true
+    },
+    {
+      "id": "pip",
+      "name": "Pip",
+      "area": "forest",
+      "color": [0.85, 0.6, 0.25],
+      "sprite": "pip",
+      "asks": ["NUT", "LOG"],
+      "level": 1,
+      "reward_type": "companion",
+      "reward": null,
+      "prerequisite_id": null,
+      "follow": true
+    },
+    {
+      "id": "wave",
+      "name": "Wave",
+      "area": "beach",
+      "color": [0.3, 0.7, 1.0],
+      "sprite": "wave",
+      "asks": ["FISH", "CUP"],
+      "level": 2,
+      "reward_type": "companion",
+      "reward": null,
+      "prerequisite_id": "mossy",
+      "follow": true
+    }
+  ]
+}

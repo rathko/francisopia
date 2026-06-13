@@ -32,6 +32,7 @@ MagicSummon="*res://scripts/autoload/MagicSummon.gd"
 MagicVFX="*res://scripts/autoload/MagicVFX.gd"
 SoundFX="*res://scripts/autoload/SoundFX.gd"
 PhonemePlayer="*res://scripts/autoload/PhonemePlayer.gd"
+CompanionChatter="*res://scripts/autoload/CompanionChatter.gd"
 
 [display]
 
