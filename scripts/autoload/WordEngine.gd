@@ -148,9 +148,19 @@ func select_word_for_area(area: String) -> String:
 		target_word_changed.emit(current_target_word, current_hint_image)
 		return current_target_word
 
-	# After starter sequence, use random selection by area and difficulty
-	# Only TEMPORARY POWER-UPS are repeatable — regular words should be learned once, then move on
-	var repeatable := ["big", "run", "hop", "zip", "dig", "red", "hot", "wet", "hug", "hit", "mud"]
+	# Priority: Francis needs a HAMMER to dig + build. If he hasn't earned one yet,
+	# push HAMMER ahead of everything until he spells it (then it's his forever).
+	if "hammer" not in GameManager.items_owned:
+		current_target_word = "HAMMER"
+		current_hint_image = "hammer"
+		collected_letters.clear()
+		target_word_changed.emit(current_target_word, current_hint_image)
+		return current_target_word
+
+	# After starter sequence, random selection by area + difficulty.
+	# HARD RULE: a spelled word is NEVER offered again until EVERY word has been spelled.
+	# Tracked via GameManager.words_completed — which records ALL spelled words (including
+	# temporary-effect words like BIG) and persists across restarts. No "repeatable" exception.
 	# Word difficulty scales with game level AND progression
 	var game_level: int = GameManager.current_level  # 1 = surface, 2 = underground, etc.
 	var max_difficulty: int = maxi(current_difficulty, game_level)
@@ -159,15 +169,18 @@ func select_word_for_area(area: String) -> String:
 	var candidates := word_bank.filter(func(w: Dictionary) -> bool:
 		var wl: int = w.get("level", 1)
 		var word: String = w.get("word", "")
-		var not_done := word not in GameManager.words_summoned or word in repeatable
-		return wl == game_level and w.get("area", "") == area.to_lower() and not_done and wl <= max_difficulty
+		var not_done := word not in GameManager.words_completed
+		# Offer every word UP TO the player's current difficulty (so reaching level 2
+		# surfaces level-2 words), in this area, not already learned. never_done priority
+		# below still puts brand-new words first.
+		return wl <= max_difficulty and w.get("area", "") == area.to_lower() and not_done
 	)
 	if candidates.is_empty():
 		# Relax: allow current level words from any area
 		candidates = word_bank.filter(func(w: Dictionary) -> bool:
 			var wl: int = w.get("level", 1)
 			var word: String = w.get("word", "")
-			var not_done := word not in GameManager.words_summoned or word in repeatable
+			var not_done := word not in GameManager.words_completed
 			return wl == game_level and not_done and wl <= max_difficulty
 		)
 	if candidates.is_empty():
@@ -175,7 +188,7 @@ func select_word_for_area(area: String) -> String:
 		candidates = word_bank.filter(func(w: Dictionary) -> bool:
 			var wl: int = w.get("level", 1)
 			var word: String = w.get("word", "")
-			var not_done := word not in GameManager.words_summoned or word in repeatable
+			var not_done := word not in GameManager.words_completed
 			return wl <= max_difficulty and not_done
 		)
 	if candidates.is_empty():
@@ -186,9 +199,9 @@ func select_word_for_area(area: String) -> String:
 	if candidates.is_empty():
 		return "cat"
 
-	# Priority 1: ALWAYS prefer words never summoned yet (new words = learning!)
+	# Priority 1: ALWAYS prefer words never spelled yet (new words = learning!)
 	var never_done := candidates.filter(func(w: Dictionary) -> bool:
-		return w.get("word", "") not in GameManager.words_summoned
+		return w.get("word", "") not in GameManager.words_completed
 	)
 	if not never_done.is_empty():
 		candidates = never_done

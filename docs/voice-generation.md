@@ -10,6 +10,22 @@ How phoneme and word pronunciation audio files are generated for Francis-opia.
 - **Model:** `eleven_turbo_v2_5`
 - **Settings:** stability 0.85-0.9, similarity_boost 0.75-0.8, style 0.1-0.15
 
+## Regenerate word audio (the easy way)
+
+Use the project tool — it **auto-detects** which words in `data/words.json` lack a
+recording and generates only those, so the normal flow after adding words is one command:
+
+```bash
+# Run on framework (needs BWS ELEVENLABS_API_KEY + internet; the claude sandbox blocks both)
+bash tools/gen_missing_word_audio.sh            # fill in whatever is missing (default)
+bash tools/gen_missing_word_audio.sh --all      # re-record every word (e.g. voice change)
+bash tools/gen_missing_word_audio.sh hero bunny # just these words
+./deploy.sh                                     # import the new .mp3s + ship to the deck
+```
+
+It validates every file is real audio (rejects tiny JSON-error blobs) and never leaves a
+broken file for Godot to import. The manual recipe below is the underlying API call.
+
 ## How to Generate Phonemes
 
 ### Prerequisites

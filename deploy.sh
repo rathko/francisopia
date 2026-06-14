@@ -93,6 +93,18 @@ if [ "$DO_EXPORT" = true ]; then
     # WordEngine falls back to the .tres when words.json isn't present at runtime.
     # So any word added to words.json is INVISIBLE in the build unless the .tres is
     # rebuilt here. Skipping this is why new words never showed up for weeks.
+    # Import any new/changed assets (e.g. freshly added sprites) so the exporter packs
+    # their compressed textures. Without this a brand-new PNG ships with no .ctex and shows
+    # nothing in the build. Tolerant: --export-release also imports, so a flag hiccup here
+    # is a warning, not a failure.
+    log "Importing assets (sprites, etc.)..."
+    IMPORT_LOG="${EXPORT_DIR}/.last-import.log"
+    if godot --headless --path "${GAME_DIR}" --import >"${IMPORT_LOG}" 2>&1; then
+        ok "Assets imported"
+    else
+        warn "Asset import pass returned non-zero (export will still import). See ${IMPORT_LOG}"
+    fi
+
     log "Regenerating word bank from words.json..."
     WORDBANK_LOG="${EXPORT_DIR}/.last-wordbank.log"
     if ! godot --headless --script tools/import_words.gd >"${WORDBANK_LOG}" 2>&1; then
@@ -252,6 +264,33 @@ if [ "$DO_DEPLOY" = true ]; then
     DECK_TS=$(ssh "${DECK_USER}@${DECK_HOST}" "stat -c '%y' '${DECK_PATH}/${BINARY_NAME}'" 2>/dev/null | cut -d'.' -f1 || true)
     ok "Deployed binary on deck: ${DECK_PATH}/${BINARY_NAME}"
     ok "Deck file timestamp: ${DECK_TS:-unknown}"
+
+    # ─── VERIFY the deck copy is byte-identical to what we just built ────────────
+    # This is the guard against the "nothing changed for days, scratching my head"
+    # class of silent stale deploys: if the file on the deck isn't exactly the binary
+    # we just exported, FAIL LOUDLY instead of pretending success.
+    LOCAL_SIZE=$(stat -c%s "${EXPORT_DIR}/${BINARY_NAME}")
+    DECK_SIZE=$(ssh "${DECK_USER}@${DECK_HOST}" "stat -c%s '${DECK_PATH}/${BINARY_NAME}'" 2>/dev/null || echo "0")
+    log "Verifying transfer: local=${LOCAL_SIZE}B  deck=${DECK_SIZE}B"
+    if [ "${LOCAL_SIZE}" != "${DECK_SIZE}" ]; then
+        err "SIZE MISMATCH — deck copy is ${DECK_SIZE}B but local build is ${LOCAL_SIZE}B.\n  The deploy did NOT land correctly. Nothing on the deck changed."
+    fi
+    ok "Size matches: ${LOCAL_SIZE} bytes"
+
+    # Checksum — the definitive "is it really the same file" check.
+    LOCAL_SHA=$(sha256sum "${EXPORT_DIR}/${BINARY_NAME}" | cut -d' ' -f1)
+    DECK_SHA=$(ssh "${DECK_USER}@${DECK_HOST}" "sha256sum '${DECK_PATH}/${BINARY_NAME}'" 2>/dev/null | cut -d' ' -f1 || echo "none")
+    if [ "${LOCAL_SHA}" != "${DECK_SHA}" ]; then
+        err "CHECKSUM MISMATCH — deck sha256 (${DECK_SHA}) != local (${LOCAL_SHA}).\n  The file on the deck is NOT the build you just made."
+    fi
+    ok "Checksum verified — deck binary is byte-identical to this build (sha256 ${LOCAL_SHA:0:12}…)"
+
+    echo -e "  ${GREEN}══════════════════════════════════════════════════════════════${NC}"
+    echo -e "  ${GREEN}  DEPLOY VERIFIED — the Steam Deck is running THIS exact build${NC}"
+    echo -e "     deck file : ${DECK_PATH}/${BINARY_NAME}"
+    echo -e "     timestamp : ${DECK_TS:-unknown}"
+    echo -e "     sha256    : ${LOCAL_SHA}"
+    echo -e "  ${GREEN}══════════════════════════════════════════════════════════════${NC}"
 
     # Install desktop entry for game mode
     ssh "${DECK_USER}@${DECK_HOST}" "

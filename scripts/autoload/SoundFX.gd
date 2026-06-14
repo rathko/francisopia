@@ -248,7 +248,7 @@ func play_critter(species: String, background: bool = false) -> void:
 	## background; a touch louder when Francis walks up to the animal.
 	if not _enabled:
 		return
-	var vol: float = 0.22 if background else 0.42
+	var vol: float = 0.32 if background else 0.58
 	match species:
 		"dog", "pup":
 			_critter_seq([[_tap_stream, 0.60], [_tap_stream, 0.55]], vol, 0.12)   # woof woof
@@ -256,6 +256,8 @@ func play_critter(species: String, background: bool = false) -> void:
 			_critter_seq([[_chime_stream, 0.95], [_chime_stream, 1.20]], vol, 0.14)  # meow
 		"bunny":
 			_critter_seq([[_chime_stream, 1.70], [_chime_stream, 1.90]], vol, 0.08)  # squeak
+		"friend":
+			_critter_seq([[_chime_stream, 1.10], [_chime_stream, 1.40]], vol, 0.12)  # cheerful hi!
 		"frog":
 			_critter_seq([[_tap_stream, 0.50], [_tap_stream, 0.50]], vol, 0.10)   # ribbit
 		"bird":

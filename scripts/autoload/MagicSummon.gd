@@ -91,6 +91,8 @@ var summon_registry: Dictionary = {
 	"fish": {"type": "pet", "builder": "_summon_fish", "label": "A magic fish!", "color": Color(0.3, 0.7, 1.0)},
 	"bird": {"type": "pet", "builder": "_summon_bird", "label": "A singing bird!", "color": Color(1.0, 0.6, 0.3)},
 	"frog": {"type": "pet", "builder": "_summon_frog", "label": "A bouncy frog!", "color": Color(0.3, 0.8, 0.3)},
+	"bunny": {"type": "pet", "builder": "_summon_bunny", "label": "A hoppy bunny!", "color": Color(0.96, 0.96, 0.93)},
+	"friend": {"type": "pet", "builder": "_summon_friend", "label": "A new friend!", "color": Color(0.2, 0.7, 0.55)},
 	"star": {"type": "world", "builder": "_summon_star", "label": "A glowing star!", "color": Color(1.0, 1.0, 0.5)},
 	"tree": {"type": "world", "builder": "_summon_tree", "label": "A magic tree!", "color": Color(0.2, 0.7, 0.3)},
 	"jump": {"type": "world", "builder": "_summon_trampoline", "label": "A trampoline!", "color": Color(1.0, 0.4, 0.6)},
@@ -110,7 +112,7 @@ var summon_registry: Dictionary = {
 }
 
 const MAX_COMPANIONS := 5
-const PET_WORDS := ["dog", "cat", "frog", "pig", "bug", "fish", "bird", "hen", "bat", "rat", "fox", "pup"]
+const PET_WORDS := ["dog", "cat", "frog", "pig", "bug", "fish", "bird", "hen", "bat", "rat", "fox", "pup", "bunny", "friend"]
 
 var _pet_scene: PackedScene = null
 var _summoned_entities: Array[Node] = []
@@ -131,6 +133,14 @@ func get_companion_count() -> int:
 
 func is_companion_word(word: String) -> bool:
 	return word in PET_WORDS
+
+func get_companion_nodes() -> Dictionary:
+	## word -> live companion node, for CompanionChatter. Skips freed nodes.
+	var out: Dictionary = {}
+	for word in _companions:
+		if is_instance_valid(_companions[word]):
+			out[word] = _companions[word]
+	return out
 
 func is_temporary_effect(word: String) -> bool:
 	var entry: Dictionary = summon_registry.get(word.to_lower(), {})
@@ -235,8 +245,16 @@ func _clamp_companion_scale(node: Node) -> void:
 func _on_word_spelled(word: String) -> void:
 	var entry: Dictionary = summon_registry.get(word, {})
 	if entry.is_empty():
-		# No summon registered — just give coins (fallback)
-		return
+		# No SPECIFIC summon for this word — every word still gets a generic magical
+		# celebration so SOMETHING always appears (big sparkle + a lingering glowing star).
+		# Specific summons can be added over time; this guarantees no word is a dud.
+		entry = {
+			"type": "cosmetic",
+			"builder": "_summon_generic",
+			"label": word.capitalize() + "!",
+			"color": Color(1.0, 0.85, 0.2),
+			"temporary": true,
+		}
 	summon_started.emit(word, entry.get("type", "world"))
 	_play_summon_animation(word, entry)
 
@@ -322,8 +340,8 @@ func _play_summon_animation(word: String, entry: Dictionary) -> void:
 		var reveal_tw := reveal_sprite.create_tween()
 		reveal_tw.tween_property(reveal_sprite, "scale", Vector2(0.7, 0.7), 0.4).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 		reveal_tw.parallel().tween_property(reveal_sprite, "position:y", reveal_sprite.position.y - 20, 0.4).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-		reveal_tw.tween_interval(1.0)
-		reveal_tw.tween_property(reveal_sprite, "modulate:a", 0.0, 0.5)
+		reveal_tw.tween_interval(5.0)  # hang for ~5s so it really lands
+		reveal_tw.tween_property(reveal_sprite, "modulate:a", 0.0, 0.8)
 		reveal_tw.tween_callback(reveal_sprite.queue_free)
 
 	# === PHASE 4: Summon the thing! ===
@@ -603,6 +621,308 @@ func _physics_process(delta):
 	print("Francis-opia: ✨ A bouncy frog appeared! Ribbit!")
 	return frog
 
+func _summon_bunny(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
+	# White bunny that hops along behind Francis (same proven follow logic as the frog).
+	var bunny := CharacterBody2D.new()
+	bunny.global_position = pos
+	bunny.collision_layer = 0
+	bunny.collision_mask = 1
+
+	# Prefer the pixel sprite; fall back to ColorRects if bunny.png isn't imported yet.
+	var tex = load("res://assets/sprites/summons/bunny.png")  # untyped: load() is nullable
+	if tex:
+		var spr := Sprite2D.new()
+		spr.texture = tex
+		spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		spr.scale = Vector2(0.24, 0.24)  # 128px art -> ~31px critter
+		spr.position = Vector2(0, -13)
+		bunny.add_child(spr)
+	else:
+		_build_bunny_rects(bunny)
+
+	# Collision
+	var col := CollisionShape2D.new()
+	var shape := RectangleShape2D.new()
+	shape.size = Vector2(16, 12)
+	col.shape = shape
+	bunny.add_child(col)
+
+	# Hop-follow — script set BEFORE entering the tree so _physics_process registers.
+	var script := GDScript.new()
+	script.source_code = """extends CharacterBody2D
+
+var _owner: Node2D = null
+var _gravity := 980.0
+var _hop_timer := 0.0
+var _follow_offset := Vector2(60, 0)
+var _stuck_timer := 0.0
+var _last_dist := 0.0
+
+func _physics_process(delta):
+	if not _owner or not is_instance_valid(_owner):
+		return
+
+	if not is_on_floor():
+		velocity.y += _gravity * delta
+		velocity.y = min(velocity.y, 400.0)
+	else:
+		velocity.y = 0
+
+	var target = _owner.global_position + _follow_offset
+	var dist = global_position.distance_to(_owner.global_position)
+
+	var dx = global_position.x - _owner.global_position.x
+	var dy = global_position.y - _owner.global_position.y
+	if abs(dx) < 20 and dy < -10 and dy > -60:
+		var push = 1.0 if _follow_offset.x >= 0 else -1.0
+		velocity.x = push * 160
+		move_and_slide()
+		return
+
+	if dist > 250 or global_position.y > _owner.global_position.y + 400:
+		global_position = _owner.global_position + _follow_offset
+		velocity = Vector2.ZERO
+		_stuck_timer = 0.0
+		return
+
+	if dist > 60:
+		if dist >= _last_dist - 2.0:
+			_stuck_timer += delta
+		else:
+			_stuck_timer = 0.0
+		if _stuck_timer > 1.5:
+			global_position = _owner.global_position + _follow_offset
+			velocity = Vector2.ZERO
+			_stuck_timer = 0.0
+			return
+	else:
+		_stuck_timer = 0.0
+	_last_dist = dist
+
+	_hop_timer += delta
+	if is_on_floor() and dist > 60 and _hop_timer > 0.45:
+		_hop_timer = 0.0
+		var dir = global_position.direction_to(target)
+		velocity.x = dir.x * 150
+		velocity.y = -320
+
+	if is_on_floor() and (_owner.global_position.y < global_position.y - 20 or (dist > 60 and is_on_wall())):
+		velocity.y = -350
+		var dir = global_position.direction_to(target)
+		velocity.x = dir.x * 140
+		_hop_timer = 0.0
+
+	if is_on_floor() and dist <= 60:
+		velocity.x = move_toward(velocity.x, 0, 200 * delta)
+
+	if velocity.x > 1:
+		scale.x = abs(scale.x)
+	elif velocity.x < -1:
+		scale.x = -abs(scale.x)
+
+	move_and_slide()
+"""
+	script.reload()
+	bunny.set_script(script)
+	bunny._owner = player
+	bunny.add_collision_exception_with(player)
+	scene_root.add_child(bunny)
+
+	print("Francis-opia: A hoppy bunny appeared! Boing boing!")
+	return bunny
+
+func _build_bunny_rects(bunny: CharacterBody2D) -> void:
+	## Fallback white-bunny built from ColorRects (used when bunny.png isn't imported).
+	var body := ColorRect.new()
+	body.position = Vector2(-9, -10)
+	body.size = Vector2(18, 14)
+	body.color = Color(0.96, 0.96, 0.93, 1)
+	bunny.add_child(body)
+	var head := ColorRect.new()
+	head.position = Vector2(2, -18)
+	head.size = Vector2(12, 12)
+	head.color = Color(0.98, 0.98, 0.95, 1)
+	bunny.add_child(head)
+	var ear_l := ColorRect.new()
+	ear_l.position = Vector2(3, -30)
+	ear_l.size = Vector2(4, 14)
+	ear_l.color = Color(0.96, 0.96, 0.93, 1)
+	bunny.add_child(ear_l)
+	var ear_l_in := ColorRect.new()
+	ear_l_in.position = Vector2(4, -28)
+	ear_l_in.size = Vector2(2, 9)
+	ear_l_in.color = Color(1.0, 0.7, 0.78, 1)
+	bunny.add_child(ear_l_in)
+	var ear_r := ColorRect.new()
+	ear_r.position = Vector2(9, -30)
+	ear_r.size = Vector2(4, 14)
+	ear_r.color = Color(0.96, 0.96, 0.93, 1)
+	bunny.add_child(ear_r)
+	var ear_r_in := ColorRect.new()
+	ear_r_in.position = Vector2(10, -28)
+	ear_r_in.size = Vector2(2, 9)
+	ear_r_in.color = Color(1.0, 0.7, 0.78, 1)
+	bunny.add_child(ear_r_in)
+	var eye := ColorRect.new()
+	eye.position = Vector2(9, -14)
+	eye.size = Vector2(2, 2)
+	eye.color = Color(0.1, 0.1, 0.12, 1)
+	bunny.add_child(eye)
+	var nose := ColorRect.new()
+	nose.position = Vector2(12, -11)
+	nose.size = Vector2(2, 2)
+	nose.color = Color(1.0, 0.55, 0.65, 1)
+	bunny.add_child(nose)
+	var tail := ColorRect.new()
+	tail.position = Vector2(-12, -6)
+	tail.size = Vector2(5, 5)
+	tail.color = Color(1, 1, 1, 1)
+	bunny.add_child(tail)
+
+func _summon_friend(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
+	# A friendly kid who skips along behind Francis — a first taste of the friends system.
+	var friend := CharacterBody2D.new()
+	friend.global_position = pos
+	friend.collision_layer = 0
+	friend.collision_mask = 1
+
+	# Legs
+	var leg_l := ColorRect.new()
+	leg_l.position = Vector2(-5, 2)
+	leg_l.size = Vector2(4, 8)
+	leg_l.color = Color(0.3, 0.3, 0.45, 1)
+	friend.add_child(leg_l)
+	var leg_r := ColorRect.new()
+	leg_r.position = Vector2(1, 2)
+	leg_r.size = Vector2(4, 8)
+	leg_r.color = Color(0.3, 0.3, 0.45, 1)
+	friend.add_child(leg_r)
+	# Body (shirt)
+	var body := ColorRect.new()
+	body.position = Vector2(-7, -12)
+	body.size = Vector2(14, 16)
+	body.color = Color(0.2, 0.7, 0.55, 1)
+	friend.add_child(body)
+	# Arms
+	var arm_l := ColorRect.new()
+	arm_l.position = Vector2(-10, -11)
+	arm_l.size = Vector2(3, 11)
+	arm_l.color = Color(0.18, 0.62, 0.48, 1)
+	friend.add_child(arm_l)
+	var arm_r := ColorRect.new()
+	arm_r.position = Vector2(7, -11)
+	arm_r.size = Vector2(3, 11)
+	arm_r.color = Color(0.18, 0.62, 0.48, 1)
+	friend.add_child(arm_r)
+	# Head + hair
+	var head := ColorRect.new()
+	head.position = Vector2(-6, -26)
+	head.size = Vector2(12, 14)
+	head.color = Color(0.96, 0.8, 0.66, 1)
+	friend.add_child(head)
+	var hair := ColorRect.new()
+	hair.position = Vector2(-7, -28)
+	hair.size = Vector2(14, 6)
+	hair.color = Color(0.4, 0.26, 0.15, 1)
+	friend.add_child(hair)
+	# Eyes + smile
+	var eye_l := ColorRect.new()
+	eye_l.position = Vector2(-3, -21)
+	eye_l.size = Vector2(2, 2)
+	eye_l.color = Color(0.1, 0.1, 0.12, 1)
+	friend.add_child(eye_l)
+	var eye_r := ColorRect.new()
+	eye_r.position = Vector2(2, -21)
+	eye_r.size = Vector2(2, 2)
+	eye_r.color = Color(0.1, 0.1, 0.12, 1)
+	friend.add_child(eye_r)
+	var smile := ColorRect.new()
+	smile.position = Vector2(-2, -16)
+	smile.size = Vector2(4, 2)
+	smile.color = Color(0.8, 0.3, 0.3, 1)
+	friend.add_child(smile)
+	# Collision
+	var col := CollisionShape2D.new()
+	var shape := RectangleShape2D.new()
+	shape.size = Vector2(14, 30)
+	col.position = Vector2(0, -10)
+	col.shape = shape
+	friend.add_child(col)
+
+	# Follow script — same proven hop/skip-follow as the other companions.
+	var script := GDScript.new()
+	script.source_code = """extends CharacterBody2D
+
+var _owner: Node2D = null
+var _gravity := 980.0
+var _hop_timer := 0.0
+var _follow_offset := Vector2(55, 0)
+var _stuck_timer := 0.0
+var _last_dist := 0.0
+
+func _physics_process(delta):
+	if not _owner or not is_instance_valid(_owner):
+		return
+	if not is_on_floor():
+		velocity.y += _gravity * delta
+		velocity.y = min(velocity.y, 400.0)
+	else:
+		velocity.y = 0
+	var target = _owner.global_position + _follow_offset
+	var dist = global_position.distance_to(_owner.global_position)
+	var dx = global_position.x - _owner.global_position.x
+	var dy = global_position.y - _owner.global_position.y
+	if abs(dx) < 20 and dy < -10 and dy > -60:
+		var push = 1.0 if _follow_offset.x >= 0 else -1.0
+		velocity.x = push * 160
+		move_and_slide()
+		return
+	if dist > 250 or global_position.y > _owner.global_position.y + 400:
+		global_position = _owner.global_position + _follow_offset
+		velocity = Vector2.ZERO
+		_stuck_timer = 0.0
+		return
+	if dist > 60:
+		if dist >= _last_dist - 2.0:
+			_stuck_timer += delta
+		else:
+			_stuck_timer = 0.0
+		if _stuck_timer > 1.5:
+			global_position = _owner.global_position + _follow_offset
+			velocity = Vector2.ZERO
+			_stuck_timer = 0.0
+			return
+	else:
+		_stuck_timer = 0.0
+	_last_dist = dist
+	_hop_timer += delta
+	if is_on_floor() and dist > 60 and _hop_timer > 0.5:
+		_hop_timer = 0.0
+		var dir = global_position.direction_to(target)
+		velocity.x = dir.x * 150
+		velocity.y = -280
+	if is_on_floor() and (_owner.global_position.y < global_position.y - 20 or (dist > 60 and is_on_wall())):
+		velocity.y = -350
+		var dir = global_position.direction_to(target)
+		velocity.x = dir.x * 140
+		_hop_timer = 0.0
+	if is_on_floor() and dist <= 60:
+		velocity.x = move_toward(velocity.x, 0, 200 * delta)
+	if velocity.x > 1:
+		scale.x = abs(scale.x)
+	elif velocity.x < -1:
+		scale.x = -abs(scale.x)
+	move_and_slide()
+"""
+	script.reload()
+	friend.set_script(script)
+	friend._owner = player
+	friend.add_collision_exception_with(player)
+	scene_root.add_child(friend)
+
+	print("Francis-opia: A new friend appeared! Hi!")
+	return friend
+
 func _summon_bug(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
 	var bug := Node2D.new()
 	bug.global_position = pos
@@ -766,78 +1086,17 @@ func _summon_hero(scene_root: Node, _player: Node2D, _pos: Vector2) -> Node:
 	var hero := Node2D.new()
 	hero.position = Vector2(-160, base_y)
 
-	# Cape FIRST so it trails behind the body. Scaled each frame for a flapping flutter.
-	var cape := Node2D.new()
-	cape.name = "Cape"
-	cape.position = Vector2(-8, -2)
-	hero.add_child(cape)
-	var cape_rect := ColorRect.new()
-	cape_rect.position = Vector2(-26, -8)
-	cape_rect.size = Vector2(26, 22)
-	cape_rect.color = Color(0.85, 0.15, 0.2, 1)
-	cape.add_child(cape_rect)
-	var cape_tip := ColorRect.new()
-	cape_tip.position = Vector2(-32, -2)
-	cape_tip.size = Vector2(8, 12)
-	cape_tip.color = Color(0.7, 0.1, 0.16, 1)
-	cape.add_child(cape_tip)
-
-	# Body
-	var body := ColorRect.new()
-	body.position = Vector2(-10, -8)
-	body.size = Vector2(26, 16)
-	body.color = Color(0.78, 0.6, 0.38, 1)
-	hero.add_child(body)
-
-	# Head (front / right)
-	var head := ColorRect.new()
-	head.position = Vector2(10, -14)
-	head.size = Vector2(18, 16)
-	head.color = Color(0.82, 0.64, 0.42, 1)
-	hero.add_child(head)
-
-	# Floppy ear streaming back
-	var ear := ColorRect.new()
-	ear.position = Vector2(10, -16)
-	ear.size = Vector2(7, 12)
-	ear.color = Color(0.55, 0.4, 0.25, 1)
-	hero.add_child(ear)
-
-	# Snout + nose
-	var snout := ColorRect.new()
-	snout.position = Vector2(26, -6)
-	snout.size = Vector2(8, 7)
-	snout.color = Color(0.7, 0.52, 0.32, 1)
-	hero.add_child(snout)
-	var nose := ColorRect.new()
-	nose.position = Vector2(32, -5)
-	nose.size = Vector2(3, 3)
-	nose.color = Color(0.1, 0.08, 0.08, 1)
-	hero.add_child(nose)
-
-	# Hero mask (dark band over the eyes) + eye
-	var mask := ColorRect.new()
-	mask.position = Vector2(18, -11)
-	mask.size = Vector2(11, 5)
-	mask.color = Color(0.15, 0.15, 0.22, 1)
-	hero.add_child(mask)
-	var eye := ColorRect.new()
-	eye.position = Vector2(22, -10)
-	eye.size = Vector2(3, 3)
-	eye.color = Color(1, 1, 1, 1)
-	hero.add_child(eye)
-
-	# Legs tucked back (flying pose)
-	var leg1 := ColorRect.new()
-	leg1.position = Vector2(-8, 6)
-	leg1.size = Vector2(11, 5)
-	leg1.color = Color(0.7, 0.52, 0.32, 1)
-	hero.add_child(leg1)
-	var leg2 := ColorRect.new()
-	leg2.position = Vector2(-12, 1)
-	leg2.size = Vector2(9, 4)
-	leg2.color = Color(0.62, 0.46, 0.28, 1)
-	hero.add_child(leg2)
+	# Prefer the pixel sprite (a crisp caped pup); fall back to ColorRects if hero.png
+	# isn't imported yet. The flight script's cape-flap no-ops when there's no Cape node.
+	var tex = load("res://assets/sprites/summons/hero.png")  # untyped: load() is nullable
+	if tex:
+		var spr := Sprite2D.new()
+		spr.texture = tex
+		spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		spr.scale = Vector2(0.5, 0.5)  # 128px art -> 64px hero, reads well mid-flight
+		hero.add_child(spr)
+	else:
+		_build_hero_rects(hero)
 
 	# Flight script — set before entering the tree so _process registers cleanly.
 	var script := GDScript.new()
@@ -870,6 +1129,100 @@ func _process(delta):
 	scene_root.add_child(layer)
 	print("Francis-opia: A super hero puppy flies to the rescue!")
 	return layer
+
+func _build_hero_rects(hero: Node2D) -> void:
+	## Fallback caped-pup from ColorRects (used when hero.png isn't imported). Includes a
+	## "Cape" node the flight script flaps.
+	var cape := Node2D.new()
+	cape.name = "Cape"
+	cape.position = Vector2(-8, -2)
+	hero.add_child(cape)
+	var cape_rect := ColorRect.new()
+	cape_rect.position = Vector2(-26, -8)
+	cape_rect.size = Vector2(26, 22)
+	cape_rect.color = Color(0.85, 0.15, 0.2, 1)
+	cape.add_child(cape_rect)
+	var cape_tip := ColorRect.new()
+	cape_tip.position = Vector2(-32, -2)
+	cape_tip.size = Vector2(8, 12)
+	cape_tip.color = Color(0.7, 0.1, 0.16, 1)
+	cape.add_child(cape_tip)
+	var body := ColorRect.new()
+	body.position = Vector2(-10, -8)
+	body.size = Vector2(26, 16)
+	body.color = Color(0.78, 0.6, 0.38, 1)
+	hero.add_child(body)
+	var head := ColorRect.new()
+	head.position = Vector2(10, -14)
+	head.size = Vector2(18, 16)
+	head.color = Color(0.82, 0.64, 0.42, 1)
+	hero.add_child(head)
+	var ear := ColorRect.new()
+	ear.position = Vector2(10, -16)
+	ear.size = Vector2(7, 12)
+	ear.color = Color(0.55, 0.4, 0.25, 1)
+	hero.add_child(ear)
+	var snout := ColorRect.new()
+	snout.position = Vector2(26, -6)
+	snout.size = Vector2(8, 7)
+	snout.color = Color(0.7, 0.52, 0.32, 1)
+	hero.add_child(snout)
+	var nose := ColorRect.new()
+	nose.position = Vector2(32, -5)
+	nose.size = Vector2(3, 3)
+	nose.color = Color(0.1, 0.08, 0.08, 1)
+	hero.add_child(nose)
+	var mask := ColorRect.new()
+	mask.position = Vector2(18, -11)
+	mask.size = Vector2(11, 5)
+	mask.color = Color(0.15, 0.15, 0.22, 1)
+	hero.add_child(mask)
+	var eye := ColorRect.new()
+	eye.position = Vector2(22, -10)
+	eye.size = Vector2(3, 3)
+	eye.color = Color(1, 1, 1, 1)
+	hero.add_child(eye)
+	var leg1 := ColorRect.new()
+	leg1.position = Vector2(-8, 6)
+	leg1.size = Vector2(11, 5)
+	leg1.color = Color(0.7, 0.52, 0.32, 1)
+	hero.add_child(leg1)
+	var leg2 := ColorRect.new()
+	leg2.position = Vector2(-12, 1)
+	leg2.size = Vector2(9, 4)
+	leg2.color = Color(0.62, 0.46, 0.28, 1)
+	hero.add_child(leg2)
+
+func _summon_generic(scene_root: Node, _player: Node2D, pos: Vector2) -> Node:
+	## Default celebration for any word without a specific summon — a glowing golden star
+	## that rises, pulses, and lingers ~5s. Guarantees EVERY word makes something appear.
+	var star := Node2D.new()
+	star.global_position = pos
+	star.z_index = 12
+	for ang in [0.0, PI / 4.0]:
+		var r := ColorRect.new()
+		r.size = Vector2(26, 26)
+		r.position = Vector2(-13, -13)
+		r.pivot_offset = Vector2(13, 13)
+		r.rotation = ang
+		r.color = Color(1.0, 0.88, 0.3, 1.0)
+		star.add_child(r)
+	var core := ColorRect.new()
+	core.size = Vector2(14, 14)
+	core.position = Vector2(-7, -7)
+	core.color = Color(1.0, 1.0, 0.75, 1.0)
+	star.add_child(core)
+	scene_root.add_child(star)
+	star.scale = Vector2.ZERO
+	var tw := star.create_tween()
+	tw.tween_property(star, "scale", Vector2(1.4, 1.4), 0.4).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.parallel().tween_property(star, "position:y", star.position.y - 55, 0.5)
+	tw.tween_property(star, "scale", Vector2(1.1, 1.1), 0.3)
+	tw.tween_interval(4.5)   # linger
+	tw.tween_property(star, "modulate:a", 0.0, 0.8)
+	tw.tween_callback(star.queue_free)
+	print("Francis-opia: ✨ Magic sparkle!")
+	return star
 
 # --- WORLD EFFECTS ---
 
@@ -1386,38 +1739,47 @@ func _summon_bow_upgrade(scene_root: Node, _player: Node2D, _pos: Vector2) -> No
 	print("Francis-opia: ✨ Bow unlocked!")
 	return null
 
-func _summon_hammer(scene_root: Node, _player: Node2D, pos: Vector2) -> Node:
-	# Grant the hammer — doubles dig speed, extends reach, shows visual
+func _summon_hammer(scene_root: Node, _player: Node2D, _pos: Vector2) -> Node:
 	var player := scene_root.get_node_or_null("Player") as Node2D
 	if player:
-		player.dig_cooldown = 0.1  # Was 0.25, now much faster
-		player.dig_range = 128.0    # Was 96, now 4 blocks reach
-		GameManager.equipped_weapon = "hammer"
-
-		# Add a visible hammer next to the player
-		var hammer_visual := Node2D.new()
-		hammer_visual.name = "HammerVisual"
-		# Remove old one if re-summoned
-		var old := player.get_node_or_null("HammerVisual")
-		if old:
-			old.queue_free()
-
-		# Handle (brown stick)
-		var handle := ColorRect.new()
-		handle.position = Vector2(14, -8)
-		handle.size = Vector2(4, 20)
-		handle.color = Color(0.55, 0.35, 0.15, 1)
-		hammer_visual.add_child(handle)
-		# Head (grey metal)
-		var head := ColorRect.new()
-		head.position = Vector2(10, -14)
-		head.size = Vector2(12, 10)
-		head.color = Color(0.6, 0.6, 0.65, 1)
-		hammer_visual.add_child(head)
-
-		player.add_child(hammer_visual)
 		print("Francis-opia: ✨ Hammer! Hold Q/LB to dig faster and further!")
+		return equip_hammer(player)
 	return null
+
+func equip_hammer(player: Node2D) -> Node:
+	## Give the hammer: faster + longer dig and a visible hammer in hand. Idempotent and
+	## PUBLIC so it can be re-applied on load — that's what makes the hammer stay forever.
+	## Returns the visual node so the summon system records ownership (items_owned).
+	if not is_instance_valid(player):
+		return null
+	player.dig_cooldown = 0.1   # Was 0.25, now much faster
+	player.dig_range = 128.0    # Was 96, now 4 blocks reach
+	GameManager.equipped_weapon = "hammer"
+	# Record ownership directly — so it PERSISTS, restores on load, and stops the
+	# HAMMER priority-push. (Don't rely on the builder's return-Node path.)
+	if "hammer" not in GameManager.items_owned:
+		GameManager.items_owned.append("hammer")
+		GameManager.save_game()
+	var old := player.get_node_or_null("HammerVisual")
+	if old:
+		old.queue_free()
+	var hammer_visual := Node2D.new()
+	hammer_visual.name = "HammerVisual"
+	hammer_visual.z_index = 10   # render IN FRONT of the character sprite (was hidden behind)
+	# Head (grey metal) — raised, sticking out to the right so it reads as held-up
+	var head := ColorRect.new()
+	head.position = Vector2(14, -22)
+	head.size = Vector2(17, 12)
+	head.color = Color(0.62, 0.62, 0.68, 1)
+	hammer_visual.add_child(head)
+	# Handle (brown stick) down from the head
+	var handle := ColorRect.new()
+	handle.position = Vector2(19, -22)
+	handle.size = Vector2(5, 28)
+	handle.color = Color(0.55, 0.35, 0.15, 1)
+	hammer_visual.add_child(handle)
+	player.add_child(hammer_visual)   # attach to the player so it shows in-hand
+	return hammer_visual
 
 func _summon_run(scene_root: Node, player: Node2D, _pos: Vector2) -> Node:
 	# Super speed for 60 seconds

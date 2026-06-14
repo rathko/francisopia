@@ -131,25 +131,13 @@ func _ready() -> void:
 	if "dog" in GameManager.words_summoned:
 		_spawn_dog_companion.call_deferred()
 
-	# Restore hammer upgrade if player already has it
+	# Restore hammer upgrade if player already has it — single source of truth is
+	# MagicSummon.equip_hammer(), so the in-hand hammer is identical to when first earned.
 	if "hammer" in GameManager.items_owned and player:
-		player.dig_cooldown = 0.1
-		player.dig_range = 128.0
-		# Add visual hammer
-		var hammer_visual := Node2D.new()
-		hammer_visual.name = "HammerVisual"
-		var handle := ColorRect.new()
-		handle.position = Vector2(14, -8)
-		handle.size = Vector2(4, 20)
-		handle.color = Color(0.55, 0.35, 0.15, 1)
-		hammer_visual.add_child(handle)
-		var head := ColorRect.new()
-		head.position = Vector2(10, -14)
-		head.size = Vector2(12, 10)
-		head.color = Color(0.6, 0.6, 0.65, 1)
-		hammer_visual.add_child(head)
-		player.add_child(hammer_visual)
-		print("Francis-opia: Hammer restored from save!")
+		var ms := get_node_or_null("/root/MagicSummon")
+		if ms and ms.has_method("equip_hammer"):
+			ms.equip_hammer(player)
+			print("Francis-opia: Hammer restored from save!")
 
 	# Save is loaded in GameManager._ready() (before other autoloads)
 	# Re-summon persistent world effects from previous session

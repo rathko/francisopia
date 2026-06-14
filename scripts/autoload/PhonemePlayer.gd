@@ -32,6 +32,13 @@ var _player_pool: Array[AudioStreamPlayer] = []
 var _pool_index := 0
 var _enabled := true
 
+# Per-letter phoneme sounds are HIDDEN for now — many mappings are wrong. The code is
+# all kept; flip this to true to bring them back. Full-word pronunciation is unaffected.
+var _letter_sounds_enabled := false
+# When a word has no full recording, do NOT stitch individual phonemes (often wrong) —
+# stay silent until a proper recording exists (generate via TTS). Code kept behind flag.
+var _spell_out_fallback := false
+
 # Kid-readable labels for phoneme display in HUD
 const PHONEME_LABELS: Dictionary = {
 	# Single letters
@@ -143,6 +150,8 @@ func play_phoneme_for_position(word: String, letter_position: int) -> void:
 	## Returns silently for continuation letters (e.g., H in "sh").
 	if not _enabled:
 		return
+	if not _letter_sounds_enabled:
+		return  # per-letter sounds hidden for now — wrong mappings; full-word audio still plays
 	word = word.to_lower()
 	var lpm := get_letter_phoneme_map(word)
 	if letter_position < 0 or letter_position >= lpm.size():
@@ -166,8 +175,11 @@ func play_word(word: String) -> void:
 		if ResourceLoader.exists(path):
 			_word_cache[word] = load(path) as AudioStream
 		else:
-			# No recording — spell out by phoneme segments
-			_spell_out_by_segments(word)
+			# No full-word recording. We only do whole-word pronunciation now — do NOT
+			# stitch individual phonemes (often wrong). Stay silent until a recording
+			# exists (generate via TTS). Fallback kept behind a flag.
+			if _spell_out_fallback:
+				_spell_out_by_segments(word)
 			return
 	if word in _word_cache:
 		_play(_word_cache[word])

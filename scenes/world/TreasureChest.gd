@@ -79,6 +79,16 @@ func interact() -> void:
 	text_tween.parallel().tween_property(coin_text, "modulate:a", 0.0, 0.8)
 	text_tween.tween_callback(coin_text.queue_free)
 
+	# Opened chests litter the terrain — fade out and remove after a minute to keep it tidy.
+	# (opened_chests in GameManager remembers it was looted, so it won't respawn as new.)
+	get_tree().create_timer(60.0).timeout.connect(func() -> void:
+		if not is_instance_valid(self):
+			return
+		var despawn := create_tween()
+		despawn.tween_property(self, "modulate:a", 0.0, 1.0)
+		despawn.tween_callback(queue_free)
+	)
+
 var _letter_arc: Node2D = null
 var _letter_medallions: Array[Node2D] = []  # Container nodes for each medallion
 var _letter_labels: Array[Label] = []

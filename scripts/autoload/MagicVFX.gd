@@ -33,30 +33,31 @@ func get_color_for_type(summon_type: String) -> Color:
 
 # === GPUParticles2D SPARKLE BURST ===
 
-func spawn_sparkle_burst(parent: Node, pos: Vector2, color: Color, count: int = 24) -> void:
+func spawn_sparkle_burst(parent: Node, pos: Vector2, color: Color, count: int = 40) -> void:
 	## Radial sparkle burst using GPUParticles2D. Auto-frees after emission.
+	## Big + lingering — the magic moment should be unmissable for a 5-year-old.
 	var particles := GPUParticles2D.new()
 	particles.z_index = 25
 	particles.position = pos
 	particles.emitting = true
 	particles.one_shot = true
 	particles.amount = count
-	particles.lifetime = 0.8
+	particles.lifetime = 2.2  # hang in the air, not a blink
 	particles.explosiveness = 0.9  # All at once
 	particles.randomness = 0.3
 
 	var mat := ParticleProcessMaterial.new()
 	mat.direction = Vector3(0, -1, 0)
 	mat.spread = 180.0  # Full radial
-	mat.initial_velocity_min = 60.0
-	mat.initial_velocity_max = 150.0
-	mat.gravity = Vector3(0, 40, 0)  # Slight downward pull
+	mat.initial_velocity_min = 80.0
+	mat.initial_velocity_max = 220.0
+	mat.gravity = Vector3(0, 18, 0)  # gentle float so they drift and linger
 	mat.damping_min = 20.0
 	mat.damping_max = 40.0
 
-	# Scale: 6px -> 1px over lifetime
-	mat.scale_min = 0.8
-	mat.scale_max = 1.2
+	# Big chunky sparkles that shrink as they fade
+	mat.scale_min = 2.5
+	mat.scale_max = 4.5
 	mat.scale_curve = _create_fade_curve()
 
 	# Color: full -> transparent
