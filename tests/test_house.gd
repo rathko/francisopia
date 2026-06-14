@@ -18,6 +18,9 @@ func run_all_tests() -> void:
 	test_room_index_never_reshuffles()
 	test_following_forced_into_housed()
 	test_take_then_leave_round_trip()
+	test_interior_prop_table_loads()
+	test_register_interior_prop_idempotent()
+	test_non_furniture_word_not_registered()
 	print("=== Results: %d passed, %d failed ===" % [_pass, _fail])
 
 func _gm() -> Node:
@@ -100,6 +103,39 @@ func test_take_then_leave_round_trip() -> void:
 	gm.active_companions.erase("rat")
 	assert_true(not gm.is_following("rat") and "rat" in gm.get_home_animals(),
 		"leaving an animal stops following and returns it to its home room")
+	gm.free()
+
+func test_interior_prop_table_loads() -> void:
+	# Slice 3: the furniture/trophy table loads from data/house_props.json and identifies prop words.
+	_name = "interior_prop_table_loads"
+	var gm := _gm()
+	gm.load_house_props()
+	var count: int = gm.house_props.size()
+	var bed_is_prop: bool = gm.is_interior_prop("bed")
+	var lamp_is_prop: bool = gm.is_interior_prop("lamp")
+	var dog_is_prop: bool = gm.is_interior_prop("dog")   # an animal, NOT a furniture prop
+	assert_true(count == 7 and bed_is_prop and lamp_is_prop and not dog_is_prop,
+		"table has 7 props; bed/lamp are props, dog is not")
+	gm.free()
+
+func test_register_interior_prop_idempotent() -> void:
+	# Registering a furniture word places it once; a second register is a no-op (returns false).
+	_name = "register_interior_prop_idempotent"
+	var gm := _gm()
+	var first: bool = gm.register_interior_prop("lamp")
+	var second: bool = gm.register_interior_prop("lamp")
+	var placed: bool = gm.interior_props.has("lamp")
+	assert_true(first and not second and placed,
+		"first register places the prop, second is a no-op, prop is recorded")
+	gm.free()
+
+func test_non_furniture_word_not_registered() -> void:
+	# Slice 3 anti-criterion: spelling a non-furniture word must NOT add anything to interior_props.
+	_name = "non_furniture_word_not_registered"
+	var gm := _gm()
+	var ok: bool = gm.register_interior_prop("dog")   # dog is an animal, not a prop
+	assert_true(not ok and not gm.interior_props.has("dog"),
+		"a non-prop word is never placed inside the house")
 	gm.free()
 
 func assert_true(cond: bool, msg: String) -> void:

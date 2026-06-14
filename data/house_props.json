@@ -1,0 +1,12 @@
+{
+	"_comment": "House Slice 3 furniture/trophy table. Spelling one of these words auto-places its prop in the living room (room 0). row=floor sits on the floor (slots 0-3), row=wall hangs as a trophy (slots 0-2). color is [r,g,b] 0-1. Props are drawn with ColorRects (no PNGs) so no Godot editor import is needed. See docs/house-interior-architecture.md section 7.",
+	"props": {
+		"bed":    { "label": "BED",    "row": "floor", "slot": 0, "color": [0.55, 0.50, 0.72] },
+		"rug":    { "label": "RUG",    "row": "floor", "slot": 1, "color": [0.74, 0.30, 0.30] },
+		"toy":    { "label": "TOY",    "row": "floor", "slot": 2, "color": [0.92, 0.52, 0.20] },
+		"tree":   { "label": "TREE",   "row": "floor", "slot": 3, "color": [0.30, 0.60, 0.32] },
+		"lamp":   { "label": "LAMP",   "row": "wall",  "slot": 0, "color": [0.96, 0.86, 0.42], "glow": true },
+		"nut":    { "label": "NUT",    "row": "wall",  "slot": 1, "color": [0.52, 0.36, 0.22] },
+		"flower": { "label": "FLOWER", "row": "wall",  "slot": 2, "color": [0.92, 0.52, 0.72] }
+	}
+}

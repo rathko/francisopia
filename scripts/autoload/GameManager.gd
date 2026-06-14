@@ -54,6 +54,8 @@ var interior_props: Dictionary = {}      # furniture/trophy word -> true (placed
 var next_room_index: int = 1             # room 0 is the living room; animals start at 1
 var house_outdoor_x: float = 0.0         # where to drop Francis when he exits the house
 var house_outdoor_y: float = 0.0
+var house_props: Dictionary = {}         # Slice 3: word -> {label,row,slot,color,glow} from data/house_props.json
+var _house_props_loaded := false
 
 var qa_mode := false  # Set by --qa command line flag
 var in_house := false  # Transient: true while Francis is inside his house (gates digging)
@@ -68,6 +70,7 @@ func _ready() -> void:
 		print("Francis-opia: Save loaded! Welcome back to %s!" % planet_name)
 	else:
 		print("Francis-opia: New adventure begins!")
+	load_house_props()  # Slice 3: load the furniture/trophy table
 	if qa_mode:
 		_apply_qa_config()
 	# --level N: start at specific level for testing (e.g., godot --path . -- --level 2)
@@ -102,6 +105,7 @@ func complete_word(word: String) -> void:
 		words_completed.append(word)
 		word_completed.emit(word)
 		add_coins(_coin_reward_for_word(word))
+		register_interior_prop(word)  # Slice 3: furniture word -> appears inside the house
 		save_game()
 
 func _coin_reward_for_word(word: String) -> int:
@@ -340,6 +344,37 @@ func get_home_animals() -> Array:
 		if w not in active_companions:
 			out.append(w)
 	return out
+
+func load_house_props() -> void:
+	## Slice 3: load the furniture/trophy table once. Idempotent so headless unit tests (which never
+	## run _ready) can call it safely via is_interior_prop(). See data/house_props.json.
+	if _house_props_loaded:
+		return
+	_house_props_loaded = true
+	var path := "res://data/house_props.json"
+	if not FileAccess.file_exists(path):
+		return
+	var f := FileAccess.open(path, FileAccess.READ)
+	if not f:
+		return
+	var parsed = JSON.parse_string(f.get_as_text())  # untyped: parse_string returns Variant
+	if parsed is Dictionary and parsed.has("props"):
+		house_props = parsed["props"]
+
+func is_interior_prop(word: String) -> bool:
+	## True if this word maps to a placeable house prop. Lazy-loads the table on first use.
+	load_house_props()
+	return house_props.has(word)
+
+func register_interior_prop(word: String) -> bool:
+	## Slice 3: mark a furniture/trophy word as placed inside the house. Called from complete_word().
+	## Returns true if newly placed. Saving is the caller's responsibility (complete_word saves).
+	if not is_interior_prop(word):
+		return false
+	if interior_props.has(word):
+		return false
+	interior_props[word] = true
+	return true
 
 func _validate_house_state() -> void:
 	## Single-source invariants after load — prevents the duplication/desync bug class:

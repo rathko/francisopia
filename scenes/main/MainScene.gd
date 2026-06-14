@@ -2057,6 +2057,9 @@ func _build_house_interior() -> void:
 		step.color = Color(0.62, 0.45, 0.28, 1)
 		_house_root.add_child(step)
 
+	# Slice 3: furniture/trophies fill the living room as Francis spells them (ghosts for the rest).
+	_build_living_room_props(fy)
+
 	# Exit doors at BOTH ends (NOT the middle — a middle door would overlap a room's tap-zone
 	# and pressing X would both toggle the animal AND exit. Ends are clear of all rooms).
 	_build_house_exit_door(30.0)
@@ -2241,6 +2244,56 @@ func _house_item_visual(word: String, pos: Vector2, scale_f: float) -> Node2D:
 	rect.color = _animal_color(word)
 	holder.add_child(rect)
 	return holder
+
+func _build_living_room_props(fy: float) -> void:
+	## Slice 3: auto-place furniture/trophies in the living room (room 0) from GameManager.house_props.
+	## A placed prop (word in interior_props) renders solid + its word label; an unspelled prop renders
+	## as a dim ghost silhouette so the early house reads as a promise, not a void. Floor slots start at
+	## x=70 (clear of the left exit door at x=30) and stay within HOUSE_ROOM_W (clear of room 1). Drawn
+	## with ColorRects only — no PNGs, so no Godot editor import is needed.
+	var props: Dictionary = GameManager.house_props
+	for word_key in props:
+		var w: String = String(word_key)
+		var info: Dictionary = props[word_key]
+		var row: String = String(info.get("row", "floor"))
+		var slot: int = int(info.get("slot", 0))
+		var col_arr: Array = info.get("color", [0.6, 0.6, 0.6])
+		var base := Color(float(col_arr[0]), float(col_arr[1]), float(col_arr[2]), 1.0)
+		var placed: bool = GameManager.interior_props.has(w)
+		var pos: Vector2
+		var psize: Vector2
+		if row == "wall":
+			pos = Vector2(76.0 + float(slot) * 64.0, fy - 150.0)
+			psize = Vector2(30, 24)
+		else:
+			pos = Vector2(70.0 + float(slot) * 52.0, fy - 28.0)
+			psize = Vector2(38, 28)
+		# Lamp glow halo (only when placed) — the "functional where cheap" token for this slice.
+		if placed and bool(info.get("glow", false)):
+			var halo := ColorRect.new()
+			halo.z_index = -3
+			halo.position = pos - Vector2(14, 16)
+			halo.size = psize + Vector2(28, 30)
+			halo.color = Color(base.r, base.g, base.b, 0.30)
+			_house_root.add_child(halo)
+		var rect := ColorRect.new()
+		rect.z_index = -2
+		rect.position = pos
+		rect.size = psize
+		rect.color = base if placed else Color(base.r, base.g, base.b, 0.18)
+		_house_root.add_child(rect)
+		if placed:
+			var lbl := Label.new()
+			lbl.text = String(info.get("label", w.to_upper()))
+			lbl.add_theme_font_size_override("font_size", 11)
+			lbl.add_theme_color_override("font_color", Color(0.4, 0.25, 0.12))
+			lbl.add_theme_color_override("font_outline_color", Color(1, 1, 1, 0.8))
+			lbl.add_theme_constant_override("outline_size", 2)
+			if row == "wall":
+				lbl.position = pos + Vector2(-2, psize.y + 2)
+			else:
+				lbl.position = pos + Vector2(-2, -16)
+			_house_root.add_child(lbl)
 
 func _build_house_exit_door(door_x: float) -> void:
 	var door := Area2D.new()
