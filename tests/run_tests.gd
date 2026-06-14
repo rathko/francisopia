@@ -94,6 +94,11 @@ func _process(_delta: float) -> bool:
 	root.add_child(vfx_tests)
 	vfx_tests.run_all_tests()
 
+	# Run house interior state tests
+	var house_tests = load("res://tests/test_house.gd").new()
+	root.add_child(house_tests)
+	house_tests.run_all_tests()
+
 	print("")
 	print("========================================")
 	print("  All tests complete!")

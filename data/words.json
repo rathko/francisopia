@@ -695,6 +695,26 @@
       ]
     },
     {
+      "word": "car",
+      "level": 1,
+      "area": "meadow",
+      "image": "car",
+      "phonics": [
+        "c",
+        "ar"
+      ]
+    },
+    {
+      "word": "toy",
+      "level": 1,
+      "area": "meadow",
+      "image": "toy",
+      "phonics": [
+        "t",
+        "oy"
+      ]
+    },
+    {
       "word": "web",
       "level": 1,
       "area": "meadow",

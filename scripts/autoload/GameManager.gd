@@ -33,6 +33,7 @@ var home_pos_y: float = 0.0
 var teleport_beacon_x: float = 0.0  # Last placed teleport beacon (0,0 = none)
 var teleport_beacon_y: float = 0.0
 var current_level := 1       # Underground depth level (1 = surface, 2+ = deeper caves)
+var found_level3 := false    # true once Francis has reached Level 3 (unlocks the Car Town gate)
 var world_seed: int = 0      # Terrain generation seed (0 = generate new on first play)
 var generator_ver: int = 1   # Generator version this world was created with
 var player_pos_x: float = 400.0  # Last player position
@@ -43,7 +44,19 @@ var player_pos_y: float = 700.0
 var block_changes: Dictionary = {}
 var opened_chests: Dictionary = {}  # "chunk,index" -> true for looted chests
 
+# --- House interior state (see docs/house-interior-architecture.md) ---
+# "following" is NOT stored separately — it IS membership of active_companions (single source
+# of truth, so an animal can never be both following AND shown home). housed_animals lists every
+# animal that lives in the house; home = housed and NOT in active_companions.
+var housed_animals: Array[String] = []   # every animal word that lives in the house
+var room_index: Dictionary = {}          # animal word -> permanent room number (>=1), never reshuffled
+var interior_props: Dictionary = {}      # furniture/trophy word -> true (placed inside)
+var next_room_index: int = 1             # room 0 is the living room; animals start at 1
+var house_outdoor_x: float = 0.0         # where to drop Francis when he exits the house
+var house_outdoor_y: float = 0.0
+
 var qa_mode := false  # Set by --qa command line flag
+var in_house := false  # Transient: true while Francis is inside his house (gates digging)
 var _auto_save_timer := 0.0
 
 func _ready() -> void:
@@ -134,11 +147,18 @@ func save_game() -> void:
 		"teleport_beacon_x": teleport_beacon_x,
 		"teleport_beacon_y": teleport_beacon_y,
 		"current_level": current_level,
+		"found_level3": found_level3,
 		"world_seed": world_seed,
 		"player_pos_x": player_pos_x,
 		"player_pos_y": player_pos_y,
 		"block_changes": block_changes,
 		"opened_chests": opened_chests.keys(),
+		"housed_animals": housed_animals,
+		"room_index": room_index,
+		"interior_props": interior_props,
+		"next_room_index": next_room_index,
+		"house_outdoor_x": house_outdoor_x,
+		"house_outdoor_y": house_outdoor_y,
 	}
 	# Atomic write: write to temp, then rename over real file
 	# Keep one backup of previous save
@@ -190,6 +210,7 @@ func load_game() -> bool:
 	teleport_beacon_x = data.get("teleport_beacon_x", 0.0)
 	teleport_beacon_y = data.get("teleport_beacon_y", 0.0)
 	current_level = data.get("current_level", 1)
+	found_level3 = data.get("found_level3", false)
 	# Clamp seed to JSON-safe range (JSON floats lose precision above 2^53)
 	var loaded_seed: int = data.get("world_seed", 0)
 	if loaded_seed > 1000000000 or loaded_seed < -1000000000:
@@ -221,6 +242,14 @@ func load_game() -> bool:
 	var saved_chests: Array = data.get("opened_chests", [])
 	for key in saved_chests:
 		opened_chests[key] = true
+
+	housed_animals.assign(data.get("housed_animals", []))
+	room_index = data.get("room_index", {})
+	interior_props = data.get("interior_props", {})
+	next_room_index = int(data.get("next_room_index", 1))
+	house_outdoor_x = data.get("house_outdoor_x", 0.0)
+	house_outdoor_y = data.get("house_outdoor_y", 0.0)
+	_validate_house_state()
 
 	coins_changed.emit(word_coins)
 	return true
@@ -262,12 +291,19 @@ func reset_progress() -> void:
 	teleport_beacon_x = 0.0
 	teleport_beacon_y = 0.0
 	current_level = 1
+	found_level3 = false
 	world_seed = 0
 	generator_ver = 1
 	player_pos_x = 400.0
 	player_pos_y = 700.0
 	block_changes.clear()
 	opened_chests.clear()
+	housed_animals.clear()
+	room_index.clear()
+	interior_props.clear()
+	next_room_index = 1
+	house_outdoor_x = 0.0
+	house_outdoor_y = 0.0
 	# Delete save files
 	if FileAccess.file_exists(SAVE_PATH):
 		DirAccess.remove_absolute(SAVE_PATH)
@@ -279,6 +315,46 @@ func reset_progress() -> void:
 
 func get_total_words_completed() -> int:
 	return words_completed.size()
+
+# --- House interior helpers (see docs/house-interior-architecture.md) ---
+
+func register_housed_animal(word: String) -> void:
+	## Called when an animal is summoned — it now lives in the house. Assigns a permanent room.
+	if word not in housed_animals:
+		housed_animals.append(word)
+	if word not in room_index:
+		room_index[word] = next_room_index
+		next_room_index += 1
+	save_game()
+
+func get_room_index(word: String) -> int:
+	return int(room_index.get(word, 0))
+
+func is_following(word: String) -> bool:
+	return word in active_companions
+
+func get_home_animals() -> Array:
+	## Animals that live in the house and are NOT currently following Francis (shown in rooms).
+	var out: Array = []
+	for w in housed_animals:
+		if w not in active_companions:
+			out.append(w)
+	return out
+
+func _validate_house_state() -> void:
+	## Single-source invariants after load — prevents the duplication/desync bug class:
+	## "following" == active_companions; clamp to 3; every housed animal has a stable room.
+	while active_companions.size() > 3:
+		active_companions.pop_back()   # demote newest extras to home
+	for w in active_companions:
+		if w not in housed_animals:
+			housed_animals.append(w)
+	for w in housed_animals:
+		if w not in room_index:
+			room_index[w] = next_room_index
+			next_room_index += 1
+	for w in room_index:
+		next_room_index = maxi(next_room_index, int(room_index[w]) + 1)
 
 func _apply_qa_config() -> void:
 	## Load QA config and pre-summon all words for testing.

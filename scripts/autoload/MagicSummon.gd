@@ -26,8 +26,9 @@ var summon_registry: Dictionary = {
 	"hat": {"type": "cosmetic", "builder": "_summon_hat", "label": "A magic hat!", "color": Color(0.7, 0.2, 0.8)},
 	"cap": {"type": "cosmetic", "builder": "_summon_cap", "label": "Cool cap!", "color": Color(0.2, 0.5, 0.9)},
 	"wig": {"type": "cosmetic", "builder": "_summon_wig", "label": "Funny wig!", "color": Color(1.0, 0.4, 0.8)},
-	"lip": {"type": "cosmetic", "builder": "_summon_lip", "label": "Silly lips!", "color": Color(1.0, 0.3, 0.4)},
+	"lip": {"type": "cosmetic", "builder": "_summon_lip", "label": "A kiss! Mwah!", "color": Color(1.0, 0.3, 0.4), "temporary": true},
 	"big": {"type": "cosmetic", "builder": "_summon_big", "label": "SUPER SIZE!", "color": Color(1.0, 0.5, 0.2), "temporary": true},
+	"thunder": {"type": "cosmetic", "builder": "_summon_thunder", "label": "BOOM! THUNDER!", "color": Color(0.7, 0.8, 1.0), "temporary": true},
 	# Power-ups (temporary — timed buffs, not saved across sessions)
 	"run": {"type": "cosmetic", "builder": "_summon_run", "label": "SUPER SPEED!", "color": Color(1.0, 0.9, 0.2), "temporary": true},
 	"hop": {"type": "cosmetic", "builder": "_summon_hop", "label": "SUPER JUMP!", "color": Color(0.5, 1.0, 0.5), "temporary": true},
@@ -65,6 +66,10 @@ var summon_registry: Dictionary = {
 	"log": {"type": "world", "builder": "_summon_log", "label": "A log bridge!", "color": Color(0.5, 0.35, 0.15)},
 	"mat": {"type": "world", "builder": "_summon_mat", "label": "Bouncy mat!", "color": Color(0.9, 0.3, 0.5)},
 	"van": {"type": "world", "builder": "_summon_van", "label": "A fun van!", "color": Color(0.3, 0.6, 0.9)},
+	"car": {"type": "world", "builder": "_summon_car", "label": "Vroom! A car!", "color": Color(0.85, 0.3, 0.3)},
+	"bike": {"type": "cosmetic", "builder": "_summon_bike", "label": "A cool bike!", "color": Color(0.9, 0.3, 0.4)},
+	"vine": {"type": "world", "builder": "_summon_vine", "label": "A vine grows!", "color": Color(0.3, 0.7, 0.3)},
+	"planet": {"type": "cosmetic", "builder": "_summon_planet", "label": "A planet!", "color": Color(0.45, 0.55, 0.95)},
 	"hut": {"type": "world", "builder": "_summon_hut", "label": "A tiny hut!", "color": Color(0.6, 0.45, 0.2)},
 	"tub": {"type": "world", "builder": "_summon_tub", "label": "Bubble bath!", "color": Color(0.6, 0.8, 1.0)},
 	"bin": {"type": "cosmetic", "builder": "_summon_bin", "label": "Letter bin!", "color": Color(0.3, 0.7, 0.3)},
@@ -148,6 +153,7 @@ func is_temporary_effect(word: String) -> bool:
 
 func register_companion(word: String, node: Node, player: Node2D, auto_activate: bool = true) -> void:
 	_companions[word] = node
+	GameManager.register_housed_animal(word)  # the animal now lives in the house (gets a room)
 	_clamp_companion_scale(node)
 	if auto_activate:
 		# New pet always becomes active; oldest active gets sent home if over 3
@@ -343,6 +349,10 @@ func _play_summon_animation(word: String, entry: Dictionary) -> void:
 		reveal_tw.tween_interval(5.0)  # hang for ~5s so it really lands
 		reveal_tw.tween_property(reveal_sprite, "modulate:a", 0.0, 0.8)
 		reveal_tw.tween_callback(reveal_sprite.queue_free)
+	else:
+		# No picture for this word — show a big WORD CARD so the reward is ALWAYS clear about
+		# what was spelled (the whole point of spelling it).
+		_show_word_card(scene_root, word, entry.get("color", Color(1.0, 0.85, 0.3)), summon_pos + Vector2(0, -40))
 
 	# === PHASE 4: Summon the thing! ===
 	await get_tree().create_timer(0.3).timeout
@@ -785,67 +795,107 @@ func _summon_friend(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
 	friend.global_position = pos
 	friend.collision_layer = 0
 	friend.collision_mask = 1
+	# All her art lives under a child node scaled DOWN, so she renders smaller than Francis (a
+	# little kid, ~36px) — and stays proportional even when BIG resets the BODY's scale, because
+	# BIG never touches this art node's own scale.
+	var art := Node2D.new()
+	art.scale = Vector2(0.55, 0.55)
+	friend.add_child(art)
 
+	# === Nicely-rendered kid — same chunky-pixel feel as Francis, but clearly a DIFFERENT
+	#     character: ginger pigtails, a sunny striped shirt, denim shorts, white sneakers. ~52px,
+	#     so she stands shoulder-to-shoulder with Francis. ===
+	var SKIN := Color(0.99, 0.83, 0.67, 1)
+	var SKIN_SH := Color(0.9, 0.72, 0.56, 1)
+	var HAIR := Color(0.87, 0.46, 0.18, 1)
+	var SHIRT := Color(1.0, 0.83, 0.27, 1)
+	var SHIRT_SH := Color(0.93, 0.72, 0.16, 1)
+	var SHORTS := Color(0.28, 0.4, 0.62, 1)
+	var SHOE := Color(0.97, 0.97, 1.0, 1)
+	# Shoes
+	for sx in [-8.0, 2.0]:
+		var shoe := ColorRect.new()
+		shoe.position = Vector2(sx, 16); shoe.size = Vector2(8, 5); shoe.color = SHOE
+		art.add_child(shoe)
 	# Legs
-	var leg_l := ColorRect.new()
-	leg_l.position = Vector2(-5, 2)
-	leg_l.size = Vector2(4, 8)
-	leg_l.color = Color(0.3, 0.3, 0.45, 1)
-	friend.add_child(leg_l)
-	var leg_r := ColorRect.new()
-	leg_r.position = Vector2(1, 2)
-	leg_r.size = Vector2(4, 8)
-	leg_r.color = Color(0.3, 0.3, 0.45, 1)
-	friend.add_child(leg_r)
-	# Body (shirt)
+	for lx in [-7.0, 1.0]:
+		var leg := ColorRect.new()
+		leg.position = Vector2(lx, 6); leg.size = Vector2(6, 11); leg.color = SKIN
+		art.add_child(leg)
+	# Shorts
+	var shorts := ColorRect.new()
+	shorts.position = Vector2(-10, 0); shorts.size = Vector2(20, 8); shorts.color = SHORTS
+	art.add_child(shorts)
+	# Shirt + white chest stripe (distinct from Francis's plain top)
 	var body := ColorRect.new()
-	body.position = Vector2(-7, -12)
-	body.size = Vector2(14, 16)
-	body.color = Color(0.2, 0.7, 0.55, 1)
-	friend.add_child(body)
-	# Arms
-	var arm_l := ColorRect.new()
-	arm_l.position = Vector2(-10, -11)
-	arm_l.size = Vector2(3, 11)
-	arm_l.color = Color(0.18, 0.62, 0.48, 1)
-	friend.add_child(arm_l)
-	var arm_r := ColorRect.new()
-	arm_r.position = Vector2(7, -11)
-	arm_r.size = Vector2(3, 11)
-	arm_r.color = Color(0.18, 0.62, 0.48, 1)
-	friend.add_child(arm_r)
-	# Head + hair
+	body.position = Vector2(-11, -18); body.size = Vector2(22, 20); body.color = SHIRT
+	art.add_child(body)
+	var stripe := ColorRect.new()
+	stripe.position = Vector2(-11, -12); stripe.size = Vector2(22, 4); stripe.color = Color(1, 1, 1, 0.9)
+	art.add_child(stripe)
+	var hem := ColorRect.new()
+	hem.position = Vector2(-11, -2); hem.size = Vector2(22, 3); hem.color = SHIRT_SH
+	art.add_child(hem)
+	# Arms with short sleeves
+	for ax in [-15.0, 11.0]:
+		var sleeve := ColorRect.new()
+		sleeve.position = Vector2(ax, -18); sleeve.size = Vector2(4, 6); sleeve.color = SHIRT_SH
+		art.add_child(sleeve)
+		var arm := ColorRect.new()
+		arm.position = Vector2(ax, -12); arm.size = Vector2(4, 12); arm.color = SKIN
+		art.add_child(arm)
+	# Head + ears
 	var head := ColorRect.new()
-	head.position = Vector2(-6, -26)
-	head.size = Vector2(12, 14)
-	head.color = Color(0.96, 0.8, 0.66, 1)
-	friend.add_child(head)
+	head.position = Vector2(-10, -40); head.size = Vector2(20, 22); head.color = SKIN
+	art.add_child(head)
+	for ex in [-12.0, 10.0]:
+		var ear := ColorRect.new()
+		ear.position = Vector2(ex, -30); ear.size = Vector2(3, 5); ear.color = SKIN_SH
+		art.add_child(ear)
+	# Hair cap + fringe + two pigtails with pink ties
 	var hair := ColorRect.new()
-	hair.position = Vector2(-7, -28)
-	hair.size = Vector2(14, 6)
-	hair.color = Color(0.4, 0.26, 0.15, 1)
-	friend.add_child(hair)
-	# Eyes + smile
-	var eye_l := ColorRect.new()
-	eye_l.position = Vector2(-3, -21)
-	eye_l.size = Vector2(2, 2)
-	eye_l.color = Color(0.1, 0.1, 0.12, 1)
-	friend.add_child(eye_l)
-	var eye_r := ColorRect.new()
-	eye_r.position = Vector2(2, -21)
-	eye_r.size = Vector2(2, 2)
-	eye_r.color = Color(0.1, 0.1, 0.12, 1)
-	friend.add_child(eye_r)
+	hair.position = Vector2(-11, -44); hair.size = Vector2(22, 12); hair.color = HAIR
+	art.add_child(hair)
+	var fringe := ColorRect.new()
+	fringe.position = Vector2(-10, -34); fringe.size = Vector2(20, 4); fringe.color = HAIR
+	art.add_child(fringe)
+	for px in [-16.0, 12.0]:
+		var tail := ColorRect.new()
+		tail.position = Vector2(px, -36); tail.size = Vector2(5, 13); tail.color = HAIR
+		art.add_child(tail)
+		var tie := ColorRect.new()
+		tie.position = Vector2(px, -36); tie.size = Vector2(5, 3); tie.color = Color(1.0, 0.42, 0.58, 1)
+		art.add_child(tie)
+	# Big friendly eyes (white + pupil)
+	for ox in [-6.0, 2.0]:
+		var white := ColorRect.new()
+		white.position = Vector2(ox, -30); white.size = Vector2(5, 5); white.color = Color(1, 1, 1, 1)
+		art.add_child(white)
+		var pupil := ColorRect.new()
+		pupil.position = Vector2(ox + 1, -29); pupil.size = Vector2(3, 3); pupil.color = Color(0.22, 0.16, 0.32, 1)
+		art.add_child(pupil)
+	# Rosy cheeks + freckles
+	for cx in [-9.0, 5.0]:
+		var cheek := ColorRect.new()
+		cheek.position = Vector2(cx, -25); cheek.size = Vector2(4, 3); cheek.color = Color(1.0, 0.6, 0.6, 0.6)
+		art.add_child(cheek)
+	for fxy in [Vector2(-7, -24), Vector2(-5, -23), Vector2(4, -24), Vector2(6, -23)]:
+		var fpos: Vector2 = fxy
+		var fr := ColorRect.new()
+		fr.position = fpos; fr.size = Vector2(1, 1); fr.color = Color(0.7, 0.4, 0.25, 0.85)
+		art.add_child(fr)
+	# Nose + smile
+	var nose := ColorRect.new()
+	nose.position = Vector2(-1, -26); nose.size = Vector2(2, 2); nose.color = SKIN_SH
+	art.add_child(nose)
 	var smile := ColorRect.new()
-	smile.position = Vector2(-2, -16)
-	smile.size = Vector2(4, 2)
-	smile.color = Color(0.8, 0.3, 0.3, 1)
-	friend.add_child(smile)
-	# Collision
+	smile.position = Vector2(-3, -23); smile.size = Vector2(6, 2); smile.color = Color(0.8, 0.3, 0.3, 1)
+	art.add_child(smile)
+	# Collision lives on the BODY (not the scaled art node), sized to her ~36px rendered height.
 	var col := CollisionShape2D.new()
 	var shape := RectangleShape2D.new()
-	shape.size = Vector2(14, 30)
-	col.position = Vector2(0, -10)
+	shape.size = Vector2(15, 38)
+	col.position = Vector2(0, -8)
 	col.shape = shape
 	friend.add_child(col)
 
@@ -1223,6 +1273,133 @@ func _summon_generic(scene_root: Node, _player: Node2D, pos: Vector2) -> Node:
 	tw.tween_callback(star.queue_free)
 	print("Francis-opia: ✨ Magic sparkle!")
 	return star
+
+func _show_word_card(scene_root: Node, word: String, accent: Color, pos: Vector2) -> void:
+	## A floating card showing the spelled word in big friendly letters — the universal reward so
+	## EVERY word clearly shows what was spelled, even ones with no picture or object of their own.
+	var card := Node2D.new()
+	card.position = pos
+	card.z_index = 23
+	var ww := maxf(140.0, float(word.length()) * 34.0)
+	var panel := ColorRect.new()
+	panel.position = Vector2(-ww / 2.0, -34)
+	panel.size = Vector2(ww, 56)
+	panel.color = Color(1, 1, 1, 0.95)
+	card.add_child(panel)
+	var bar := ColorRect.new()
+	bar.position = Vector2(-ww / 2.0, 18)
+	bar.size = Vector2(ww, 6)
+	bar.color = accent
+	card.add_child(bar)
+	var lbl := Label.new()
+	lbl.text = word.to_upper()
+	lbl.add_theme_font_size_override("font_size", 40)
+	lbl.add_theme_color_override("font_color", accent.darkened(0.3))
+	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	lbl.position = Vector2(-ww / 2.0, -34)
+	lbl.size = Vector2(ww, 56)
+	card.add_child(lbl)
+	scene_root.add_child(card)
+	card.scale = Vector2.ZERO
+	var tw := card.create_tween()
+	tw.tween_property(card, "scale", Vector2(1, 1), 0.35).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.parallel().tween_property(card, "position:y", card.position.y - 24, 0.4)
+	tw.tween_interval(4.6)
+	tw.tween_property(card, "modulate:a", 0.0, 0.7)
+	tw.tween_callback(card.queue_free)
+
+func _summon_vine(scene_root: Node, player: Node2D, _pos: Vector2) -> Node:
+	## Spelling VINE: a leafy green vine grows up from the ground next to Francis (was missing).
+	var vine := Node2D.new()
+	vine.z_index = 8
+	vine.global_position = Vector2(player.global_position.x + 54, player.global_position.y + 24)
+	var stem := ColorRect.new()
+	stem.position = Vector2(-3, 0)
+	stem.size = Vector2(6, 0)
+	stem.color = Color(0.25, 0.6, 0.25, 1)
+	vine.add_child(stem)
+	scene_root.add_child(vine)
+	var full_h := 124.0
+	var tw := vine.create_tween()
+	tw.tween_property(stem, "size", Vector2(6, full_h), 1.2).set_trans(Tween.TRANS_SINE)
+	tw.parallel().tween_property(stem, "position", Vector2(-3, -full_h), 1.2)
+	for i in 5:
+		var ly := -22.0 - i * 20.0
+		var side := 1.0 if i % 2 == 0 else -1.0
+		var leaf := _disc(Vector2(side * 9.0, ly), 9.0, Color(0.3, 0.72, 0.3, 1))
+		leaf.modulate.a = 0.0
+		vine.add_child(leaf)
+		var lt := leaf.create_tween()
+		lt.tween_interval(0.25 + i * 0.18)
+		lt.tween_property(leaf, "modulate:a", 1.0, 0.25)
+	var flower := _disc(Vector2(0, -full_h - 6), 11.0, Color(1.0, 0.6, 0.8, 1))
+	flower.modulate.a = 0.0
+	vine.add_child(flower)
+	var ft := flower.create_tween()
+	ft.tween_interval(1.1)
+	ft.tween_property(flower, "modulate:a", 1.0, 0.3)
+	SoundFX.play_summon_accent("world")
+	print("Francis-opia: A vine grows up!")
+	return vine
+
+func _summon_planet(scene_root: Node, _player: Node2D, _pos: Vector2) -> Node:
+	## Spelling PLANET: a cool banded gas giant (Jupiter) appears next to the Sun, top-right, and
+	## hangs in the sky for ~30 seconds before fading. Screen-space so it sits beside the sun.
+	var layer := CanvasLayer.new()
+	layer.name = "MagicPlanetLayer"
+	layer.layer = 5
+	var root_ctrl := Control.new()
+	root_ctrl.set_anchors_preset(Control.PRESET_FULL_RECT)
+	root_ctrl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.add_child(root_ctrl)
+	var cx := 998.0   # just left of the sun (sun is at x=1150)
+	var cy := 168.0
+	var rad := 46.0
+	# Jupiter banding — horizontal stripes clipped to a circle by their chord width.
+	var bands := [
+		Color(0.86, 0.78, 0.66), Color(0.78, 0.6, 0.42), Color(0.9, 0.82, 0.7),
+		Color(0.7, 0.5, 0.36), Color(0.88, 0.8, 0.68), Color(0.66, 0.46, 0.34),
+		Color(0.85, 0.76, 0.63), Color(0.8, 0.62, 0.44), Color(0.87, 0.79, 0.67),
+	]
+	var n := bands.size()
+	var bh := (rad * 2.0) / float(n)
+	for i in n:
+		var by := -rad + i * bh + bh / 2.0
+		var half_w := sqrt(maxf(0.0, rad * rad - by * by))
+		var band := ColorRect.new()
+		band.offset_left = cx - half_w
+		band.offset_top = cy - rad + i * bh
+		band.offset_right = cx + half_w
+		band.offset_bottom = cy - rad + (i + 1) * bh + 1.0
+		band.color = bands[i]
+		root_ctrl.add_child(band)
+	# Great Red Spot.
+	var spot := ColorRect.new()
+	spot.offset_left = cx + 9
+	spot.offset_top = cy + 6
+	spot.offset_right = cx + 27
+	spot.offset_bottom = cy + 18
+	spot.color = Color(0.82, 0.33, 0.2, 1)
+	root_ctrl.add_child(spot)
+	# Edge shading for a round, 3D feel.
+	var shade := ColorRect.new()
+	shade.offset_left = cx + rad - 12
+	shade.offset_top = cy - rad
+	shade.offset_right = cx + rad
+	shade.offset_bottom = cy + rad
+	shade.color = Color(0.1, 0.06, 0.04, 0.18)
+	root_ctrl.add_child(shade)
+	scene_root.add_child(layer)
+	root_ctrl.modulate.a = 0.0
+	var tw := root_ctrl.create_tween()
+	tw.tween_property(root_ctrl, "modulate:a", 1.0, 0.6)
+	tw.tween_interval(30.0)   # hang in the sky for ~30 seconds
+	tw.tween_property(root_ctrl, "modulate:a", 0.0, 1.0)
+	tw.tween_callback(layer.queue_free)
+	SoundFX.play_summon_accent("world")
+	print("Francis-opia: A giant planet appears by the sun!")
+	return layer
 
 # --- WORLD EFFECTS ---
 
@@ -2538,16 +2715,137 @@ func _summon_wig(scene_root: Node, player: Node2D, _pos: Vector2) -> Node:
 	return wig
 
 func _summon_lip(scene_root: Node, player: Node2D, _pos: Vector2) -> Node:
-	var old := player.get_node_or_null("MagicLip")
-	if old: old.queue_free()
-	var lip := ColorRect.new()
-	lip.name = "MagicLip"
-	lip.position = Vector2(-8, -18)
-	lip.size = Vector2(16, 6)
-	lip.color = Color(1.0, 0.3, 0.4, 0.9)
-	player.add_child(lip)
-	print("Francis-opia: Silly lips!")
-	return lip
+	## Spelling LIP blows a kiss — a red lips icon pops above Francis, floats up, and fades.
+	## It is NOT kept on his face (it used to stick a permanent lip — that is removed).
+	# Clean up any permanent lip left over from the old behaviour.
+	var stuck := player.get_node_or_null("MagicLip")
+	if stuck:
+		stuck.queue_free()
+
+	var kiss := Node2D.new()
+	kiss.z_index = 30
+	kiss.global_position = player.global_position + Vector2(0, -42)
+	# Lips icon: upper + lower lip with a little skin-coloured cupid's-bow notch.
+	var upper := ColorRect.new()
+	upper.position = Vector2(-9, -3)
+	upper.size = Vector2(18, 4)
+	upper.color = Color(0.9, 0.2, 0.35, 1)
+	kiss.add_child(upper)
+	var lower := ColorRect.new()
+	lower.position = Vector2(-7, 1)
+	lower.size = Vector2(14, 5)
+	lower.color = Color(0.8, 0.15, 0.3, 1)
+	kiss.add_child(lower)
+	var notch := ColorRect.new()
+	notch.position = Vector2(-1, -3)
+	notch.size = Vector2(2, 3)
+	notch.color = Color(0.96, 0.8, 0.66, 1)
+	kiss.add_child(notch)
+	scene_root.add_child(kiss)
+
+	# Pop in, float up, hold, fade — then gone (no lasting lip).
+	kiss.scale = Vector2.ZERO
+	var tw := kiss.create_tween()
+	tw.tween_property(kiss, "scale", Vector2(1.4, 1.4), 0.3).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.parallel().tween_property(kiss, "global_position:y", kiss.global_position.y - 60, 1.8)
+	tw.tween_interval(0.6)
+	tw.tween_property(kiss, "modulate:a", 0.0, 0.8)
+	tw.tween_callback(kiss.queue_free)
+	MagicVFX.spawn_sparkle_burst(scene_root, kiss.global_position, Color(1.0, 0.4, 0.55), 12)
+	print("Francis-opia: Mwah! A kiss!")
+	return null
+
+func _summon_thunder(scene_root: Node, _player: Node2D, _pos: Vector2) -> Node:
+	## THUNDER: a huge jagged lightning bolt cracks down the whole screen with a double white
+	## flash, the screen shakes hard, and a deep thunder clap booms. Screen-space (CanvasLayer)
+	## so it always fills the view regardless of camera. Temporary one-shot — nothing persists.
+	var layer := CanvasLayer.new()
+	layer.layer = 80
+	scene_root.add_child(layer)
+	var vp := layer.get_viewport()
+	var screen: Vector2 = vp.get_visible_rect().size if vp else Vector2(1280, 720)
+
+	# Full-screen white flash.
+	var flash := ColorRect.new()
+	flash.color = Color(0.9, 0.95, 1.0, 0.0)
+	flash.size = screen
+	flash.position = Vector2.ZERO
+	flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.add_child(flash)
+
+	# Jagged main bolt from the top of the screen to the bottom.
+	var bolt := Line2D.new()
+	bolt.width = 11.0
+	bolt.default_color = Color(0.85, 0.92, 1.0, 1.0)
+	bolt.joint_mode = Line2D.LINE_JOINT_BEVEL
+	bolt.begin_cap_mode = Line2D.LINE_CAP_ROUND
+	bolt.end_cap_mode = Line2D.LINE_CAP_ROUND
+	var bolt_x := screen.x * randf_range(0.35, 0.65)
+	var segs := 9
+	for i in (segs + 1):
+		var t := float(i) / float(segs)
+		var jitter := 0.0 if i == 0 else randf_range(-70.0, 70.0)
+		bolt.add_point(Vector2(bolt_x + jitter, screen.y * t))
+
+	# Wider, dimmer glow underlay following the same path.
+	var glow := Line2D.new()
+	glow.width = 28.0
+	glow.default_color = Color(0.5, 0.7, 1.0, 0.5)
+	glow.joint_mode = Line2D.LINE_JOINT_BEVEL
+	glow.points = bolt.points
+	layer.add_child(glow)
+	layer.add_child(bolt)
+
+	# A couple of forked branches for drama.
+	for _b in 2:
+		var branch := Line2D.new()
+		branch.width = 5.0
+		branch.default_color = Color(0.8, 0.9, 1.0, 0.9)
+		branch.begin_cap_mode = Line2D.LINE_CAP_ROUND
+		branch.end_cap_mode = Line2D.LINE_CAP_ROUND
+		var origin: Vector2 = bolt.points[randi_range(2, segs - 2)]
+		branch.add_point(origin)
+		branch.add_point(origin + Vector2(randf_range(-130.0, 130.0), randf_range(40.0, 130.0)))
+		layer.add_child(branch)
+
+	# Double-flicker the flash, then fade the bolt + glow and clean up the whole layer.
+	var tw := flash.create_tween()
+	tw.tween_property(flash, "color:a", 0.9, 0.06)
+	tw.tween_property(flash, "color:a", 0.15, 0.12)
+	tw.tween_property(flash, "color:a", 0.7, 0.07)
+	tw.tween_property(flash, "color:a", 0.0, 0.5)
+	var bolt_tw := bolt.create_tween()
+	bolt_tw.tween_interval(0.22)
+	bolt_tw.tween_property(bolt, "modulate:a", 0.0, 0.4)
+	bolt_tw.parallel().tween_property(glow, "modulate:a", 0.0, 0.4)
+	bolt_tw.tween_callback(layer.queue_free)
+
+	# Hard screen shake.
+	var cam := get_viewport().get_camera_2d()
+	if cam:
+		_thunder_shake(cam)
+
+	# BOOM.
+	if SoundFX.has_method("play_thunder"):
+		SoundFX.play_thunder()
+	else:
+		SoundFX.play_dig("stone")
+
+	print("Francis-opia: BOOM! Thunder!")
+	return null
+
+func _thunder_shake(camera: Camera2D) -> void:
+	## A stronger, decaying camera shake than the gentle word-complete one — for THUNDER.
+	if not is_instance_valid(camera):
+		return
+	var base := camera.offset
+	var tw := camera.create_tween()
+	var steps := 10
+	for i in steps:
+		var intensity := 24.0 * (1.0 - float(i) / float(steps))
+		tw.tween_property(camera, "offset",
+			base + Vector2(randf_range(-intensity, intensity), randf_range(-intensity, intensity)), 0.04)
+	tw.tween_property(camera, "offset", base, 0.05)
 
 # --- POWER-UPS ---
 
@@ -2856,14 +3154,19 @@ func _summon_pot(scene_root: Node, _player: Node2D, pos: Vector2) -> Node:
 	return pot
 
 func _summon_bag(_scene_root: Node, player: Node2D, _pos: Vector2) -> Node:
-	## Spelling BAG equips a hiking backpack worn on Francis's back.
-	## It rides on his back and swaps sides whenever he turns around.
+	return equip_backpack(player)
+
+func equip_backpack(player: Node2D) -> Node:
+	## Equip the hiking backpack worn on Francis's back. PUBLIC + idempotent so it can be
+	## re-applied on load — that is what makes it STAY on his back across restarts.
+	if not is_instance_valid(player):
+		return null
 	var old := player.get_node_or_null("HikingBackpack")
 	if old: old.queue_free()
 
 	var pack := Node2D.new()
 	pack.name = "HikingBackpack"
-	pack.z_index = -1  # tuck behind the player's body
+	pack.z_index = 1  # visible on his back (was -1, which hid it behind the body)
 
 	# Prefer the pixel-art sprite; fall back to procedural rects if the PNG has
 	# not been re-imported yet (Godot needs an editor import pass for new art).
@@ -3409,6 +3712,81 @@ func _summon_mat(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
 	print("Francis-opia: Bouncy mat!")
 	return mat
 
+func _summon_bike(scene_root: Node, player: Node2D, _pos: Vector2) -> Node:
+	## Spelling BIKE: a cute bicycle rolls across the screen (was missing — BIKE did nothing).
+	var bike := Node2D.new()
+	bike.z_index = 24
+	bike.global_position = player.global_position + Vector2(-200, -6)
+	var frame_col := Color(0.9, 0.3, 0.4, 1)
+	# Two wheels (dark tyre disc, grey inner, hub).
+	for wx in [-18.0, 18.0]:
+		bike.add_child(_disc(Vector2(wx, -10), 13.0, Color(0.12, 0.12, 0.14, 1)))
+		bike.add_child(_disc(Vector2(wx, -10), 8.0, Color(0.78, 0.8, 0.85, 1)))
+		bike.add_child(_disc(Vector2(wx, -10), 3.0, Color(0.45, 0.45, 0.5, 1)))
+	# Frame (two bars), seat, handlebars.
+	var bar1 := ColorRect.new()
+	bar1.position = Vector2(-18, -22); bar1.size = Vector2(30, 4); bar1.color = frame_col
+	bike.add_child(bar1)
+	var bar2 := ColorRect.new()
+	bar2.position = Vector2(-2, -22); bar2.size = Vector2(4, 14); bar2.color = frame_col
+	bike.add_child(bar2)
+	var seat := ColorRect.new()
+	seat.position = Vector2(-22, -26); seat.size = Vector2(10, 4); seat.color = Color(0.2, 0.2, 0.25, 1)
+	bike.add_child(seat)
+	var bars := ColorRect.new()
+	bars.position = Vector2(14, -28); bars.size = Vector2(4, 10); bars.color = Color(0.2, 0.2, 0.25, 1)
+	bike.add_child(bars)
+	scene_root.add_child(bike)
+	var tw := bike.create_tween()
+	tw.tween_property(bike, "global_position:x", bike.global_position.x + 440, 1.4).set_trans(Tween.TRANS_QUAD)
+	tw.tween_property(bike, "modulate:a", 0.0, 0.4)
+	tw.tween_callback(bike.queue_free)
+	SoundFX.play_summon_accent("cosmetic")
+	print("Francis-opia: A cool bike! Ring ring!")
+	return bike
+
+func _disc(center: Vector2, radius: float, c: Color) -> Polygon2D:
+	## A filled circle (16-gon) — bike wheels, hubs.
+	var poly := Polygon2D.new()
+	var pts := PackedVector2Array()
+	for i in 16:
+		var a := TAU * float(i) / 16.0
+		pts.append(center + Vector2(cos(a), sin(a)) * radius)
+	poly.polygon = pts
+	poly.color = c
+	return poly
+
+func _summon_car(scene_root: Node, player: Node2D, _pos: Vector2) -> Node:
+	## Spelling CAR unlocks the car in Car Town (Level 3). A little car zips across to celebrate.
+	## Returning a node marks "car" as owned, so it then appears parked in Car Town.
+	var car := Node2D.new()
+	car.z_index = 25
+	car.global_position = player.global_position + Vector2(-230, -22)
+	var body := ColorRect.new()
+	body.position = Vector2(-26, -16)
+	body.size = Vector2(52, 18)
+	body.color = Color(0.85, 0.3, 0.3, 1)
+	car.add_child(body)
+	var cabin := ColorRect.new()
+	cabin.position = Vector2(-12, -26)
+	cabin.size = Vector2(26, 12)
+	cabin.color = Color(0.7, 0.9, 1.0, 1)
+	car.add_child(cabin)
+	for wx in [-16, 16]:
+		var wheel := ColorRect.new()
+		wheel.position = Vector2(wx - 6, -4)
+		wheel.size = Vector2(12, 12)
+		wheel.color = Color(0.1, 0.1, 0.12, 1)
+		car.add_child(wheel)
+	scene_root.add_child(car)
+	var tw := car.create_tween()
+	tw.tween_property(car, "global_position:x", car.global_position.x + 470, 1.2).set_trans(Tween.TRANS_QUAD)
+	tw.tween_property(car, "modulate:a", 0.0, 0.4)
+	tw.tween_callback(car.queue_free)
+	SoundFX.play_summon_accent("world")
+	print("Francis-opia: A car! Go drive it in Car Town!")
+	return car
+
 func _summon_van(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
 	var van := Node2D.new()
 	van.global_position = Vector2(pos.x + 80, 725)
@@ -3619,22 +3997,76 @@ func _summon_pan(scene_root: Node, player: Node2D, _pos: Vector2) -> Node:
 	print("Francis-opia: Frying pan! The pancake flips!")
 	return pan
 
-func _summon_can(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
-	var can := ColorRect.new()
-	can.size = Vector2(10, 14)
-	can.color = Color(0.6, 0.6, 0.65, 1)
-	can.global_position = player.global_position + Vector2(20, -10)
-	can.z_index = 10
+func _summon_can(scene_root: Node, player: Node2D, _pos: Vector2) -> Node:
+	## A tin can that SITS on the ground. When Francis jumps on / runs into it, it flies
+	## off at a 45-degree angle, spinning wildly — as if he kicked it.
+	var can := Area2D.new()
+	can.name = "KickableCan"
+	can.z_index = 6
+	can.collision_layer = 0
+	can.collision_mask = 1   # detect the player body
+	can.monitoring = true
+	can.global_position = player.global_position + Vector2(46, 16)
+
+	# Visual centered on the origin so it spins around its middle.
+	var body := ColorRect.new()
+	body.position = Vector2(-5, -7)
+	body.size = Vector2(10, 14)
+	body.color = Color(0.62, 0.62, 0.68, 1)
+	can.add_child(body)
+	var rim := ColorRect.new()
+	rim.position = Vector2(-5, -7)
+	rim.size = Vector2(10, 2)
+	rim.color = Color(0.8, 0.8, 0.85, 1)
+	can.add_child(rim)
+	var stripe := ColorRect.new()
+	stripe.position = Vector2(-5, -2)
+	stripe.size = Vector2(10, 5)
+	stripe.color = Color(0.85, 0.5, 0.3, 1)
+	can.add_child(stripe)
+
+	var col := CollisionShape2D.new()
+	var shape := RectangleShape2D.new()
+	shape.size = Vector2(13, 17)
+	col.shape = shape
+	can.add_child(col)
+
+	var script := GDScript.new()
+	script.source_code = """extends Area2D
+var _kicked := false
+var _vel := Vector2.ZERO
+var _spin := 0.0
+
+func _ready():
+	body_entered.connect(_on_body)
+
+func _on_body(body):
+	if _kicked:
+		return
+	if body is CharacterBody2D and String(body.name).begins_with("Player"):
+		_kicked = true
+		# Fly away from the player at 45 degrees up, spinning wildly.
+		var dir = 1.0 if global_position.x >= body.global_position.x else -1.0
+		_vel = Vector2(dir * 0.707, -0.707) * 540.0
+		_spin = dir * 20.0
+		var sfx = get_node_or_null("/root/SoundFX")
+		if sfx:
+			sfx.play_dig("stone")
+
+func _process(delta):
+	if not _kicked:
+		return
+	global_position += _vel * delta
+	_vel.y += 900.0 * delta   # gravity arc as it sails away
+	rotation += _spin * delta
+	if global_position.y > 1200.0 or global_position.x < -300.0 or global_position.x > 1700.0:
+		queue_free()
+"""
+	script.reload()
+	can.set_script(script)
 	scene_root.add_child(can)
-	var tw := can.create_tween()
-	tw.tween_property(can, "global_position:x", can.global_position.x + 150, 0.8).set_trans(Tween.TRANS_QUAD)
-	tw.parallel().tween_property(can, "global_position:y", can.global_position.y - 30, 0.4).set_trans(Tween.TRANS_QUAD)
-	tw.tween_property(can, "global_position:y", 720, 0.4).set_trans(Tween.TRANS_BOUNCE)
-	tw.tween_property(can, "modulate:a", 0.0, 0.5)
-	tw.tween_callback(can.queue_free)
-	_spawn_coins(scene_root, pos, 1)
-	print("Francis-opia: Kick the can!")
-	return null
+	print("Francis-opia: A can! Jump on it to kick it flying!")
+	return can
 
 func _summon_map(scene_root: Node, player: Node2D, _pos: Vector2) -> Node:
 	# Glow nearest treasure block
@@ -3687,8 +4119,23 @@ func _summon_house(scene_root: Node, player: Node2D, pos: Vector2) -> Node:
 
 	var house := Node2D.new()
 	house.name = "MagicHouse"
-	# Place castle well to the right of player, away from any stairwells
-	house.global_position = Vector2(pos.x + 400, ground_y)
+	var have_home := GameManager.home_pos_x != 0.0 or GameManager.home_pos_y != 0.0
+	# RECOVERY: if a previously-saved home drifted implausibly far below the surface (a void /
+	# underground — the old bug), throw it away and re-place a fresh home on the L1 surface.
+	if have_home and GameManager.home_pos_y > BASE_GROUND_Y + 500.0:
+		have_home = false
+		GameManager.home_pos_x = 0.0
+		GameManager.home_pos_y = 0.0
+	if have_home:
+		# A valid home already exists (we're RESTORING it on load) — re-create the castle at its
+		# SAVED spot, NOT wherever Francis happens to be standing now. home_pos = house+(240,-40),
+		# so reverse that. This stops the home (and the teleport target) drifting into a void.
+		house.global_position = Vector2(GameManager.home_pos_x - 240.0, GameManager.home_pos_y + 40.0)
+	else:
+		# First time (or recovered): place the castle on the L1 surface near Francis. ground_y is
+		# always the SURFACE height at this x, so even if Francis saved underground the home lands
+		# up top, not in the void.
+		house.global_position = Vector2(pos.x + 400, ground_y)
 
 	# Castle sprite overlay (replaces old ColorRect visuals, collision still built below)
 	var _has_castle_sprite := false

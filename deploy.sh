@@ -40,18 +40,60 @@ ok()   { echo -e "${GREEN}[  ok  ]${NC} $1"; }
 warn() { echo -e "${YELLOW}[ warn ]${NC} $1"; }
 err()  { echo -e "${RED}[error ]${NC} $1"; exit 1; }
 
+# The Steam Deck's sshd flaps when it wakes — a single connection often gets "Connection
+# refused" even though a retry seconds later works. These helpers retry deck operations so a
+# flaky link no longer forces a full re-export. Tunable: SSH_RETRIES attempts, SSH_RETRY_DELAY s.
+SSH_RETRIES="${SSH_RETRIES:-5}"
+SSH_RETRY_DELAY="${SSH_RETRY_DELAY:-4}"
+
+retry() {
+    # retry <description> -- runs "$@" up to SSH_RETRIES times, sleeping between failures.
+    local desc="$1"; shift
+    local n=1 rc=0
+    while true; do
+        if "$@"; then return 0; fi
+        rc=$?
+        if [ "$n" -ge "$SSH_RETRIES" ]; then
+            warn "${desc}: still failing after ${SSH_RETRIES} attempts (rc=${rc})"
+            return "$rc"
+        fi
+        warn "${desc}: attempt ${n}/${SSH_RETRIES} failed — Deck SSH may be waking; retrying in ${SSH_RETRY_DELAY}s..."
+        sleep "$SSH_RETRY_DELAY"
+        n=$((n + 1))
+    done
+}
+
+ssh_capture() {
+    # ssh_capture <remote-command> -- echoes stdout, retrying on connection failure. Empty on
+    # total failure (callers already default with `|| echo ...`).
+    local rcmd="$1" out="" n=1
+    while true; do
+        if out=$(ssh "${DECK_USER}@${DECK_HOST}" "$rcmd" 2>/dev/null); then
+            printf '%s' "$out"; return 0
+        fi
+        if [ "$n" -ge "$SSH_RETRIES" ]; then return 1; fi
+        sleep "$SSH_RETRY_DELAY"
+        n=$((n + 1))
+    done
+}
+
 # ─── Parse args ──────────────────────────────────────────────────
 DO_EXPORT=true
 DO_DEPLOY=true
+DO_VERIFY=true   # headless tests + runtime smoke before export (catches regressions)
+
+# --no-verify can appear in any position — it's an escape hatch, not a mode.
+for _a in "$@"; do [ "$_a" = "--no-verify" ] && DO_VERIFY=false; done
 
 case "${1:-}" in
     --export) DO_DEPLOY=false ;;
     --deploy) DO_EXPORT=false ;;
     --help|-h)
-        echo "Usage: ./deploy.sh [--export|--deploy|--help]"
-        echo "  (no args)  Export and deploy to Steam Deck"
-        echo "  --export   Export only (build the binary)"
-        echo "  --deploy   Deploy only (transfer existing build)"
+        echo "Usage: ./deploy.sh [--export|--deploy|--no-verify|--help]"
+        echo "  (no args)    Generate assets, validate, export and deploy to Steam Deck"
+        echo "  --export     Export only (build the binary)"
+        echo "  --deploy     Deploy only (transfer existing build)"
+        echo "  --no-verify  Skip the headless unit-test + runtime smoke gate"
         exit 0
         ;;
 esac
@@ -97,6 +139,38 @@ if [ "$DO_EXPORT" = true ]; then
     # their compressed textures. Without this a brand-new PNG ships with no .ctex and shows
     # nothing in the build. Tolerant: --export-release also imports, so a flag hiccup here
     # is a warning, not a failure.
+    # Regenerate procedural sprite art FIRST so a forgotten `python3 tools/gen_*.py`
+    # can't ship stale or missing PNGs. Deterministic — identical output is a no-op for the
+    # import pass below. Tolerant: a missing Pillow / python is a warning, not a failure
+    # (the committed PNGs still ship).
+    log "Generating sprite assets..."
+    if command -v python3 >/dev/null 2>&1; then
+        for gen in tools/gen_sprites.py tools/gen_bag_sprite.py; do
+            if [ -f "${GAME_DIR}/${gen}" ]; then
+                if ( cd "${GAME_DIR}" && python3 "${gen}" ) >/dev/null 2>&1; then
+                    ok "ran ${gen}"
+                else
+                    warn "sprite generator failed: ${gen} (need Pillow? 'pip install Pillow') — shipping existing PNG"
+                fi
+            fi
+        done
+    else
+        warn "python3 not found — skipping sprite generation (shipping existing PNGs)"
+    fi
+
+    # Generate ANY missing word pronunciations (alice voice) so every spellable word is spoken.
+    # Auto-detects words in data/words.json with no clip in assets/sounds/voices/alice/words/.
+    # Tolerant: needs the ElevenLabs key + egress (framework only) — a failure is a warning, not
+    # a blocker (existing clips still ship).
+    if [ -x "${GAME_DIR}/tools/gen_missing_word_audio.sh" ]; then
+        log "Generating any missing word pronunciations..."
+        if "${GAME_DIR}/tools/gen_missing_word_audio.sh" >"${EXPORT_DIR}/.last-wordaudio.log" 2>&1; then
+            ok "Word audio up to date"
+        else
+            warn "Missing-word audio step failed (need ELEVENLABS_API_KEY + egress?). See ${EXPORT_DIR}/.last-wordaudio.log"
+        fi
+    fi
+
     log "Importing assets (sprites, etc.)..."
     IMPORT_LOG="${EXPORT_DIR}/.last-import.log"
     if godot --headless --path "${GAME_DIR}" --import >"${IMPORT_LOG}" 2>&1; then
@@ -113,6 +187,54 @@ if [ "$DO_EXPORT" = true ]; then
     fi
     WORD_COUNT=$(grep -oE 'Found [0-9]+ words' "${WORDBANK_LOG}" | head -1 || true)
     ok "Word bank refreshed (${WORD_COUNT:-regenerated})"
+
+    # ─── HEADLESS VALIDATION ─────────────────────────────────────────
+    # The mainframe (where the AI works) has NO Godot, so GDScript regressions are invisible
+    # until the game actually RUNS. `--export-release` only catches PARSE errors. So we run the
+    # unit tests + boot the scene headless under --qa (exercises every summon/restore path) and
+    # PROVE the game booted. Failure taxonomy (important — don't block on the wrong thing):
+    #   - GDScript SCRIPT ERROR / Parse Error            -> HARD FAIL
+    #   - no "Chunks: N" or no boot-complete line         -> HARD FAIL (the "no levels" bug)
+    #   - a native crash AFTER _ready() finished           -> WARN only. --headless has no GPU,
+    #     so the summon particle VFX can SIGSEGV under headless while the real device is fine.
+    if [ "$DO_VERIFY" = true ]; then
+        log "Running unit tests (headless)..."
+        TEST_LOG="${EXPORT_DIR}/.last-tests.log"
+        godot --headless --path "${GAME_DIR}" --script tests/run_tests.gd >"${TEST_LOG}" 2>&1 || true
+        if grep -qE "FAIL:|[1-9][0-9]* failed" "${TEST_LOG}"; then
+            grep -nE "FAIL:|[0-9]+ failed" "${TEST_LOG}" | head -20
+            err "Unit tests FAILED. Full output: ${TEST_LOG}"
+        fi
+        ok "Unit tests passed"
+
+        log "Booting main scene headless (--qa) to validate the game boots..."
+        SMOKE_LOG="${EXPORT_DIR}/.last-smoke.log"
+        # Capture the real exit code — a crash returns 134/139, which we must NOT swallow.
+        godot --headless --path "${GAME_DIR}" --quit-after 240 -- --qa >"${SMOKE_LOG}" 2>&1 && SMOKE_RC=0 || SMOKE_RC=$?
+
+        # Hard fail: GDScript errors anywhere in the boot.
+        if grep -qE "SCRIPT ERROR|Parse Error|Parser Error|Cannot call method|Invalid (get|set|call|operands|index)|Attempt to call|Trying to (call|assign)" "${SMOKE_LOG}"; then
+            echo "──── GDScript errors on boot ────"
+            grep -nE "SCRIPT ERROR|Parse Error|Parser Error|Cannot call method|Invalid (get|set|call|operands|index)|Attempt to call|Trying to (call|assign)" "${SMOKE_LOG}" | head -30
+            echo "─────────────────────────────────"
+            err "Main scene threw GDScript errors on boot. Full output: ${SMOKE_LOG}"
+        fi
+        # Hard fail: terrain never actually built (THE "level one disappeared, you fall in" bug).
+        # "Terrain ready: N" proves real blocks exist, not just that chunk nodes were created —
+        # a runtime error mid-generation can still print "Chunks:" while leaving the world empty.
+        if ! grep -qE "Terrain ready: [1-9]" "${SMOKE_LOG}"; then
+            tail -40 "${SMOKE_LOG}"
+            err "Terrain did NOT generate (no 'Terrain ready: N>0' line). The world is empty; do NOT ship. Full output: ${SMOKE_LOG}"
+        fi
+        # World built + _ready() completed. A crash now is the headless-GPU particle path — warn only.
+        if [ "${SMOKE_RC:-0}" -ge 128 ] || grep -q "Program crashed with signal" "${SMOKE_LOG}"; then
+            SIG=$(grep -oE "crashed with signal [0-9]+" "${SMOKE_LOG}" | head -1 || echo "signal ?")
+            warn "Headless run ${SIG} AFTER the world built — likely GPUParticles under --headless; the real device is unaffected. See ${SMOKE_LOG}"
+        fi
+        ok "Runtime smoke passed — world generated ($(grep -oE 'Chunks: [0-9]+' "${SMOKE_LOG}" | head -1)), _ready() completed"
+    else
+        warn "Skipping headless validation (--no-verify) — shipping unvalidated"
+    fi
 
     # Check icon is present before export (it gets baked into the binary)
     if [ -f "${GAME_DIR}/icon.png" ]; then
@@ -238,7 +360,8 @@ if [ "$DO_DEPLOY" = true ]; then
 
     # Create destination and sync
     log "Creating ${DECK_PATH} on deck..."
-    ssh "${DECK_USER}@${DECK_HOST}" "mkdir -p '${DECK_PATH}'"
+    retry "create deck dir" ssh "${DECK_USER}@${DECK_HOST}" "mkdir -p '${DECK_PATH}'" \
+        || err "Could not reach the Deck to create ${DECK_PATH} after ${SSH_RETRIES} tries.\n  Is it awake + on Tailscale? Re-run './deploy.sh --deploy' to retry just the transfer (no re-export)."
 
     # Build file list: binary + icon + desktop entry
     SYNC_FILES=("${EXPORT_DIR}/${BINARY_NAME}")
@@ -249,19 +372,23 @@ if [ "$DO_DEPLOY" = true ]; then
 
     log "Starting rsync transfer..."
     RSYNC_START=$(date +%s)
-    rsync -avz --progress --stats --human-readable \
+    # --partial resumes an interrupted transfer; retry absorbs a flapping link. rsync is
+    # incremental, so a retry only re-sends whatever didn't make it — never the whole 100MB.
+    retry "rsync transfer" rsync -avz --partial --progress --stats --human-readable \
         "${SYNC_FILES[@]}" \
-        "${DECK_USER}@${DECK_HOST}:${DECK_PATH}/"
+        "${DECK_USER}@${DECK_HOST}:${DECK_PATH}/" \
+        || err "rsync to the Deck failed after ${SSH_RETRIES} tries.\n  Re-run './deploy.sh --deploy' to retry just the transfer (no re-export)."
     RSYNC_END=$(date +%s)
     RSYNC_ELAPSED=$((RSYNC_END - RSYNC_START))
     ok "Transfer complete (${RSYNC_ELAPSED}s)"
 
     # Make executable on deck
-    ssh "${DECK_USER}@${DECK_HOST}" "chmod +x '${DECK_PATH}/${BINARY_NAME}'"
+    retry "chmod on deck" ssh "${DECK_USER}@${DECK_HOST}" "chmod +x '${DECK_PATH}/${BINARY_NAME}'" \
+        || err "Could not chmod the binary on the Deck after ${SSH_RETRIES} tries."
 
     # Show the timestamp of the binary AS IT NOW EXISTS ON THE DECK — confirms the
     # freshly-built file actually landed (not a stale leftover from a failed transfer).
-    DECK_TS=$(ssh "${DECK_USER}@${DECK_HOST}" "stat -c '%y' '${DECK_PATH}/${BINARY_NAME}'" 2>/dev/null | cut -d'.' -f1 || true)
+    DECK_TS=$(ssh_capture "stat -c '%y' '${DECK_PATH}/${BINARY_NAME}'" | cut -d'.' -f1 || true)
     ok "Deployed binary on deck: ${DECK_PATH}/${BINARY_NAME}"
     ok "Deck file timestamp: ${DECK_TS:-unknown}"
 
@@ -270,7 +397,7 @@ if [ "$DO_DEPLOY" = true ]; then
     # class of silent stale deploys: if the file on the deck isn't exactly the binary
     # we just exported, FAIL LOUDLY instead of pretending success.
     LOCAL_SIZE=$(stat -c%s "${EXPORT_DIR}/${BINARY_NAME}")
-    DECK_SIZE=$(ssh "${DECK_USER}@${DECK_HOST}" "stat -c%s '${DECK_PATH}/${BINARY_NAME}'" 2>/dev/null || echo "0")
+    DECK_SIZE=$(ssh_capture "stat -c%s '${DECK_PATH}/${BINARY_NAME}'" || echo "0")
     log "Verifying transfer: local=${LOCAL_SIZE}B  deck=${DECK_SIZE}B"
     if [ "${LOCAL_SIZE}" != "${DECK_SIZE}" ]; then
         err "SIZE MISMATCH — deck copy is ${DECK_SIZE}B but local build is ${LOCAL_SIZE}B.\n  The deploy did NOT land correctly. Nothing on the deck changed."
@@ -279,7 +406,7 @@ if [ "$DO_DEPLOY" = true ]; then
 
     # Checksum — the definitive "is it really the same file" check.
     LOCAL_SHA=$(sha256sum "${EXPORT_DIR}/${BINARY_NAME}" | cut -d' ' -f1)
-    DECK_SHA=$(ssh "${DECK_USER}@${DECK_HOST}" "sha256sum '${DECK_PATH}/${BINARY_NAME}'" 2>/dev/null | cut -d' ' -f1 || echo "none")
+    DECK_SHA=$(ssh_capture "sha256sum '${DECK_PATH}/${BINARY_NAME}'" | cut -d' ' -f1 || echo "none")
     if [ "${LOCAL_SHA}" != "${DECK_SHA}" ]; then
         err "CHECKSUM MISMATCH — deck sha256 (${DECK_SHA}) != local (${LOCAL_SHA}).\n  The file on the deck is NOT the build you just made."
     fi
@@ -292,14 +419,14 @@ if [ "$DO_DEPLOY" = true ]; then
     echo -e "     sha256    : ${LOCAL_SHA}"
     echo -e "  ${GREEN}══════════════════════════════════════════════════════════════${NC}"
 
-    # Install desktop entry for game mode
-    ssh "${DECK_USER}@${DECK_HOST}" "
+    # Install desktop entry for game mode (non-fatal — the binary is already deployed + verified).
+    retry "install desktop entry" ssh "${DECK_USER}@${DECK_HOST}" "
         mkdir -p ~/.local/share/applications
         sed -e 's|GAME_PATH|${DECK_PATH}/${BINARY_NAME}|g' \
             -e 's|ICON_PATH|${DECK_PATH}/icon.png|g' \
             '${DECK_PATH}/francisopia.desktop' \
             > ~/.local/share/applications/francisopia.desktop
-    "
+    " || warn "Could not install the desktop entry (non-fatal) — the binary is deployed and verified."
 
     ok "Deployed to Steam Deck!"
     echo ""

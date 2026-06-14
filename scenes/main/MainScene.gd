@@ -88,6 +88,21 @@ var _chunks: Dictionary = {}  # chunk_index -> Node2D
 var _last_chunk_index := -999
 var _teleport_beacon: Node2D = null  # Visual beacon node in the world
 var _home_teleport_pad: Node2D = null  # Teleport pad at HOME
+# --- House interior (Slice 1: enter/exit + rooms). See docs/house-interior-architecture.md ---
+var _in_house := false
+var _house_root: Node2D = null
+var _house_door: Area2D = null
+const HOUSE_ROOM_W := 280.0
+# --- Level 3 "Car Town": a flat driveable street below Level 2. ---
+const L3_SKY_H := 420.0          # height of the L3 sky band above the street
+const L3_LAND_X := 400.0         # world-x where the CAR TOWN portal drops you (chunk 0)
+const DRIVE_SPEED := 360.0       # px/s when driving a vehicle
+const L3_CAR_WORDS := ["van", "car", "bus"]  # the 3 driveable types — only appear once spelled
+var _driving := false
+var _driven_vehicle: Node2D = null
+var _drive_hint: CanvasLayer = null
+var _drive_lock := 0.0           # brief lock so the ENTER press can't instantly exit
+var _drive_companions: Array = []  # active companions riding along while driving
 var _rng := RandomNumberGenerator.new()
 var _world_seed: int = 0  # Captured once at startup for deterministic terrain height
 var _thief_scene: PackedScene = null
@@ -119,6 +134,10 @@ func _ready() -> void:
 	if player:
 		player.player_index = 0
 		player.player_color = PLAYER1_COLOR
+		# Push the "fell into the void" respawn line BELOW the Level 3 street, otherwise descending
+		# the L2->L3 shaft (or the Car Town portal) crosses the old 2500 line and bounces Francis
+		# straight back up before he can land. _l3_ground_y() is the street; +300 is under its road.
+		player.respawn_y = _l3_ground_y() + 300.0
 		var body_rect := player.get_node_or_null("BodyColor") as ColorRect
 		if body_rect:
 			body_rect.color = PLAYER1_COLOR
@@ -126,6 +145,18 @@ func _ready() -> void:
 	# Spawn Player 2 if a second controller is connected
 	_check_and_spawn_player2()
 	Input.joy_connection_changed.connect(_on_joy_connection_changed)
+
+	# === REGRESSION GUARD: build the terrain FIRST ===
+	# Generate the world BEFORE any save-restore / word / quest call below. If one of those ever
+	# throws a runtime error, Francis must still have solid ground under him instead of an empty
+	# void ("level one disappeared, you fall in"). Re-running _update_chunks later is harmless
+	# (it skips chunks that already exist), and the ground-clamp below still finalises his spawn.
+	if player:
+		if GameManager.player_pos_x != 400.0 or GameManager.player_pos_y != 700.0:
+			player.global_position = Vector2(GameManager.player_pos_x, GameManager.player_pos_y)
+		_update_chunks()
+		_last_chunk_index = _get_chunk_index(player.global_position.x)
+		print("Francis-opia: Terrain ready: %d blocks in %d chunks" % [_terrain_blocks.size(), _chunks.size()])
 
 	# Dog companion always spawns (it's the first word in the game)
 	if "dog" in GameManager.words_summoned:
@@ -138,6 +169,13 @@ func _ready() -> void:
 		if ms and ms.has_method("equip_hammer"):
 			ms.equip_hammer(player)
 			print("Francis-opia: Hammer restored from save!")
+
+	# Restore the hiking backpack onto his back if he has earned it (stays forever).
+	if "bag" in GameManager.items_owned and player:
+		var ms_bag := get_node_or_null("/root/MagicSummon")
+		if ms_bag and ms_bag.has_method("equip_backpack"):
+			ms_bag.equip_backpack(player)
+			print("Francis-opia: Backpack restored from save!")
 
 	# Save is loaded in GameManager._ready() (before other autoloads)
 	# Re-summon persistent world effects from previous session
@@ -257,6 +295,7 @@ func _spawn_player2() -> void:
 	player2.name = "Player2"
 	player2.player_index = 1
 	player2.player_color = PLAYER2_COLOR
+	player2.respawn_y = _l3_ground_y() + 300.0  # keep the void line below Level 3 (see Player 1)
 	player2.position = player.position + Vector2(60, 0)
 	add_child(player2)
 
@@ -295,6 +334,10 @@ func _on_joy_connection_changed(_device: int, _connected: bool) -> void:
 # === MAIN LOOP ===
 
 func _process(_delta: float) -> void:
+	# While driving, move the van and snap the (hidden) player onto it BEFORE the normal body
+	# runs — so the camera, parallax and chunk-loading below all follow the van for free.
+	if _driving:
+		_drive_update(_delta)
 	if player:
 		if _midpoint_camera and player2 and is_instance_valid(player2):
 			var midpoint := (player.global_position + player2.global_position) / 2.0
@@ -306,6 +349,30 @@ func _process(_delta: float) -> void:
 		# Keep GameManager in sync for save
 		GameManager.player_pos_x = player.global_position.x
 		GameManager.player_pos_y = player.global_position.y
+
+		# Track which level Francis is actually on (by depth) — drives word difficulty AND the
+		# HAMMER/VAN/FRIEND priority. current_level used to never update during play.
+		var _py := player.global_position.y
+		var _lvl := 1
+		if _py > _l3_top_y(BEDROCK_Y) - 60.0:
+			_lvl = 3
+		elif _py > BEDROCK_Y - 40.0:
+			_lvl = 2
+		if GameManager.current_level != _lvl:
+			var _was: int = GameManager.current_level
+			GameManager.current_level = _lvl
+			# On first ARRIVAL in Car Town, immediately switch the goal to VAN (if no car spelled
+			# yet) instead of waiting for the current word to finish — and if he already owns a
+			# car, park one right next to him, ready to drive. Scoped to the one-way descent into
+			# Level 3 so it can't reset letter progress by jittering across a boundary.
+			if _lvl == 3 and _was < 3:
+				WordEngine.select_word_for_area(GameManager.current_area)
+				_ensure_l3_car_near_player()
+				# Mark Level 3 as DISCOVERED — this unlocks the Car Town racing gate near the
+				# house on the surface (a fast way back down). Regenerate so it appears next visit.
+				if not GameManager.found_level3:
+					GameManager.found_level3 = true
+					GameManager.save_game()
 
 		# Parallax: offset mountain and cloud layers based on camera position
 		if _mountain_container:
@@ -372,6 +439,8 @@ func _get_flat_zones(chunk_index: int) -> Array[Dictionary]:
 	return zones
 
 func _update_chunks() -> void:
+	if _in_house:
+		return  # the overworld is torn down while inside the house
 	var center := _get_chunk_index(player.global_position.x)
 	if player2 and is_instance_valid(player2):
 		var center2 := _get_chunk_index(player2.global_position.x)
@@ -632,8 +701,25 @@ func _generate_chunk(index: int) -> void:
 		# Solid bedrock — no stairwell
 		_add_bedrock_segment(chunk, 0.0, CHUNK_WIDTH, bedrock_y)
 
-	# Level 2 is generated for ALL chunks (infinite, just like Level 1)
-	_generate_level(chunk, block_script, index, bedrock_y, LEVEL_CONFIGS[1])
+	# Level 2 is generated for ALL chunks (infinite, just like Level 1). Chunks that have an
+	# L1->L2 stairwell ALSO get an L2->L3 elevator shaft at the SAME column (directly below it),
+	# so the descent to Car Town works exactly like the descent to Level 2.
+	_generate_level(chunk, block_script, index, bedrock_y, LEVEL_CONFIGS[1],
+		has_stairwell, stairwell_start_x, _l3_ground_y(), "LEVEL 3")
+
+	# Level 3 — "Car Town": a flat driveable street below Level 2 (generated for ALL chunks).
+	_generate_car_street(chunk, index, _l3_top_y(bedrock_y))
+	# CAR TOWN racing gate — a big checkered start/finish gate next to the HOUSE that drops Francis
+	# onto the Level 3 street. It only appears AFTER he's discovered Level 3 (descended the elevator
+	# at least once), as a fast way back down. Placed in whichever chunk holds his house.
+	if GameManager.found_level3 and (GameManager.home_pos_x != 0.0 or GameManager.home_pos_y != 0.0):
+		var gate_world_x := GameManager.home_pos_x - 340.0   # just left of the castle, beside the house
+		var gate_chunk := int(floor(gate_world_x / CHUNK_WIDTH))
+		if index == gate_chunk:
+			var gate_x := gate_world_x - index * CHUNK_WIDTH
+			var gate_ground := _get_ground_y_at_px(index, gate_x, stairwell_centers)
+			_add_cartown_gate(chunk, Vector2(gate_x, gate_ground),
+				Vector2(L3_LAND_X, _l3_ground_y() - 40))
 
 	# === ABOVE-GROUND DECORATIONS ===
 	# Build exclusion zones — areas where trees/flowers/platforms must NOT spawn
@@ -869,19 +955,17 @@ func _generate_stairwell(chunk: Node2D, terrain: Node2D, _block_script: GDScript
 			_add_stair_block(stair_container, Vector2(
 				(start_x + STAIRWELL_WIDTH - 1) * BLOCK_SIZE + BLOCK_SIZE / 2.0, wall_y))
 
-	# Zigzag platforms inside the shaft
+	# Climbing ledges inside the shaft — ONE block wide, on the OUTER inner columns only,
+	# alternating sides. The centre two inner columns are NEVER blocked, so there is always a
+	# clear >=2-wide vertical channel: Francis can always drop straight down (or climb the
+	# ledges back up) and can never get wedged. (Was a 2-wide zigzag that could fully block.)
 	var going_left := true
 	var current_y := stair_top_y + BLOCK_SIZE * 3
-	var stop_y := l2_ground_y - BLOCK_SIZE * (exit_rows + 2)  # Stop platforms above exit zone
+	var stop_y := l2_ground_y - BLOCK_SIZE * (exit_rows + 2)  # Stop ledges above exit zone
 	while current_y < stop_y:
-		if going_left:
-			for sx in 2:
-				_add_stair_block(stair_container, Vector2(
-					(inner_left + sx) * BLOCK_SIZE + BLOCK_SIZE / 2.0, current_y))
-		else:
-			for sx in 2:
-				_add_stair_block(stair_container, Vector2(
-					(inner_right - 1 + sx) * BLOCK_SIZE + BLOCK_SIZE / 2.0, current_y))
+		var ledge_col := inner_left if going_left else inner_right
+		_add_stair_block(stair_container, Vector2(
+			ledge_col * BLOCK_SIZE + BLOCK_SIZE / 2.0, current_y))
 		current_y += BLOCK_SIZE * 3
 		going_left = not going_left
 
@@ -939,6 +1023,74 @@ func _add_stairwell_marker(chunk: Node2D, start_x: int) -> void:
 	marker.add_child(glow)
 
 	# Stairwell marker is now just the stone pillars — no text clutter
+
+func _generate_descent_stairwell(chunk: Node2D, start_x: int, top_bedrock_y: float, target_ground_y: float, label_text: String) -> void:
+	## Generic indestructible elevator shaft from one level's bedrock down to the next level's
+	## ground — identical shape to the L1->L2 stairwell, parameterised by depth + label. The
+	## centre two inner columns are ALWAYS clear, so Francis can never get wedged.
+	var stair_container := Node2D.new()
+	stair_container.name = "DescentStairwell"
+	chunk.add_child(stair_container)
+	var stair_top_y := top_bedrock_y - 10
+	var total_depth: int = int((target_ground_y - stair_top_y) / BLOCK_SIZE) + 1
+	var inner_left := start_x + 1
+	var inner_right := start_x + STAIRWELL_WIDTH - 2
+	var exit_rows := 6
+	for step_i in total_depth:
+		var wall_y := stair_top_y + step_i * BLOCK_SIZE
+		var is_exit_zone := step_i >= (total_depth - exit_rows)
+		if not is_exit_zone:
+			_add_stair_block(stair_container, Vector2(
+				start_x * BLOCK_SIZE + BLOCK_SIZE / 2.0, wall_y))
+			_add_stair_block(stair_container, Vector2(
+				(start_x + STAIRWELL_WIDTH - 1) * BLOCK_SIZE + BLOCK_SIZE / 2.0, wall_y))
+	var going_left := true
+	var current_y := stair_top_y + BLOCK_SIZE * 3
+	var stop_y := target_ground_y - BLOCK_SIZE * (exit_rows + 2)
+	while current_y < stop_y:
+		var ledge_col := inner_left if going_left else inner_right
+		_add_stair_block(stair_container, Vector2(
+			ledge_col * BLOCK_SIZE + BLOCK_SIZE / 2.0, current_y))
+		current_y += BLOCK_SIZE * 3
+		going_left = not going_left
+	var label := Label.new()
+	label.text = label_text
+	label.add_theme_font_size_override("font_size", 28)
+	label.add_theme_color_override("font_color", Color(0.5, 0.8, 1.0))
+	label.position = Vector2((start_x + 1) * BLOCK_SIZE, target_ground_y - BLOCK_SIZE * 2)
+	label.z_index = 5
+	stair_container.add_child(label)
+
+func _add_descent_marker(chunk: Node2D, start_x: int, surface_y: float) -> void:
+	## Surface hint on the LEVEL 2 ground that there's a way down here — mirrors the L1 marker.
+	var center_x := (start_x + STAIRWELL_WIDTH / 2.0) * BLOCK_SIZE
+	var marker := Node2D.new()
+	marker.name = "DescentMarker"
+	marker.position = Vector2(center_x, surface_y)
+	chunk.add_child(marker)
+	for side in [-1, 1]:
+		var pillar := ColorRect.new()
+		pillar.position = Vector2(side * (STAIRWELL_WIDTH * BLOCK_SIZE / 2.0 - 8) - 6, -40)
+		pillar.size = Vector2(12, 40)
+		pillar.color = Color(0.4, 0.45, 0.55, 1)
+		marker.add_child(pillar)
+		var cap := ColorRect.new()
+		cap.position = Vector2(side * (STAIRWELL_WIDTH * BLOCK_SIZE / 2.0 - 8) - 8, -46)
+		cap.size = Vector2(16, 6)
+		cap.color = Color(0.45, 0.5, 0.6, 1)
+		marker.add_child(cap)
+	var rune := ColorRect.new()
+	rune.position = Vector2(-5, -20)
+	rune.size = Vector2(10, 10)
+	rune.color = Color(0.4, 0.7, 1.0, 0.6)
+	rune.z_index = 2
+	marker.add_child(rune)
+	var glow := ColorRect.new()
+	glow.z_index = -1
+	glow.position = Vector2(-30, -6)
+	glow.size = Vector2(60, 12)
+	glow.color = Color(0.3, 0.6, 1.0, 0.1)
+	marker.add_child(glow)
 
 func _add_stair_block(container: Node2D, pos: Vector2) -> void:
 	## Creates a single indestructible stone stair block. No dig method = can't break it.
@@ -1260,6 +1412,932 @@ func _ensure_home_teleport() -> void:
 	_home_teleport_pad.set_script(script)
 
 	add_child(_home_teleport_pad)
+	_ensure_house_door()
+
+# =====================================================================
+# HOUSE INTERIOR (Slice 1: enter, look around, exit). Architecture:
+# docs/house-interior-architecture.md. Self-contained build/teardown that
+# swaps out the overworld — no procedural-generator surgery.
+# =====================================================================
+
+func _ensure_house_door() -> void:
+	## The ENTRANCE to the house IS the castle's own doorway (home_pos sits on the castle door).
+	## We do NOT draw a second door — the castle sprite already has one. We just place an
+	## invisible interact zone over it plus an "ENTRANCE" sign above. Stand on it + press the
+	## action button to go inside. Only exists once Francis has a house (home_pos set).
+	if GameManager.home_pos_x == 0.0 and GameManager.home_pos_y == 0.0:
+		return
+	if _house_door and is_instance_valid(_house_door):
+		_house_door.queue_free()
+	_house_door = Area2D.new()
+	_house_door.name = "HouseEnterDoor"
+	# Centre the zone on the castle's own door (home_pos), not 60px to the side.
+	_house_door.global_position = Vector2(GameManager.home_pos_x, GameManager.home_pos_y)
+	_house_door.collision_layer = 4
+	_house_door.collision_mask = 1
+	var col := CollisionShape2D.new()
+	var shape := RectangleShape2D.new()
+	# BIG, forgiving zone — Francis only has to be NEAR the castle (anywhere in the doorway
+	# region), not on an exact pixel. Spans ~300px wide and from below ground to well overhead.
+	shape.size = Vector2(320, 260)
+	col.position = Vector2(0, -10)
+	col.shape = shape
+	_house_door.add_child(col)
+	# No fake door rect — reuse the castle's drawn doorway. Just a floating "ENTRANCE" sign.
+	var label := Label.new()
+	label.text = "ENTRANCE"
+	label.add_theme_font_size_override("font_size", 16)
+	label.add_theme_color_override("font_color", Color(1, 1, 0.8))
+	label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
+	label.add_theme_constant_override("outline_size", 3)
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.position = Vector2(-55, -120)
+	label.size = Vector2(110, 20)
+	_house_door.add_child(label)
+	var ds := GDScript.new()
+	ds.source_code = "extends Area2D\nfunc interact() -> void:\n\tvar s = get_tree().current_scene\n\tif s and s.has_method(\"enter_house\"):\n\t\ts.enter_house()\n"
+	ds.reload()
+	_house_door.set_script(ds)
+	add_child(_house_door)
+
+func enter_house() -> void:
+	if _in_house:
+		return
+	_in_house = true
+	GameManager.in_house = true
+	GameManager.house_outdoor_x = player.global_position.x
+	GameManager.house_outdoor_y = player.global_position.y
+	# Tear down the overworld + overworld interactables.
+	for idx in _chunks.keys().duplicate():
+		_remove_chunk(idx)
+	if _house_door and is_instance_valid(_house_door):
+		_house_door.queue_free()
+	if _home_teleport_pad and is_instance_valid(_home_teleport_pad):
+		_home_teleport_pad.queue_free()
+	_build_house_interior()
+	# Drop Francis just inside the entrance and bring his followers in with him.
+	player.global_position = Vector2(56.0, GROUND_Y - 24.0)
+	player.velocity = Vector2.ZERO
+	var ms := get_node_or_null("/root/MagicSummon")
+	if ms and ms.has_method("teleport_active_companion"):
+		ms.teleport_active_companion(player.global_position)
+
+func exit_house() -> void:
+	if not _in_house:
+		return
+	_in_house = false
+	GameManager.in_house = false
+	if _house_root and is_instance_valid(_house_root):
+		_house_root.queue_free()
+		_house_root = null
+	player.global_position = Vector2(GameManager.house_outdoor_x, GameManager.house_outdoor_y)
+	player.velocity = Vector2.ZERO
+	_regenerate_all_chunks()
+	_ensure_house_door()
+	_ensure_home_teleport()
+	var ms := get_node_or_null("/root/MagicSummon")
+	if ms and ms.has_method("teleport_active_companion"):
+		ms.teleport_active_companion(player.global_position)
+
+# =====================================================================
+# LEVEL 3 — "CAR TOWN": a flat, paved, driveable street below Level 2.
+# Reached via the CAR TOWN portal near spawn. No digging (the road is solid,
+# non-diggable). A VAN greets you at the landing; CAR + more are parked along it.
+# =====================================================================
+
+func _l3_top_y(l1_bedrock_y: float) -> float:
+	## Absolute Y of the top of the Level 3 sky band — just below Level 2's bedrock floor.
+	var l2_sky_h: float = LEVEL_CONFIGS[1].get("sky_height", 450.0)
+	var l2_under: int = LEVEL_CONFIGS[1].get("underground_rows", 8)
+	var l2_ground_y := (l1_bedrock_y + 20) + l2_sky_h
+	var l2_bedrock_y := l2_ground_y + (l2_under + 1) * BLOCK_SIZE + BLOCK_SIZE / 2.0 + 10
+	return l2_bedrock_y + 20
+
+func _l3_ground_y() -> float:
+	## Absolute Y of the Level 3 street surface (flat — same for every chunk).
+	return _l3_top_y(BEDROCK_Y) + L3_SKY_H
+
+func _generate_car_street(chunk: Node2D, chunk_index: int, top_y: float) -> void:
+	var ground_y := top_y + L3_SKY_H
+	# Sky.
+	var sky := ColorRect.new()
+	sky.z_index = -10
+	sky.position = Vector2(0, top_y - 10)
+	sky.size = Vector2(CHUNK_WIDTH, L3_SKY_H + 220)
+	sky.color = Color(0.55, 0.78, 0.95, 1)
+	chunk.add_child(sky)
+	for _c in 2:
+		var cloud := ColorRect.new()
+		cloud.z_index = -9
+		cloud.position = Vector2(_rng.randf_range(0, CHUNK_WIDTH - 170), top_y + _rng.randf_range(26, 150))
+		cloud.size = Vector2(_rng.randf_range(110, 190), _rng.randf_range(24, 40))
+		cloud.color = Color(1, 1, 1, 0.7)
+		chunk.add_child(cloud)
+	# Houses far in the background.
+	var hx := 30.0
+	while hx < CHUNK_WIDTH - 130:
+		_add_street_house(chunk, Vector2(hx, ground_y - 124))
+		hx += _rng.randf_range(250, 360)
+	# Sidewalk + curb.
+	var sidewalk := ColorRect.new()
+	sidewalk.z_index = -3
+	sidewalk.position = Vector2(0, ground_y - 24)
+	sidewalk.size = Vector2(CHUNK_WIDTH, 24)
+	sidewalk.color = Color(0.74, 0.74, 0.76, 1)
+	chunk.add_child(sidewalk)
+	# Solid paved road — collision floor, NOT a diggable block, so there's no digging here.
+	var road := StaticBody2D.new()
+	road.position = Vector2(CHUNK_WIDTH / 2.0, ground_y + 60)
+	road.collision_layer = 1
+	road.collision_mask = 0
+	chunk.add_child(road)
+	var road_col := CollisionShape2D.new()
+	var road_shape := RectangleShape2D.new()
+	road_shape.size = Vector2(CHUNK_WIDTH + 4, 120)
+	road_col.shape = road_shape
+	road.add_child(road_col)
+	var road_vis := ColorRect.new()
+	road_vis.z_index = -4
+	road_vis.position = Vector2(-CHUNK_WIDTH / 2.0, -60)
+	road_vis.size = Vector2(CHUNK_WIDTH + 4, 120)
+	road_vis.color = Color(0.28, 0.28, 0.31, 1)
+	road.add_child(road_vis)
+	# Dashed centre line.
+	var lx := 18.0
+	while lx < CHUNK_WIDTH:
+		var dash := ColorRect.new()
+		dash.z_index = -3
+		dash.position = Vector2(lx, ground_y + 44)
+		dash.size = Vector2(34, 6)
+		dash.color = Color(0.95, 0.85, 0.2, 0.9)
+		chunk.add_child(dash)
+		lx += 64.0
+	# Treasure — Car Town has LOTS of chests on the pavement by the houses (you can't dig here).
+	for _ci in _rng.randi_range(2, 4):
+		_spawn_surface_chest(chunk, Vector2(_rng.randf_range(110, CHUNK_WIDTH - 110), ground_y - 33))
+	# Cars — ONLY the types Francis has SPELLED appear, and only parked at the entrance (chunk 0).
+	# There are no cars at all until he spells one. (Driving carries Francis + his animals along.)
+	if chunk_index == 0:
+		var slot := 0
+		for cw in L3_CAR_WORDS:
+			if cw in GameManager.items_owned:
+				_add_street_vehicle(chunk, Vector2(L3_LAND_X + 150.0 + slot * 250.0, ground_y), cw)
+				slot += 1
+		_add_l3_return_portal(chunk, Vector2(L3_LAND_X - 90, ground_y - 30))
+		var town_sign := Label.new()
+		town_sign.text = "CAR TOWN"
+		town_sign.add_theme_font_size_override("font_size", 26)
+		town_sign.add_theme_color_override("font_color", Color(0.97, 0.97, 1.0))
+		town_sign.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.6))
+		town_sign.add_theme_constant_override("outline_size", 3)
+		town_sign.position = Vector2(L3_LAND_X - 36, top_y + 56)
+		town_sign.z_index = 5
+		chunk.add_child(town_sign)
+		if slot == 0:
+			var tip := Label.new()
+			tip.text = "Spell VAN, CAR or BUS to park one here!"
+			tip.add_theme_font_size_override("font_size", 17)
+			tip.add_theme_color_override("font_color", Color(0.15, 0.2, 0.35))
+			tip.position = Vector2(L3_LAND_X - 30, top_y + 110)
+			tip.z_index = 5
+			chunk.add_child(tip)
+
+func _add_street_house(chunk: Node2D, pos: Vector2) -> void:
+	var house := Node2D.new()
+	house.position = pos
+	house.z_index = -7
+	chunk.add_child(house)
+	var palette := [Color(0.86, 0.72, 0.62), Color(0.72, 0.79, 0.86), Color(0.83, 0.84, 0.64), Color(0.84, 0.67, 0.64)]
+	var body_col: Color = palette[absi(int(pos.x)) % palette.size()]
+	var body := ColorRect.new()
+	body.position = Vector2.ZERO
+	body.size = Vector2(154, 124)
+	body.color = body_col
+	house.add_child(body)
+	var roof := ColorRect.new()
+	roof.position = Vector2(-8, -22)
+	roof.size = Vector2(170, 24)
+	roof.color = Color(0.45, 0.31, 0.28)
+	house.add_child(roof)
+	var door := ColorRect.new()
+	door.position = Vector2(66, 82)
+	door.size = Vector2(28, 42)
+	door.color = Color(0.4, 0.28, 0.2)
+	house.add_child(door)
+	for wxy in [Vector2(18, 22), Vector2(108, 22), Vector2(18, 62), Vector2(108, 62)]:
+		var win_pos: Vector2 = wxy
+		var win := ColorRect.new()
+		win.position = win_pos
+		win.size = Vector2(30, 26)
+		win.color = Color(0.6, 0.8, 0.95)
+		house.add_child(win)
+
+func _add_street_vehicle_at(world_x: float, kind: String) -> void:
+	## Spawn a driveable vehicle at runtime (when a car word is spelled on Level 3), parented to
+	## the scene so it isn't freed when chunks unload. Replaces any existing one of the same kind
+	## so repeated spelling can't pile up (memory-safe).
+	var existing := get_node_or_null("Vehicle_%s" % kind)
+	if existing and is_instance_valid(existing):
+		existing.queue_free()
+	_add_street_vehicle(self, Vector2(world_x, _l3_ground_y()), kind)
+
+func _add_street_vehicle(parent: Node2D, pos: Vector2, kind: String) -> void:
+	## A parked, driveable vehicle. Interact zone (layer 4) -> enter_vehicle. VAN and BUS use their
+	## REAL rendered sprites (van.png / bus.png — the same art shown when you spell them); CAR has no
+	## sprite so it falls back to a drawn sedan.
+	var v := Area2D.new()
+	v.name = "Vehicle_%s" % kind
+	v.position = pos                       # origin at the road surface (wheels at y=0)
+	v.collision_layer = 4
+	v.collision_mask = 1
+	v.set_meta("vehicle_kind", kind)
+	var iw := 80.0     # interact half-width
+	var ih := 120.0    # interact height
+	var hint_y := -132.0
+	var sprite_path := "res://assets/sprites/summons/%s.png" % kind
+	var tex = load(sprite_path) if ResourceLoader.exists(sprite_path) else null
+	if tex:
+		# REAL rendered sprite — scaled up so Francis can drive it; bottom sits on the road.
+		var spr := Sprite2D.new()
+		spr.texture = tex
+		spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		var sc := 2.2 if kind == "van" else 1.5   # the VAN is ~50% bigger than the others
+		spr.scale = Vector2(sc, sc)
+		var tw2 := float(tex.get_width()) * sc
+		var th2 := float(tex.get_height()) * sc
+		spr.position = Vector2(0, -th2 / 2.0 + 6.0)
+		spr.z_index = 0
+		v.add_child(spr)
+		iw = tw2 * 0.40
+		ih = th2
+		hint_y = -th2 - 2.0
+		# Where Francis sits and where the animals ride, proportional to the vehicle height.
+		v.set_meta("seat_y", -th2 * 0.34)
+		v.set_meta("roof_y", -th2 * 0.66)
+	else:
+		_draw_car(v, pos)
+		v.set_meta("seat_y", -34.0)
+		v.set_meta("roof_y", -58.0)
+	# Big, forgiving interact zone.
+	var col := CollisionShape2D.new()
+	var shape := RectangleShape2D.new()
+	shape.size = Vector2(iw * 2.0 + 40, ih + 30)
+	col.position = Vector2(0, -ih / 2.0)
+	col.shape = shape
+	v.add_child(col)
+	var hint := Label.new()
+	hint.text = "Press X to drive"
+	hint.add_theme_font_size_override("font_size", 13)
+	hint.add_theme_color_override("font_color", Color(1, 1, 0.9))
+	hint.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.7))
+	hint.add_theme_constant_override("outline_size", 2)
+	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	hint.position = Vector2(-70, hint_y)
+	hint.size = Vector2(140, 18)
+	v.add_child(hint)
+	var vs := GDScript.new()
+	vs.source_code = "extends Area2D\nfunc interact() -> void:\n\tvar s = get_tree().current_scene\n\tif s and s.has_method(\"enter_vehicle\"):\n\t\ts.enter_vehicle(self)\n"
+	vs.reload()
+	v.set_script(vs)
+	parent.add_child(v)
+
+func _draw_car(v: Area2D, pos: Vector2) -> void:
+	## Drawn sedan — the fallback for CAR (which has no sprite). Wheels at y=0 (road).
+	var w := 122.0
+	var h := 50.0
+	var car_palette := [Color(0.85, 0.25, 0.25), Color(0.2, 0.5, 0.85), Color(0.3, 0.72, 0.45), Color(0.7, 0.3, 0.7)]
+	var body_col: Color = car_palette[absi(int(pos.x)) % car_palette.size()]
+	for wx in [-w * 0.32, w * 0.32]:
+		var wheel := ColorRect.new()
+		wheel.position = Vector2(wx - 11, -22); wheel.size = Vector2(22, 22); wheel.color = Color(0.12, 0.12, 0.14, 1)
+		v.add_child(wheel)
+		var hub := ColorRect.new()
+		hub.position = Vector2(wx - 5, -15); hub.size = Vector2(10, 10); hub.color = Color(0.65, 0.65, 0.7, 1)
+		v.add_child(hub)
+	var body := ColorRect.new()
+	body.position = Vector2(-w / 2.0, -h - 16); body.size = Vector2(w, h); body.color = body_col
+	v.add_child(body)
+	var trim := ColorRect.new()
+	trim.position = Vector2(-w / 2.0, -18); trim.size = Vector2(w, 6); trim.color = body_col.darkened(0.4)
+	v.add_child(trim)
+	var cabin := ColorRect.new()
+	cabin.position = Vector2(-w / 2.0 + 26, -h - 12); cabin.size = Vector2(w - 52, h - 16); cabin.color = Color(0.62, 0.83, 0.96, 1)
+	v.add_child(cabin)
+	var light := ColorRect.new()
+	light.position = Vector2(w / 2.0 - 6, -h + 2); light.size = Vector2(5, 9); light.color = Color(1.0, 0.95, 0.6, 1)
+	v.add_child(light)
+
+func _add_icecream(parent: Node2D, base: Vector2) -> void:
+	## A big ice-cream cone (cone + two scoops + a cherry) sitting on the van roof.
+	var holder := Node2D.new()
+	holder.position = base
+	parent.add_child(holder)
+	var cone := Polygon2D.new()
+	cone.polygon = PackedVector2Array([Vector2(-18, 0), Vector2(18, 0), Vector2(0, 34)])
+	cone.color = Color(0.85, 0.6, 0.32, 1)
+	holder.add_child(cone)
+	holder.add_child(_blob(Vector2(0, -6), 21.0, Color(0.6, 0.9, 0.72, 1)))    # mint scoop
+	holder.add_child(_blob(Vector2(0, -28), 18.0, Color(0.98, 0.7, 0.78, 1)))  # strawberry scoop
+	holder.add_child(_blob(Vector2(0, -46), 6.0, Color(0.9, 0.15, 0.2, 1)))    # cherry
+
+func _blob(center: Vector2, r: float, c: Color) -> Polygon2D:
+	## A filled circle (12-gon) used for ice-cream scoops.
+	var poly := Polygon2D.new()
+	var pts := PackedVector2Array()
+	for i in 12:
+		var a := TAU * float(i) / 12.0
+		pts.append(center + Vector2(cos(a), sin(a)) * r)
+	poly.polygon = pts
+	poly.color = c
+	return poly
+
+func _add_l3_return_portal(chunk: Node2D, pos: Vector2) -> void:
+	## A portal on the Level 3 street that takes Francis back up to the surface near spawn.
+	_add_teleport_pad(chunk, pos, Vector2(720, GROUND_Y - 40), "SURFACE")
+
+func _add_cartown_gate(chunk: Node2D, pos: Vector2, target: Vector2) -> void:
+	## A big checkered racing START/FINISH gate (next to the house) that drops Francis onto the
+	## Level 3 street. Stand under it + press the action button. Hard to miss — that's the point.
+	var gate := Area2D.new()
+	gate.name = "CarTownGate"
+	gate.position = pos
+	gate.collision_layer = 4
+	gate.collision_mask = 1
+	var col := CollisionShape2D.new()
+	var shape := RectangleShape2D.new()
+	shape.size = Vector2(132, 130)
+	col.position = Vector2(0, -65)
+	col.shape = shape
+	gate.add_child(col)
+	var post_h := 116.0
+	# Two candy-striped posts.
+	for side in [-1.0, 1.0]:
+		var post_x: float = side * 58.0
+		var n := 12
+		for i in n:
+			var seg := ColorRect.new()
+			seg.position = Vector2(post_x - 8, -post_h + i * (post_h / n))
+			seg.size = Vector2(16, post_h / n + 1.0)
+			seg.color = Color(0.86, 0.18, 0.2, 1) if i % 2 == 0 else Color(1, 1, 1, 1)
+			seg.z_index = 2
+			gate.add_child(seg)
+	# Dark top banner + checker squares + label.
+	var by := -post_h - 30.0
+	var banner := ColorRect.new()
+	banner.position = Vector2(-70, by)
+	banner.size = Vector2(140, 32)
+	banner.color = Color(0.12, 0.12, 0.15, 1)
+	banner.z_index = 2
+	gate.add_child(banner)
+	var sq := 8.0
+	for cxn in 17:
+		for cyn in 4:
+			if (cxn + cyn) % 2 == 0:
+				var chk := ColorRect.new()
+				chk.position = Vector2(-68 + cxn * sq, by + 2 + cyn * sq)
+				chk.size = Vector2(sq, sq)
+				chk.color = Color(1, 1, 1, 0.85)
+				chk.z_index = 3
+				gate.add_child(chk)
+	var label := Label.new()
+	label.text = "CAR TOWN"
+	label.add_theme_font_size_override("font_size", 18)
+	label.add_theme_color_override("font_color", Color(1, 0.95, 0.3))
+	label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+	label.add_theme_constant_override("outline_size", 4)
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.position = Vector2(-70, by + 4)
+	label.size = Vector2(140, 28)
+	label.z_index = 4
+	gate.add_child(label)
+	# Checkered finish line painted on the ground.
+	for fi in 13:
+		var fl := ColorRect.new()
+		fl.position = Vector2(-64 + fi * 10, -6)
+		fl.size = Vector2(10, 8)
+		fl.color = Color(0.1, 0.1, 0.12, 1) if fi % 2 == 0 else Color(1, 1, 1, 1)
+		fl.z_index = 1
+		gate.add_child(fl)
+	# A waving checkered flag on top.
+	var flag := ColorRect.new()
+	flag.position = Vector2(58, by - 24)
+	flag.size = Vector2(26, 18)
+	flag.color = Color(0.95, 0.95, 0.95, 1)
+	flag.z_index = 3
+	gate.add_child(flag)
+	var hint := Label.new()
+	hint.text = "Press X to race down!"
+	hint.add_theme_font_size_override("font_size", 13)
+	hint.add_theme_color_override("font_color", Color(1, 1, 0.85))
+	hint.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
+	hint.add_theme_constant_override("outline_size", 3)
+	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	hint.position = Vector2(-90, -post_h * 0.5)
+	hint.size = Vector2(180, 18)
+	hint.z_index = 4
+	gate.add_child(hint)
+	var script := GDScript.new()
+	var code := "extends Area2D\n\n"
+	code += "var tgt := Vector2(%f, %f)\n\n" % [target.x, target.y]
+	code += "func interact() -> void:\n"
+	code += "\tfor body in get_overlapping_bodies():\n"
+	code += "\t\tif body is CharacterBody2D and body.name.begins_with(\"Player\"):\n"
+	code += "\t\t\tbody.global_position = tgt\n"
+	code += "\t\t\tbody.velocity = Vector2.ZERO\n"
+	code += "\t\t\tvar m = body.get_node_or_null(\"/root/MagicSummon\")\n"
+	code += "\t\t\tif m and m.has_method(\"teleport_active_companion\"):\n"
+	code += "\t\t\t\tm.teleport_active_companion(tgt)\n"
+	code += "\t\t\tprint(\"Francis-opia: Racing down to Car Town!\")\n"
+	script.source_code = code
+	script.reload()
+	gate.set_script(script)
+	chunk.add_child(gate)
+
+func enter_vehicle(vehicle: Node2D) -> void:
+	if _driving or not is_instance_valid(vehicle) or not player:
+		return
+	_driving = true
+	_driven_vehicle = vehicle
+	_drive_lock = 0.35
+	# Detach from its chunk (deferred — safe during physics) so driving across chunk
+	# boundaries can't free the van when its home chunk unloads.
+	_reparent_vehicle.call_deferred(vehicle)
+	player.velocity = Vector2.ZERO
+	player.set_physics_process(false)
+	player.visible = true   # Francis stays VISIBLE, riding in the cab.
+	player.z_index = 3      # draw him on top of the vehicle body
+	# Bring his ACTIVE animals along for the ride (freeze their physics so they sit on the roof).
+	_drive_companions.clear()
+	var ms_c := get_node_or_null("/root/MagicSummon")
+	if ms_c and ms_c.has_method("get_companion_nodes"):
+		var nodes: Dictionary = ms_c.get_companion_nodes()
+		for wname in nodes:
+			if wname in GameManager.active_companions and is_instance_valid(nodes[wname]):
+				var c: Node = nodes[wname]
+				_drive_companions.append(c)
+				if c.has_method("set_physics_process"):
+					c.set_physics_process(false)
+	# On-screen driving hint.
+	if _drive_hint and is_instance_valid(_drive_hint):
+		_drive_hint.queue_free()
+	_drive_hint = CanvasLayer.new()
+	_drive_hint.layer = 60
+	var lbl := Label.new()
+	lbl.text = "VROOM!   Arrow keys to drive   -   X to get out"
+	lbl.add_theme_font_size_override("font_size", 20)
+	lbl.add_theme_color_override("font_color", Color(1, 1, 1))
+	lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.75))
+	lbl.add_theme_constant_override("outline_size", 3)
+	lbl.position = Vector2(40, 28)
+	_drive_hint.add_child(lbl)
+	add_child(_drive_hint)
+	var sfx := get_node_or_null("/root/SoundFX")
+	if sfx and sfx.has_method("play_summon_accent"):
+		sfx.play_summon_accent("world")
+	print("Francis-opia: Vroom! Driving the %s!" % str(vehicle.get_meta("vehicle_kind", "car")))
+
+func _reparent_vehicle(vehicle: Node) -> void:
+	if is_instance_valid(vehicle) and vehicle.get_parent() != self:
+		vehicle.reparent(self)
+
+func _drive_update(delta: float) -> void:
+	if _drive_lock > 0.0:
+		_drive_lock -= delta
+	if not is_instance_valid(_driven_vehicle):
+		exit_vehicle()
+		return
+	var dir := Input.get_axis("move_left", "move_right")
+	if dir != 0.0:
+		_driven_vehicle.global_position.x += dir * DRIVE_SPEED * delta
+		# Sprites face LEFT by default, so flip to -1 when driving RIGHT (otherwise it looks like
+		# it's reversing).
+		_driven_vehicle.scale.x = -1.0 if dir > 0.0 else 1.0
+	_driven_vehicle.global_position.y = _l3_ground_y()
+	var seat_y := -46.0
+	var roof_y := -86.0
+	if _driven_vehicle.has_meta("seat_y"):
+		seat_y = _driven_vehicle.get_meta("seat_y")
+	if _driven_vehicle.has_meta("roof_y"):
+		roof_y = _driven_vehicle.get_meta("roof_y")
+	if player:
+		# Francis sits in the driver area, visible, riding along.
+		player.global_position = _driven_vehicle.global_position + Vector2(0, seat_y)
+		player.velocity = Vector2.ZERO
+	# The animals ride on the roof, spread out so they don't overlap.
+	for i in _drive_companions.size():
+		var c = _drive_companions[i]
+		if is_instance_valid(c):
+			c.global_position = _driven_vehicle.global_position + Vector2(-52.0 + i * 36.0, roof_y)
+			if "velocity" in c:
+				c.velocity = Vector2.ZERO
+	if _drive_lock <= 0.0 and Input.is_action_just_pressed("interact"):
+		exit_vehicle()
+
+func exit_vehicle() -> void:
+	if not _driving:
+		return
+	_driving = false
+	if is_instance_valid(_driven_vehicle):
+		_driven_vehicle.scale.x = 1.0
+		if player:
+			player.global_position = _driven_vehicle.global_position + Vector2(96, -24)
+	# Let the animals walk again, next to the vehicle.
+	for c in _drive_companions:
+		if is_instance_valid(c):
+			if c.has_method("set_physics_process"):
+				c.set_physics_process(true)
+			if is_instance_valid(_driven_vehicle):
+				c.global_position = _driven_vehicle.global_position + Vector2(60, -24)
+	_drive_companions.clear()
+	_driven_vehicle = null
+	if _drive_hint and is_instance_valid(_drive_hint):
+		_drive_hint.queue_free()
+		_drive_hint = null
+	if player:
+		player.velocity = Vector2.ZERO
+		player.visible = true
+		player.z_index = 0
+		player.set_physics_process(true)
+	print("Francis-opia: Hopped out!")
+
+func _animal_color(word: String) -> Color:
+	var ms := get_node_or_null("/root/MagicSummon")
+	if ms and "summon_registry" in ms:
+		var e: Dictionary = ms.summon_registry.get(word, {})
+		if e.has("color"):
+			var c: Color = e["color"]
+			return c
+	return Color(0.6, 0.5, 0.4)
+
+func _build_house_interior() -> void:
+	_house_root = Node2D.new()
+	_house_root.name = "HouseInterior"
+	add_child(_house_root)
+	var fy := GROUND_Y
+	var following: Array = GameManager.active_companions
+	# Width = living room (0) + a room per housed animal + 1 ghost room to telegraph more.
+	var max_room := 0
+	for w in GameManager.housed_animals:
+		max_room = maxi(max_room, GameManager.get_room_index(w))
+	var total_rooms := max_room + 2
+	var floor_w := float(total_rooms) * HOUSE_ROOM_W
+
+	# Beautifully-rendered interior shell — plaster walls with wallpaper stripes, a beamed
+	# ceiling, wainscot panelling, a wood-plank floor and a daylight window — so the inside
+	# reads as polished as Level 1 instead of a flat tan box.
+	_decorate_house_shell(floor_w, fy)
+
+	# Solid floor
+	var floor_body := StaticBody2D.new()
+	floor_body.position = Vector2(0, fy)
+	floor_body.collision_layer = 1
+	floor_body.collision_mask = 0
+	_house_root.add_child(floor_body)
+	var floor_col := CollisionShape2D.new()
+	var floor_shape := RectangleShape2D.new()
+	floor_shape.size = Vector2(floor_w, 40)
+	floor_col.position = Vector2(floor_w / 2.0, 20)
+	floor_col.shape = floor_shape
+	floor_body.add_child(floor_col)
+	# (the floor SURFACE is drawn as wood planks by _decorate_house_shell, above)
+
+	# Far-right wall stops Francis walking off the end.
+	var rwall := StaticBody2D.new()
+	rwall.position = Vector2(floor_w, fy - 120)
+	rwall.collision_layer = 1
+	rwall.collision_mask = 0
+	_house_root.add_child(rwall)
+	var rwall_col := CollisionShape2D.new()
+	var rwall_shape := RectangleShape2D.new()
+	rwall_shape.size = Vector2(20, 280)
+	rwall_col.shape = rwall_shape
+	rwall.add_child(rwall_col)
+
+	# Left wall + ceiling — Francis can no longer fall out the left or jump out the top.
+	var lwall := StaticBody2D.new()
+	lwall.position = Vector2(-10, fy - 140)
+	lwall.collision_layer = 1
+	lwall.collision_mask = 0
+	_house_root.add_child(lwall)
+	var lwall_col := CollisionShape2D.new()
+	var lwall_shape := RectangleShape2D.new()
+	lwall_shape.size = Vector2(20, 320)
+	lwall_col.shape = lwall_shape
+	lwall.add_child(lwall_col)
+	var ceil := StaticBody2D.new()
+	ceil.position = Vector2(floor_w / 2.0, fy - 282)
+	ceil.collision_layer = 1
+	ceil.collision_mask = 0
+	_house_root.add_child(ceil)
+	var ceil_col := CollisionShape2D.new()
+	var ceil_shape := RectangleShape2D.new()
+	ceil_shape.size = Vector2(floor_w, 16)
+	ceil_col.shape = ceil_shape
+	ceil.add_child(ceil_col)
+
+	# Header
+	var header := Label.new()
+	header.text = "Francis's House"
+	header.add_theme_font_size_override("font_size", 28)
+	header.add_theme_color_override("font_color", Color(0.5, 0.3, 0.15))
+	header.position = Vector2(40, fy - 250)
+	_house_root.add_child(header)
+
+	# Living room: rug + decorative stairs (background, NOT interactable — no false affordance).
+	var rug := ColorRect.new()
+	rug.position = Vector2(70, fy - 22)
+	rug.size = Vector2(120, 14)
+	rug.color = Color(0.7, 0.3, 0.3, 0.8)
+	_house_root.add_child(rug)
+	for i in 5:
+		var step := ColorRect.new()
+		step.z_index = -5
+		step.position = Vector2(200.0 + i * 12.0, fy - 40.0 - i * 18.0)
+		step.size = Vector2(64 - i * 4, 14)
+		step.color = Color(0.62, 0.45, 0.28, 1)
+		_house_root.add_child(step)
+
+	# Exit doors at BOTH ends (NOT the middle — a middle door would overlap a room's tap-zone
+	# and pressing X would both toggle the animal AND exit. Ends are clear of all rooms).
+	_build_house_exit_door(30.0)
+	_build_house_exit_door(floor_w - 30.0)
+
+	# One room per housed animal (deterministic room index, never reshuffled).
+	for w in GameManager.housed_animals:
+		var ri := GameManager.get_room_index(w)
+		var rx := float(ri) * HOUSE_ROOM_W
+		var divider := ColorRect.new()
+		divider.z_index = -6
+		divider.position = Vector2(rx - 6, fy - 210)
+		divider.size = Vector2(6, 210)
+		divider.color = Color(0.66, 0.46, 0.34, 1)
+		_house_root.add_child(divider)
+		var sign_label := Label.new()
+		sign_label.text = w.to_upper()
+		sign_label.add_theme_font_size_override("font_size", 16)
+		sign_label.add_theme_color_override("font_color", Color(0.4, 0.25, 0.12))
+		sign_label.position = Vector2(rx + 40, fy - 200)
+		_house_root.add_child(sign_label)
+		var bed := ColorRect.new()
+		bed.position = Vector2(rx + 44, fy - 10)
+		bed.size = Vector2(44, 8)
+		bed.color = Color(0.55, 0.5, 0.7, 1)
+		_house_root.add_child(bed)
+		if w in following:
+			# Out with Francis — empty bed + a note (the animal is NOT duplicated here).
+			var note := Label.new()
+			note.text = "(out with you!)"
+			note.add_theme_font_size_override("font_size", 12)
+			note.add_theme_color_override("font_color", Color(0.5, 0.4, 0.3))
+			note.position = Vector2(rx + 40, fy - 180)
+			_house_root.add_child(note)
+		else:
+			# Home — render the actual animal: its pixel sprite if one exists, else a shape.
+			_house_root.add_child(_house_item_visual(w, Vector2(rx + 64, fy - 30), 0.24))
+		# Slice 2: the WHOLE room is a big tap-zone. Press X anywhere in it to take this animal
+		# with you (or send it home if it's already following). Generous size for a 5-year-old.
+		_build_room_animal_zone(w, rx, fy, w in following)
+
+	# A dim ghost room to telegraph "more is coming" so an early house never reads as empty.
+	var ghost := ColorRect.new()
+	ghost.z_index = -6
+	ghost.position = Vector2(float(max_room + 1) * HOUSE_ROOM_W + 20, fy - 200)
+	ghost.size = Vector2(HOUSE_ROOM_W - 60, 200)
+	ghost.color = Color(0.5, 0.4, 0.32, 0.25)
+	_house_root.add_child(ghost)
+	var qmark := Label.new()
+	qmark.text = "?"
+	qmark.add_theme_font_size_override("font_size", 40)
+	qmark.add_theme_color_override("font_color", Color(0.6, 0.5, 0.4, 0.6))
+	qmark.position = Vector2(float(max_room + 1) * HOUSE_ROOM_W + HOUSE_ROOM_W / 2.0 - 30, fy - 130)
+	_house_root.add_child(qmark)
+
+func _decorate_house_shell(floor_w: float, fy: float) -> void:
+	## Draws the polished interior shell (walls, ceiling, wainscot, plank floor, window). Pure
+	## visuals — collision is the separate floor/walls/ceiling bodies in _build_house_interior.
+	var top := fy - 280.0
+	# Plaster wall backdrop.
+	var wallbg := ColorRect.new()
+	wallbg.z_index = -10
+	wallbg.position = Vector2(-20, top)
+	wallbg.size = Vector2(floor_w + 40, 300)
+	wallbg.color = Color(0.93, 0.85, 0.72, 1)
+	_house_root.add_child(wallbg)
+	# Soft vertical wallpaper stripes.
+	var sx := 0.0
+	while sx < floor_w + 40:
+		var stripe := ColorRect.new()
+		stripe.z_index = -10
+		stripe.position = Vector2(-20 + sx, top + 26)
+		stripe.size = Vector2(18, 180)
+		stripe.color = Color(0.88, 0.79, 0.64, 0.5)
+		_house_root.add_child(stripe)
+		sx += 36.0
+	# Beamed ceiling.
+	var ceiling := ColorRect.new()
+	ceiling.z_index = -9
+	ceiling.position = Vector2(-20, top)
+	ceiling.size = Vector2(floor_w + 40, 26)
+	ceiling.color = Color(0.55, 0.41, 0.31, 1)
+	_house_root.add_child(ceiling)
+	var bx := 8.0
+	while bx < floor_w:
+		var beam := ColorRect.new()
+		beam.z_index = -8
+		beam.position = Vector2(bx, top + 26)
+		beam.size = Vector2(9, 15)
+		beam.color = Color(0.43, 0.31, 0.23, 1)
+		_house_root.add_child(beam)
+		bx += 110.0
+	# Wainscot panelling along the lower wall + a chair rail.
+	var wainscot := ColorRect.new()
+	wainscot.z_index = -9
+	wainscot.position = Vector2(-20, fy - 92)
+	wainscot.size = Vector2(floor_w + 40, 92)
+	wainscot.color = Color(0.76, 0.62, 0.47, 1)
+	_house_root.add_child(wainscot)
+	var rail := ColorRect.new()
+	rail.z_index = -8
+	rail.position = Vector2(-20, fy - 94)
+	rail.size = Vector2(floor_w + 40, 5)
+	rail.color = Color(0.5, 0.36, 0.26, 1)
+	_house_root.add_child(rail)
+	var px := 12.0
+	while px < floor_w:
+		var seam := ColorRect.new()
+		seam.z_index = -8
+		seam.position = Vector2(px, fy - 84)
+		seam.size = Vector2(3, 70)
+		seam.color = Color(0.64, 0.5, 0.36, 0.7)
+		_house_root.add_child(seam)
+		px += 78.0
+	# Daylight window (a little view to the outside).
+	var win_x := minf(floor_w * 0.66, floor_w - 130.0)
+	var win_frame := ColorRect.new()
+	win_frame.z_index = -9
+	win_frame.position = Vector2(win_x - 6, fy - 212)
+	win_frame.size = Vector2(104, 84)
+	win_frame.color = Color(0.46, 0.33, 0.24, 1)
+	_house_root.add_child(win_frame)
+	var win := ColorRect.new()
+	win.z_index = -8
+	win.position = Vector2(win_x, fy - 206)
+	win.size = Vector2(92, 72)
+	win.color = Color(0.62, 0.81, 0.96, 1)
+	_house_root.add_child(win)
+	var win_mullion_v := ColorRect.new()
+	win_mullion_v.z_index = -7
+	win_mullion_v.position = Vector2(win_x + 44, fy - 206)
+	win_mullion_v.size = Vector2(4, 72)
+	win_mullion_v.color = Color(0.46, 0.33, 0.24, 1)
+	_house_root.add_child(win_mullion_v)
+	var win_mullion_h := ColorRect.new()
+	win_mullion_h.z_index = -7
+	win_mullion_h.position = Vector2(win_x, fy - 174)
+	win_mullion_h.size = Vector2(92, 4)
+	win_mullion_h.color = Color(0.46, 0.33, 0.24, 1)
+	_house_root.add_child(win_mullion_h)
+	# Wood-plank floor surface (sits on top of the collision floor body).
+	var floorboard := ColorRect.new()
+	floorboard.z_index = -6
+	floorboard.position = Vector2(0, fy)
+	floorboard.size = Vector2(floor_w, 24)
+	floorboard.color = Color(0.62, 0.43, 0.26, 1)
+	_house_root.add_child(floorboard)
+	var fxp := 0.0
+	while fxp < floor_w:
+		var plank := ColorRect.new()
+		plank.z_index = -5
+		plank.position = Vector2(fxp, fy + 2)
+		plank.size = Vector2(2, 20)
+		plank.color = Color(0.5, 0.34, 0.2, 0.8)
+		_house_root.add_child(plank)
+		fxp += 44.0
+	# Baseboard where wall meets floor.
+	var baseboard := ColorRect.new()
+	baseboard.z_index = -5
+	baseboard.position = Vector2(-20, fy - 8)
+	baseboard.size = Vector2(floor_w + 40, 8)
+	baseboard.color = Color(0.46, 0.33, 0.24, 1)
+	_house_root.add_child(baseboard)
+
+func _house_item_visual(word: String, pos: Vector2, scale_f: float) -> Node2D:
+	## Renders a spelled thing for the house: its pixel sprite if one exists, else a colored shape.
+	var holder := Node2D.new()
+	holder.position = pos
+	var path := "res://assets/sprites/summons/" + word + ".png"
+	if ResourceLoader.exists(path):
+		var tex = load(path)  # untyped: load() is nullable
+		if tex:
+			var spr := Sprite2D.new()
+			spr.texture = tex
+			spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+			spr.scale = Vector2(scale_f, scale_f)
+			holder.add_child(spr)
+			return holder
+	var rect := ColorRect.new()
+	rect.position = Vector2(-12, -22)
+	rect.size = Vector2(24, 22)
+	rect.color = _animal_color(word)
+	holder.add_child(rect)
+	return holder
+
+func _build_house_exit_door(door_x: float) -> void:
+	var door := Area2D.new()
+	door.name = "HouseExitDoor"
+	door.global_position = Vector2(door_x, GROUND_Y)
+	door.collision_layer = 4
+	door.collision_mask = 1
+	var col := CollisionShape2D.new()
+	var shape := RectangleShape2D.new()
+	shape.size = Vector2(40, 64)
+	col.position = Vector2(0, -32)
+	col.shape = shape
+	door.add_child(col)
+	var glow := ColorRect.new()
+	glow.z_index = -1
+	glow.position = Vector2(-24, -70)
+	glow.size = Vector2(48, 74)
+	glow.color = Color(0.4, 1.0, 0.5, 0.18)
+	door.add_child(glow)
+	var frame := ColorRect.new()
+	frame.position = Vector2(-18, -64)
+	frame.size = Vector2(36, 62)
+	frame.color = Color(0.25, 0.6, 0.35, 1)
+	door.add_child(frame)
+	var label := Label.new()
+	label.text = "← OUT"
+	label.add_theme_font_size_override("font_size", 16)
+	label.add_theme_color_override("font_color", Color(0.9, 1.0, 0.9))
+	label.add_theme_color_override("font_outline_color", Color(0, 0.1, 0, 0.7))
+	label.add_theme_constant_override("outline_size", 2)
+	label.position = Vector2(-26, -88)
+	door.add_child(label)
+	var es := GDScript.new()
+	es.source_code = "extends Area2D\nfunc interact() -> void:\n\tvar s = get_tree().current_scene\n\tif s and s.has_method(\"exit_house\"):\n\t\ts.exit_house()\n"
+	es.reload()
+	door.set_script(es)
+	_house_root.add_child(door)
+
+func _build_room_animal_zone(word: String, rx: float, fy: float, is_following: bool) -> void:
+	## Slice 2: a big interactable zone over a whole animal room. Press X anywhere inside to take
+	## the animal with you, or send it home if it is already following. Sized generously so a
+	## 5-year-old doesn't have to aim. State + display refresh happen in toggle_room_animal().
+	var zone := Area2D.new()
+	zone.name = "RoomAnimal_" + word
+	zone.global_position = Vector2(rx + HOUSE_ROOM_W / 2.0, fy - 70)
+	zone.collision_layer = 4
+	zone.collision_mask = 1
+	var zcol := CollisionShape2D.new()
+	var zshape := RectangleShape2D.new()
+	zshape.size = Vector2(HOUSE_ROOM_W - 16, 200)
+	zcol.shape = zshape
+	zone.add_child(zcol)
+	var hint := Label.new()
+	hint.text = "Press X: send home" if is_following else "Press X: take with you"
+	hint.add_theme_font_size_override("font_size", 13)
+	hint.add_theme_color_override("font_color", Color(0.6, 0.35, 0.2) if is_following else Color(0.2, 0.5, 0.2))
+	hint.add_theme_color_override("font_outline_color", Color(1, 1, 1, 0.75))
+	hint.add_theme_constant_override("outline_size", 2)
+	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	hint.position = Vector2(-HOUSE_ROOM_W / 2.0 + 8, -150)
+	hint.size = Vector2(HOUSE_ROOM_W - 16, 18)
+	zone.add_child(hint)
+	var zs := GDScript.new()
+	zs.source_code = "extends Area2D\nvar word := \"" + word + "\"\nfunc interact() -> void:\n\tvar s = get_tree().current_scene\n\tif s and s.has_method(\"toggle_room_animal\"):\n\t\ts.toggle_room_animal(word)\n"
+	zs.reload()
+	zone.set_script(zs)
+	_house_root.add_child(zone)
+
+func toggle_room_animal(word: String) -> void:
+	## Slice 2 take/leave. "Following" IS membership of active_companions (single source of truth),
+	## so we never end up with an animal both following AND shown home.
+	if not _in_house:
+		return
+	var ms := get_node_or_null("/root/MagicSummon")
+	if word in GameManager.active_companions:
+		# Leave here — stop following; send the live companion node back to its home spot.
+		GameManager.active_companions.erase(word)
+		if ms and word in ms._companions and is_instance_valid(ms._companions[word]):
+			ms._send_companion_home(ms._companions[word])
+		GameManager.save_game()
+		print("Francis-opia: %s stays home." % word.capitalize())
+	else:
+		# Take with you — activate_companion enforces the 3-follower cap (oldest goes home).
+		if ms and ms.has_method("activate_companion"):
+			ms.activate_companion(word, player)
+			# Bring the companion to Francis right away so it's beside him when he heads out.
+			if ms.has_method("teleport_active_companion"):
+				ms.teleport_active_companion(player.global_position)
+		print("Francis-opia: %s comes with you!" % word.capitalize())
+	var sfx := get_node_or_null("/root/SoundFX")
+	if sfx and sfx.has_method("play_word_complete"):
+		sfx.play_word_complete()
+	# Rebuild the interior so beds, sprites and hint labels reflect the new state.
+	if _house_root and is_instance_valid(_house_root):
+		_house_root.queue_free()
+		_house_root = null
+	_build_house_interior()
 
 func _restore_teleport_beacon() -> void:
 	if GameManager.teleport_beacon_x != 0.0 or GameManager.teleport_beacon_y != 0.0:
@@ -1273,7 +2351,7 @@ func _restore_teleport_beacon() -> void:
 
 # === LEVEL GENERATION (PARAMETERIZED) ===
 
-func _generate_level(chunk: Node2D, block_script: GDScript, chunk_index: int, above_bedrock_y: float, config: Dictionary) -> void:
+func _generate_level(chunk: Node2D, block_script: GDScript, chunk_index: int, above_bedrock_y: float, config: Dictionary, has_descent: bool = false, descent_start_x: int = -1, descent_ground_y: float = 0.0, descent_label: String = "DOWN") -> void:
 	## Generates a full sub-level below a bedrock layer — parameterized by config.
 	## Each level is a complete world: sky, ground, trees, underground, bedrock floor.
 	var level_name: String = config.get("name", "Level ?")
@@ -1350,16 +2428,35 @@ func _generate_level(chunk: Node2D, block_script: GDScript, chunk_index: int, ab
 
 			_terrain_blocks[key] = block
 
-	# Bedrock floor
+	# Bedrock floor — with a stairwell gap + shaft if this chunk descends to the next level.
 	var bedrock_y := level_ground_y + (underground_rows + 1) * BLOCK_SIZE + BLOCK_SIZE / 2.0 + 10
-	_add_bedrock_segment(chunk, 0.0, CHUNK_WIDTH, bedrock_y)
+	if has_descent and descent_start_x >= 0:
+		var inner_left_x := (descent_start_x + 1) * BLOCK_SIZE
+		var inner_right_x := (descent_start_x + STAIRWELL_WIDTH - 1) * BLOCK_SIZE
+		_add_bedrock_segment(chunk, 0.0, inner_left_x, bedrock_y)
+		_add_bedrock_segment(chunk, inner_right_x, CHUNK_WIDTH - inner_right_x, bedrock_y)
+		_generate_descent_stairwell(chunk, descent_start_x, bedrock_y, descent_ground_y, descent_label)
+		_add_descent_marker(chunk, descent_start_x, level_ground_y)
+	else:
+		_add_bedrock_segment(chunk, 0.0, CHUNK_WIDTH, bedrock_y)
 
 	# === Decorations (driven by config) ===
 
+	# Keep the elevator-shaft COLUMN clear — platforms/trees/crystals/mushrooms must NEVER land in
+	# the shaft (the L1->L2 shaft descends through this level's sky, and the L2->L3 shaft is below,
+	# both at descent_start_x). A hanging platform in the shaft is what was blocking Francis.
+	var shaft_cx := -100000.0
+	var shaft_half := 0.0
+	if has_descent and descent_start_x >= 0:
+		shaft_cx = (descent_start_x + STAIRWELL_WIDTH / 2.0) * BLOCK_SIZE
+		shaft_half = (STAIRWELL_WIDTH / 2.0 + 3.0) * BLOCK_SIZE
+
 	if config.get("has_mushrooms", false):
 		for _m in _rng.randi_range(3, 6):
-			_add_l2_mushroom(chunk, Vector2(
-				_rng.randf_range(30, CHUNK_WIDTH - 30), level_ground_y))
+			var mx := _rng.randf_range(30, CHUNK_WIDTH - 30)
+			if absf(mx - shaft_cx) < shaft_half:
+				continue
+			_add_l2_mushroom(chunk, Vector2(mx, level_ground_y))
 
 	if config.get("has_glow_trees", false):
 		var tree_min: int = config.get("tree_count_min", 1)
@@ -1367,21 +2464,28 @@ func _generate_level(chunk: Node2D, block_script: GDScript, chunk_index: int, ab
 		var l2_trees_unlocked := "tree" in GameManager.words_summoned
 		for _t in _rng.randi_range(tree_min, tree_max):
 			var l2_tree_x := _rng.randf_range(60, CHUNK_WIDTH - 60)
+			if absf(l2_tree_x - shaft_cx) < shaft_half:
+				continue
 			if l2_trees_unlocked:
 				_add_l2_tree(chunk, Vector2(l2_tree_x, level_ground_y))
 
 	var plat_min: int = config.get("platform_count_min", 1)
 	var plat_max: int = config.get("platform_count_max", 3)
 	for _p in _rng.randi_range(plat_min, plat_max):
+		var plat_x := _rng.randf_range(100, CHUNK_WIDTH - 100)
+		if absf(plat_x - shaft_cx) < shaft_half:
+			continue  # never hang a platform in the elevator shaft
 		_add_l2_platform(chunk, Vector2(
-			_rng.randf_range(100, CHUNK_WIDTH - 100),
+			plat_x,
 			level_ground_y - _rng.randf_range(80, sky_height * 0.6)),
 			_rng.randf_range(100, 200))
 
 	if config.get("has_crystals", false):
 		for _c in _rng.randi_range(2, 4):
-			_add_l2_crystal(chunk, Vector2(
-				_rng.randf_range(40, CHUNK_WIDTH - 40), level_ground_y))
+			var crx := _rng.randf_range(40, CHUNK_WIDTH - 40)
+			if absf(crx - shaft_cx) < shaft_half:
+				continue
+			_add_l2_crystal(chunk, Vector2(crx, level_ground_y))
 
 	# Ambient fireflies
 	for _f in _rng.randi_range(3, 6):
@@ -1854,8 +2958,32 @@ func _apply_big_scale(magic_summon: Node) -> void:
 const WORLD_CHANGING_WORDS := ["tree", "portal", "house", "hut", "zap"]
 
 func _on_world_word_completed(word: String) -> void:
-	if word.to_lower() in WORLD_CHANGING_WORDS:
+	var w := word.to_lower()
+	if w in WORLD_CHANGING_WORDS:
 		_regenerate_all_chunks()
+	# Spelling a car word unlocks that car in Car Town. Mark it owned HERE (robust — some car
+	# builders return null, which would skip the normal items_owned path), then if Francis is
+	# already on Level 3, park it right next to him immediately.
+	if w in L3_CAR_WORDS:
+		if w not in GameManager.items_owned:
+			GameManager.items_owned.append(w)
+			GameManager.save_game()
+		if not _driving and _is_on_level3():
+			_add_street_vehicle_at(player.global_position.x + 110.0, w)
+
+func _is_on_level3() -> bool:
+	## True when Francis is down on the Car Town street (below Level 2's bedrock).
+	return player != null and player.global_position.y > _l3_top_y(BEDROCK_Y) - 60.0
+
+func _ensure_l3_car_near_player() -> void:
+	## When Francis arrives on Level 3 already owning a car, park one (the ice-cream VAN first)
+	## right next to him so it's ready to drive — wherever he came in (portal OR elevator shaft).
+	if _driving or player == null:
+		return
+	for cw in L3_CAR_WORDS:
+		if cw in GameManager.items_owned:
+			_add_street_vehicle_at(player.global_position.x + 90.0, cw)
+			return
 
 func _add_stairwell_house(chunk: Node2D, pos: Vector2) -> void:
 	## Places a travel cottage near a stairwell — 3x sized landmark.

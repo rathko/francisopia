@@ -102,5 +102,35 @@ def draw_bunny(d):
     d.line([32, 39, 35, 41], fill=OUT)
 
 
+def draw_rat(d):
+    GREY = (138, 128, 117, 255)
+    GREY_HI = (164, 154, 143, 255)
+    GREY_LO = (104, 95, 86, 255)
+    # Long curvy pink tail behind (left), curling
+    d.line([(14, 47), (7, 41), (9, 32), (18, 29)], fill=PINK2, width=3, joint="curve")
+    # Body
+    d.ellipse([15, 30, 46, 50], fill=GREY, outline=OUT)
+    d.ellipse([20, 37, 42, 50], fill=GREY_HI)        # belly
+    # Feet
+    d.ellipse([21, 47, 28, 53], fill=GREY_LO)
+    d.ellipse([33, 47, 40, 53], fill=GREY_LO)
+    # Head (front-right)
+    d.ellipse([35, 26, 56, 46], fill=GREY, outline=OUT)
+    # Round ears with pink inners
+    d.ellipse([35, 21, 46, 32], fill=GREY, outline=OUT)
+    d.ellipse([38, 23, 43, 29], fill=PINK)
+    d.ellipse([46, 21, 57, 32], fill=GREY, outline=OUT)
+    d.ellipse([49, 23, 54, 29], fill=PINK)
+    # Eye + shine
+    d.ellipse([44, 32, 50, 38], fill=DARK)
+    d.ellipse([45, 33, 47, 35], fill=WHITE)
+    # Nose (front tip)
+    d.ellipse([54, 38, 58, 42], fill=PINK2)
+    # Whiskers
+    d.line([(54, 40), (40, 37)], fill=OUT)
+    d.line([(54, 41), (40, 44)], fill=OUT)
+
+
 make(draw_hero, "hero.png")
 make(draw_bunny, "bunny.png")
+make(draw_rat, "rat.png")

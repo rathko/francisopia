@@ -157,6 +157,24 @@ func select_word_for_area(area: String) -> String:
 		target_word_changed.emit(current_target_word, current_hint_image)
 		return current_target_word
 
+	# Priority: on Level 3 (Car Town), until Francis has spelled VAN, make VAN the goal so the
+	# ice-cream van is the first thing he earns to drive. Once spelled it's his (parked, ready).
+	if GameManager.current_level >= 3 and "van" not in GameManager.items_owned:
+		current_target_word = "VAN"
+		current_hint_image = "van"
+		collected_letters.clear()
+		target_word_changed.emit(current_target_word, current_hint_image)
+		return current_target_word
+
+	# Priority: once HAMMER is earned, on Level 2 and Level 3 push FRIEND next — until he spells
+	# it once — so he meets the friends system early. An already-spelled FRIEND is never forced.
+	if GameManager.current_level >= 2 and "friend" not in GameManager.words_completed:
+		current_target_word = "FRIEND"
+		current_hint_image = "friend"
+		collected_letters.clear()
+		target_word_changed.emit(current_target_word, current_hint_image)
+		return current_target_word
+
 	# After starter sequence, random selection by area + difficulty.
 	# HARD RULE: a spelled word is NEVER offered again until EVERY word has been spelled.
 	# Tracked via GameManager.words_completed — which records ALL spelled words (including

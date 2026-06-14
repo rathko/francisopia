@@ -185,6 +185,25 @@ func play_summon_accent(summon_type: String) -> void:
 			_play_sound(_chime_stream, _semitones_to_pitch_scale(0), SUMMON_VOLUME)
 
 
+func play_thunder() -> void:
+	## Deep thunder clap — the stone-break sample pitched far DOWN for a rumbling boom, layered
+	## with a crackle and a trailing roll. Reuses existing samples, no new asset needed.
+	if not _enabled:
+		return
+	var boom: AudioStream = _stone_stream if _stone_stream else _dirt_stream
+	if not boom:
+		return
+	_play_sound(boom, 0.30, 1.0)              # deep initial crack
+	_play_sound(boom, 0.45, 0.7)              # body
+	if _dirt_stream:
+		_play_sound(_dirt_stream, 0.35, 0.6)  # crackle
+	# Trailing rumble a beat later.
+	get_tree().create_timer(0.18).timeout.connect(func() -> void:
+		if _stone_stream:
+			_play_sound(_stone_stream, 0.25, 0.65)
+	)
+
+
 func set_enabled(enabled: bool) -> void:
 	_enabled = enabled
 

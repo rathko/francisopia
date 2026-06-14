@@ -35,7 +35,7 @@ var _highlighted_companion: Node = null
 var _companion_original_modulate := Color.WHITE
 var _prev_lt_rt := false
 var _stuck_timer := 0.0
-const STUCK_THRESHOLD := 2.0  # Seconds before auto-unstuck
+const STUCK_THRESHOLD := 0.6  # Seconds wedged before auto-unstuck (mashing jump frees instantly)
 
 # Per-frame joy button cache — computed ONCE in _physics_process to avoid
 # double-consumption when multiple handlers check the same button.
@@ -133,16 +133,17 @@ func _physics_process(delta: float) -> void:
 		if abs(velocity.x) > 10.0 or abs(_get_movement_axis()) < 0.1:
 			_last_safe_position = global_position
 
-	# Stuck detection — pressing movement but can't move (wedged between objects)
-	var pressing_move: bool = abs(_get_movement_axis()) > 0.3 or _is_jump_just_pressed()
-	var barely_moving: bool = velocity.length() < 5.0
-	if pressing_move and barely_moving:
+	# Stuck detection — wedged in terrain. Fire if he's barely moving while he SHOULD be moving:
+	# pressing a direction, mashing jump, OR airborne but not actually falling (= embedded in a
+	# block). Mashing jump pops him free INSTANTLY; otherwise after a short grace period.
+	var pressing_move: bool = abs(_get_movement_axis()) > 0.3
+	var mashing_jump: bool = _is_jump_just_pressed()
+	var barely_moving: bool = velocity.length() < 8.0
+	var embedded: bool = not is_on_floor() and absf(velocity.y) < 8.0  # should be falling, isn't
+	if barely_moving and (pressing_move or mashing_jump or embedded):
 		_stuck_timer += delta
-		if _stuck_timer >= STUCK_THRESHOLD:
-			print("Francis-opia: Oops, you were stuck! Popping you free.")
-			# Pop upward and slightly to the left to escape
-			global_position = _last_safe_position + Vector2(-50, -60)
-			velocity = Vector2.ZERO
+		if mashing_jump or _stuck_timer >= STUCK_THRESHOLD:
+			_unstuck()
 			_stuck_timer = 0.0
 	else:
 		_stuck_timer = 0.0
@@ -326,6 +327,8 @@ func get_aim_direction() -> Vector2:
 # === TERRARIA-STYLE DIGGING ===
 
 func _handle_dig(delta: float) -> void:
+	if GameManager.in_house:
+		return  # no digging inside the house
 	# Cooldown timer
 	if _dig_cooldown_timer > 0:
 		_dig_cooldown_timer -= delta
@@ -506,6 +509,27 @@ func _try_companion_swap() -> bool:
 func _handle_teleport() -> void:
 	if _is_teleport_just_pressed():  # Teleport always available — safety mechanic, not a reward
 		teleport_beacon_requested.emit(global_position)
+
+func _unstuck() -> void:
+	## Free Francis when he's wedged inside terrain: scan straight UP for the nearest spot where
+	## his body isn't embedded and lift him there, so he rises OUT of the block. Falls back to the
+	## last place he could move if no gap is found within ~190px.
+	for step in range(1, 24):
+		var candidate := global_position + Vector2(0.0, -float(step) * 8.0)
+		if not _is_embedded_at(candidate):
+			global_position = candidate
+			velocity = Vector2.ZERO
+			print("Francis-opia: Popped you free!")
+			return
+	global_position = _last_safe_position + Vector2(0.0, -40.0)
+	velocity = Vector2.ZERO
+	print("Francis-opia: Popped you free!")
+
+func _is_embedded_at(pos: Vector2) -> bool:
+	## Embedded = the body can't nudge either up OR down from here (no gap above and none below).
+	## A normal standing/airborne spot always has at least one free direction.
+	var t := Transform2D(0.0, pos)
+	return test_move(t, Vector2(0.0, -2.0)) and test_move(t, Vector2(0.0, 2.0))
 
 func _check_respawn() -> void:
 	if global_position.y > respawn_y:
